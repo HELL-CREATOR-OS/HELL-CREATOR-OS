@@ -604,7 +604,7 @@ class _ProfileFullScreenState extends State<ProfileFullScreen> {
   @override
   Widget build(BuildContext context) {
     final isOwner = DefaultMediaLibrary.isOwnerEmail(widget.user['email']);
-    final bioCardLink = 'https://hell.live{_nickCtrl.text.trim().isEmpty ? 'criador' : _nickCtrl.text.trim()}';
+    final bioCardLink = "https://hell.live{_nickCtrl.text.trim().isEmpty ? 'criador' : _nickCtrl.text.trim()}";
 
     return Scaffold(
       appBar: AppBar(title: const Text('O Meu Perfil Completo', style: TextStyle(fontWeight: FontWeight.bold))),
