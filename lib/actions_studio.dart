@@ -35,6 +35,7 @@ class ActionsStudioScreen extends StatefulWidget {
   @override
   State<ActionsStudioScreen> createState() => _ActionsStudioScreenState();
 }
+
 class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   String? _currentlyPlayingUrl;
@@ -49,16 +50,16 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
   Future<void> _refreshOnlineRepositories() async {
     setState(() => _refreshingOnlineRepos = true);
     try {
-           const topics = ['gaming', 'fire', 'crown', 'trophy', 'rocket', 'heart', 'music', 'star'];
+      const topics = ['gaming', 'fire', 'crown', 'trophy', 'rocket', 'heart', 'music', 'star'];
       for (final topic in topics) {
-        final res = await http.get(Uri.parse('https://iconify.design'));
+        final res = await http.get(Uri.parse('https://api.iconify.design/search?query=$topic&limit=18'));
         if (res.statusCode == 200) {
           final data = jsonDecode(res.body);
           final icons = List<String>.from(data['icons'] ?? []);
           for (final ic in icons) {
             final parts = ic.split(':');
             if (parts.length == 2) {
-              final url = 'https://iconify.design{parts.first}/${parts.last}.png?height=96';
+              final url = 'https://api.iconify.design/${parts.first}/${parts.last}.png?height=96';
               if (!widget.mediaLibrary.any((m) => m['url'] == url)) {
                 widget.mediaLibrary.add({'name': '${parts.last} ($topic)', 'url': url});
               }
@@ -66,21 +67,16 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
           }
         }
       }
-      final soundRes = await http.get(Uri.parse('https://wikimedia.org'));
+      final soundRes = await http.get(Uri.parse('https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=filetype:audio+alert+OR+bell+OR+applause+OR+fanfare&srnamespace=6&srlimit=25&format=json'));
       if (soundRes.statusCode == 200) {
         final sData = jsonDecode(soundRes.body);
         final hits = List<Map<String, dynamic>>.from(sData['query']?['search'] ?? []);
         for (final h in hits) {
           final title = (h['title'] ?? '').toString().replaceFirst('File:', '');
           if (title.isNotEmpty) {
-            final url = 'https://wikimedia.org{Uri.encodeComponent(title)}';
+            final url = 'https://commons.wikimedia.org/wiki/Special:FilePath/${Uri.encodeComponent(title)}';
             if (!widget.sounds.any((s) => s['url'] == url)) {
               widget.sounds.add({'name': title.replaceAll('_', ' '), 'url': url});
-            }
-          }
-        }
-      }
-
             }
           }
         }
@@ -93,7 +89,13 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
     } catch (_) {}
     if (mounted) setState(() => _refreshingOnlineRepos = false);
   }
-       final res = await http.get(Uri.parse('https://iconify.design{Uri.encodeComponent(clean)}&limit=30'));
+
+  Future<List<Map<String, String>>> _searchIconifyOnline(String query) async {
+    final clean = query.trim();
+    if (clean.isEmpty) return [];
+    final results = <Map<String, String>>[];
+    try {
+      final res = await http.get(Uri.parse('https://api.iconify.design/search?query=${Uri.encodeComponent(clean)}&limit=30'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final icons = List<String>.from(data['icons'] ?? []);
@@ -102,14 +104,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
           if (parts.length == 2) {
             results.add({
               'name': parts.last,
-              'url': 'https://iconify.design{parts.first}/${parts.last}.png?height=96',
-            });
-          }
-        }
-      }
-
-              'name': parts,
-              'url': 'https://iconify.design{parts}/${parts}.png?height=96',
+              'url': 'https://api.iconify.design/${parts.first}/${parts.last}.png?height=96',
             });
           }
         }
@@ -152,6 +147,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
       setState(() => _currentlyPlayingUrl = null);
     }
   }
+
   void _openImagePicker(String currentMedia, Function(String) onPicked) {
     final searchCtrl = TextEditingController();
     List<Map<String, String>> onlineResults = [];
@@ -261,6 +257,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
       ),
     );
   }
+
   void _openActionCustomizer({
     required String title,
     required String initialMedia,
@@ -436,6 +433,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
       ),
     );
   }
+
   Widget _buildGoalOverlayWidget(String type, double pct, String title, int current, int target) {
     final pctInt = (pct * 100).round();
     final isGold = type == 'gold_vip';
@@ -507,6 +505,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     final overlayGoalsUrl = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay?widget=goals';
@@ -675,7 +674,8 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
                         children: [
                           const Icon(Icons.layers, color: Color(0xFF38BDF8)),
                           const SizedBox(width: 8),
-                          Expanded(child: Text('Overlay Metas OBS / Studio:\n$overlayGoalsUrl', style: const TextStyle(fontSize: 11.5))),
+                          Expanded(child: Text('Overlay Metas OBS / Studio:
+$overlayGoalsUrl', style: const TextStyle(fontSize: 11.5))),
                           IconButton(
                             icon: const Icon(Icons.copy, color: Color(0xFF38BDF8)),
                             onPressed: () {
@@ -687,3 +687,21 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
+                    ...widget.goalsList.map((goal) {
+                      final cur = goal['current'] ?? 0;
+                      final tgt = (goal['target'] ?? 1000) == 0 ? 1000 : goal['target'];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildGoalOverlayWidget(goal['overlayType'] ?? 'neon', (cur / tgt).clamp(0.0, 1.0), goal['title'] ?? 'Meta', cur, tgt),
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
