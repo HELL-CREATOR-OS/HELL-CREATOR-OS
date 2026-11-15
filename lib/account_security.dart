@@ -1,145 +1,101 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'platform_logos.dart';
 import 'app_data.dart';
 
 class UserAccountManager {
-  static const String _activeUserKey = 'hell_active_user_v3';
-  static const String _registryKey = 'hell_registered_accounts_v3';
-  static const String _vipCodesKey = 'hell_generated_vip_codes_v1';
-
-  static String gravatarUrlForEmail(String email) {
-    final clean = email.trim().toLowerCase();
-    final hash = md5.convert(utf8.encode(clean)).toString();
-    return 'https://gravatar.com';
-  }
-
-  static Future<Map<String, Map<String, dynamic>>> getAllAccounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_registryKey);
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return decoded.map((k, v) => MapEntry(k, Map<String, dynamic>.from(v)));
-    } catch (_) {
-      return {};
-    }
-  }
-
-  static Future<Map<String, dynamic>?> findAccountByEmail(String email) async {
-    final all = await getAllAccounts();
-    return all[email.trim().toLowerCase()];
-  }
-
-  static Future<void> registerOrUpdateAccount(Map<String, dynamic> user) async {
-    final prefs = await SharedPreferences.getInstance();
-    final email = (user['email'] ?? '').toString().trim().toLowerCase();
-    if (email.isEmpty) return;
-
-    user['email'] = email;
-    user['isOwner'] = DefaultMediaLibrary.isOwnerEmail(email);
-    if (user['isOwner'] == true) {
-      user['isVip'] = true;
-    }
-
-    final all = await getAllAccounts();
-    all[email] = user;
-    await prefs.setString(_registryKey, jsonEncode(all));
-    await prefs.setString(_activeUserKey, jsonEncode(user));
-  }
+  static const String _activeKey = 'hell_user_profile';
+  static const String _dbKey = 'hell_registered_users_db';
+  static const String _credsKey = 'hell_saved_credentials';
 
   static Future<Map<String, dynamic>?> getSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_activeUserKey);
-    if (raw == null || raw.isEmpty) return null;
-    try {
-      final user = Map<String, dynamic>.from(jsonDecode(raw));
-      user['isOwner'] = DefaultMediaLibrary.isOwnerEmail(user['email']);
-      return user;
-    } catch (_) {
-      return null;
+    final raw = prefs.getString(_activeKey);
+    return raw == null ? null : Map<String, dynamic>.from(jsonDecode(raw));
+  }
+
+  static Future<List<Map<String, dynamic>>> getAllRegisteredUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dbKey);
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  static Future<Map<String, dynamic>?> findRegisteredUser(String id) async {
+    final clean = id.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+    for (final u in await getAllRegisteredUsers()) {
+      final email = (u['email'] ?? '').toString().trim().toLowerCase();
+      final nick = (u['nickname'] ?? '').toString().trim().toLowerCase();
+      final phone = (u['phone'] ?? '').toString().trim();
+      if (email == clean || nick == clean || (phone.isNotEmpty && phone == id.trim())) return u;
     }
+    return null;
+  }
+
+  static Future<void> saveUser(Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = (user['email'] ?? '').toString().trim().toLowerCase();
+    final users = await getAllRegisteredUsers();
+    users.removeWhere((u) => (u['email'] ?? '').toString().trim().toLowerCase() == email);
+    users.insert(0, user);
+    await prefs.setString(_dbKey, jsonEncode(users));
+    await prefs.setString(_activeKey, jsonEncode(user));
+  }
+
+  static Future<List<Map<String, String>>> getSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_credsKey);
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List).map((e) => Map<String, String>.from(e)).toList();
+  }
+
+  static Future<void> saveCredentials(String email, String username, String password) async {
+    if (password.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final list = await getSavedCredentials();
+    list.removeWhere((c) => c['email']?.toLowerCase() == email.toLowerCase());
+    list.insert(0, {'email': email, 'username': username, 'password': password});
+    await prefs.setString(_credsKey, jsonEncode(list));
   }
 
   static Future<void> logout() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_activeUserKey);
-  }
-  static Future<List<String>> getVipCodes() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(_vipCodesKey) ?? ['HELL-VIP-3DIAS', 'PARCEIRO-HELL'];
+    await prefs.remove(_activeKey);
   }
 
-  static Future<void> addVipCode(String code) async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = await getVipCodes();
-    final clean = code.trim().toUpperCase();
-    if (clean.isNotEmpty && !list.contains(clean)) {
-      list.insert(0, clean);
-      await prefs.setStringList(_vipCodesKey, list);
+  static Widget buildUserAvatar(Map<String, dynamic> user, {double radius = 36}) {
+    final path = (user['avatarPath'] ?? '').toString();
+    final url = (user['avatarUrl'] ?? '').toString();
+    if (path.isNotEmpty && File(path).existsSync()) {
+      return CircleAvatar(radius: radius, backgroundColor: const Color(0xFF1E78FF), backgroundImage: FileImage(File(path)));
     }
+    if (url.startsWith('http')) {
+      return CircleAvatar(radius: radius, backgroundColor: const Color(0xFF1E78FF), backgroundImage: NetworkImage(url));
+    }
+    return CircleAvatar(radius: radius, backgroundColor: const Color(0xFF1E78FF), child: Icon(Icons.person, size: radius, color: Colors.white));
   }
 
-  static Future<bool> redeemVipCode(String code, Map<String, dynamic> user) async {
-    final list = await getVipCodes();
-    final clean = code.trim().toUpperCase();
-    if (list.contains(clean)) {
-      user['isVip'] = true;
-      user['vipCodeUsed'] = clean;
-      await registerOrUpdateAccount(user);
-      return true;
-    }
-    return false;
+  static Color statusColor(String status) {
+    if (status == 'dnd') return Colors.orange;
+    if (status == 'invisible') return Colors.white;
+    if (status == 'offline') return Colors.redAccent;
+    return Colors.green;
   }
 
-  static Color statusColor(String? status) {
-    switch (status) {
-      case 'dnd':
-        return Colors.orange;
-      case 'invisible':
-        return Colors.white;
-      case 'offline':
-        return Colors.redAccent;
-      default:
-        return Colors.green;
-    }
-  }
-
-  static Widget buildUserAvatar(Map<String, dynamic> user, {double radius = 22}) {
-    final customPath = user['avatarPath']?.toString() ?? '';
-    final googlePhoto = user['photoUrl']?.toString() ?? '';
-    final email = user['email']?.toString() ?? '';
-    final isOwner = DefaultMediaLibrary.isOwnerEmail(email);
-
-    ImageProvider? img;
-    if (customPath.isNotEmpty && File(customPath).existsSync()) {
-      img = FileImage(File(customPath));
-    } else if (googlePhoto.startsWith('http')) {
-      img = NetworkImage(googlePhoto);
-    } else if (email.isNotEmpty) {
-      img = NetworkImage(gravatarUrlForEmail(email));
-    }
-
-    return Container(
-      padding: EdgeInsets.all(isOwner ? 2.2 : 0),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: isOwner ? Border.all(color: const Color(0xFFFACC15), width: 2) : null,
-      ),
-      child: CircleAvatar(
-        radius: radius,
-        backgroundColor: const Color(0xFF1E78FF),
-        backgroundImage: img,
-        child: img == null ? Icon(Icons.person, color: Colors.white, size: radius) : null,
-      ),
-    );
+  static String statusLabel(String status) {
+    if (status == 'dnd') return 'Não Incomodar';
+    if (status == 'invisible') return 'Invisível';
+    if (status == 'offline') return 'Offline';
+    return 'Online';
   }
 }
 class AuthScreen extends StatefulWidget {
@@ -152,272 +108,311 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   bool _isRegister = false;
-  bool _loading = false;
-  bool _acceptedTerms = false;
-  bool _codeSent = false;
-  String _generatedCode = '';
-
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _busy = false;
   final _nickCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  final _verifyCodeCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
 
-  void _showMsg(String msg, {bool isError = false}) {
+  void _msg(String text, {bool isError = true}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: isError ? Colors.redAccent : Colors.green),
+      SnackBar(content: Text(text), backgroundColor: isError ? Colors.redAccent : Colors.green),
     );
   }
 
-  void _openTermsDialog() {
-    showDialog(
+  Future<void> _googleAuth() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+
+    String? email;
+    String? displayName;
+    String? photoUrl;
+
+    try {
+      final gs = GoogleSignIn(scopes: ['email', 'profile']);
+      await gs.signOut();
+      final acc = await gs.signIn();
+      if (acc != null) {
+        email = acc.email.trim();
+        displayName = (acc.displayName ?? acc.email.split('@').first).trim();
+        photoUrl = acc.photoUrl;
+      }
+    } catch (_) {
+      // Fallback direto quando o dispositivo não tem Google Play Services / SHA-1 configurado
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+
+    if (email == null || email.isEmpty) {
+      if (!mounted) return;
+      final res = await _openGoogleAccountBridgeDialog();
+      if (res == null) return;
+      email = res['email'];
+      displayName = res['name'];
+    }
+
+    if (email == null || email.isEmpty || !mounted) return;
+
+    final existing = await UserAccountManager.findRegisteredUser(email);
+    if (_isRegister) {
+      if (existing != null) {
+        _msg('Esta conta Google já está registada. Usa o separador "Entrar".');
+        setState(() => _isRegister = false);
+        return;
+      }
+      final user = _buildProfile(
+        nickname: displayName ?? email.split('@').first,
+        email: email,
+        provider: 'google',
+        avatarUrl: photoUrl ?? '',
+      );
+      await UserAccountManager.saveUser(user);
+      if (mounted) widget.onAuthenticated(user);
+    } else {
+      if (existing == null) {
+        // Se ainda não existir localmente, cria o perfil automaticamente para acesso imediato
+        final user = _buildProfile(
+          nickname: displayName ?? email.split('@').first,
+          email: email,
+          provider: 'google',
+          avatarUrl: photoUrl ?? '',
+        );
+        await UserAccountManager.saveUser(user);
+        if (mounted) widget.onAuthenticated(user);
+        return;
+      }
+      if ((photoUrl ?? '').isNotEmpty) existing['avatarUrl'] = photoUrl;
+      await UserAccountManager.saveUser(existing);
+      if (mounted) widget.onAuthenticated(existing);
+    }
+  }
+
+  Future<Map<String, String>?> _openGoogleAccountBridgeDialog() async {
+    final gEmailCtrl = TextEditingController();
+    final gNameCtrl = TextEditingController();
+    final registered = await UserAccountManager.getAllRegisteredUsers();
+    final googleSaved = registered.where((u) => u['provider'] == 'google').toList();
+
+    return showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF08112B),
-        title: const Text('Termos de Utilização & Responsabilidades', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15)),
-        content: const SizedBox(
-          width: 480,
-          height: 360,
-          child: SingleChildScrollView(
-            child: Text(DefaultMediaLibrary.legalTermsAndResponsibilityText, style: TextStyle(fontSize: 12, height: 1.45, color: Colors.white70)),
+        backgroundColor: const Color(0xFF0B1636),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF38BDF8))),
+        title: const Row(
+          children: [
+            GoogleOfficialLogo(size: 22),
+            SizedBox(width: 10),
+            Expanded(child: Text('Associar Conta Google', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (googleSaved.isNotEmpty) ...[
+                const Text('Contas Google guardadas neste aparelho:', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                const SizedBox(height: 6),
+                ...googleSaved.map((acc) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: UserAccountManager.buildUserAvatar(acc, radius: 16),
+                      title: Text(acc['nickname'] ?? 'Criador', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      subtitle: Text(acc['email'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
+                      onTap: () => Navigator.pop(ctx, {'email': acc['email'].toString(), 'name': acc['nickname'].toString()}),
+                    )),
+                const Divider(color: Colors.white12),
+              ],
+              const Text('Introduz o teu endereço Google para continuar:', style: TextStyle(fontSize: 12, color: Colors.white70)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: gEmailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Endereço Gmail (ex: nome@gmail.com)', isDense: true, border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: gNameCtrl,
+                decoration: const InputDecoration(labelText: 'Nome de Apresentação (Opcional)', isDense: true, border: OutlineInputBorder()),
+              ),
+            ],
           ),
         ),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
             onPressed: () {
-              setState(() => _acceptedTerms = true);
-              Navigator.pop(ctx);
+              final em = gEmailCtrl.text.trim();
+              if (!em.contains('@')) return;
+              final nm = gNameCtrl.text.trim().isEmpty ? em.split('@').first : gNameCtrl.text.trim();
+              Navigator.pop(ctx, {'email': em, 'name': nm});
             },
-            child: const Text('Li e Aceito os Termos', style: TextStyle(color: Colors.white)),
+            child: const Text('Continuar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
-
-  Future<void> _sendVerificationCode() async {
-    final email = _emailCtrl.text.trim().toLowerCase();
-    if (!email.contains('@')) {
-      _showMsg('Introduz um endereço de e-mail válido.', isError: true);
-      return;
-    }
-    if (!_acceptedTerms) {
-      _showMsg('Tens de aceitar os Termos de Utilização e Responsabilidades primeiro.', isError: true);
-      return;
-    }
-    final code = (100000 + Random().nextInt(900000)).toString();
-    setState(() {
-      _generatedCode = code;
-      _codeSent = true;
-    });
-    _showMsg('Código de confirmação enviado por ${DefaultMediaLibrary.brandOfficialEmail}: $code');
+  Map<String, dynamic> _buildProfile({
+    required String nickname,
+    required String email,
+    required String provider,
+    String password = '',
+    String phone = '',
+    String avatarUrl = '',
+  }) {
+    final parts = nickname.trim().split(' ');
+    return {
+      'firstName': parts.first,
+      'lastName': parts.length > 1 ? parts.sublist(1).join(' ') : '',
+      'nickname': nickname.trim(),
+      'email': email.trim(),
+      'phone': phone.trim(),
+      'provider': provider,
+      'avatarPath': null,
+      'avatarUrl': avatarUrl,
+      'bannerId': 'bn_cyber',
+      'bannerImagePath': null,
+      'bio': 'A transmitir ao vivo com o HELL Live!',
+      'gender': 'Não especificado',
+      'birthDate': '',
+      'country': 'Portugal',
+      'discord': '',
+      'whatsapp': '',
+      'publicProfile': true,
+      'status': 'online',
+      'securityMethods': password.isNotEmpty ? <String>['password'] : <String>[],
+      'pinSecret': '',
+      'passwordSecret': password,
+      'patternSecret': '',
+    };
   }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() => _loading = true);
-    try {
-      final account = await GoogleSignIn(scopes: ['email', 'profile']).signIn();
-      if (account != null) {
-        final email = account.email.trim().toLowerCase();
-        final existing = await UserAccountManager.findAccountByEmail(email);
-        final user = existing ??
-            {
-              'firstName': account.displayName?.split(' ').first ?? 'Criador',
-              'lastName': account.displayName?.split(' ').skip(1).join(' ') ?? '',
-              'nickname': account.displayName ?? email.split('@').first,
-              'email': email,
-              'photoUrl': account.photoUrl ?? UserAccountManager.gravatarUrlForEmail(email),
-              'provider': 'google',
-              'status': 'online',
-              'publicProfile': true,
-              'showPrivateData': false,
-              'securityMethods': <String>[],
-            };
-        if (account.photoUrl != null && account.photoUrl!.isNotEmpty) {
-          user['photoUrl'] = account.photoUrl;
-        }
-        await UserAccountManager.registerOrUpdateAccount(user);
-        widget.onAuthenticated(user);
-      }
-    } catch (_) {
-      _showMsg('Início de sessão Google indisponível neste dispositivo. Usa o registo por e-mail.', isError: true);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-  Future<void> _submitForm() async {
-    final email = _emailCtrl.text.trim().toLowerCase();
+  Future<void> _submitManual() async {
+    final id = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
-    if (!email.contains('@') || pass.length < 4) {
-      _showMsg('Introduz um e-mail válido e uma palavra-passe (mínimo 4 caracteres).', isError: true);
+    if (id.isEmpty || pass.length < 4) {
+      _msg('Preenche o e-mail/utilizador e a palavra-passe (mínimo 4 caracteres).');
       return;
     }
 
-    if (!_isRegister) {
-      final existing = await UserAccountManager.findAccountByEmail(email);
+    final existing = await UserAccountManager.findRegisteredUser(id);
+    if (_isRegister) {
+      if (existing != null) {
+        _msg('Esta conta já está registada. Usa o separador "Entrar".');
+        setState(() => _isRegister = false);
+        return;
+      }
+      final email = id.contains('@') ? id : '$id@helllive.app';
+      final nick = _nickCtrl.text.trim().isEmpty ? id.split('@').first : _nickCtrl.text.trim();
+      final user = _buildProfile(nickname: nick, email: email, provider: 'manual', password: pass, phone: _phoneCtrl.text);
+      await UserAccountManager.saveCredentials(email, nick, pass);
+      await UserAccountManager.saveUser(user);
+      if (mounted) widget.onAuthenticated(user);
+    } else {
       if (existing == null) {
-        _showMsg('E-mail não registado. Por favor cria primeiro o teu registo.', isError: true);
+        _msg('Conta não encontrada. Cria primeiro o teu registo.');
         setState(() => _isRegister = true);
         return;
       }
-      if ((existing['password'] ?? '') != pass) {
-        _showMsg('Palavra-passe incorreta. Verifica os dados e tenta novamente.', isError: true);
+      if ((existing['passwordSecret'] ?? '') != pass) {
+        _msg('Palavra-passe incorreta.');
         return;
       }
-      await UserAccountManager.registerOrUpdateAccount(existing);
-      widget.onAuthenticated(existing);
-      return;
+      await UserAccountManager.saveUser(existing);
+      if (mounted) widget.onAuthenticated(existing);
     }
-
-    if (!_acceptedTerms) {
-      _showMsg('É obrigatório aceitar os Termos de Utilização e Responsabilidades.', isError: true);
-      return;
-    }
-    if (!_codeSent || _verifyCodeCtrl.text.trim() != _generatedCode) {
-      _showMsg('Valida primeiro o código de confirmação de 6 dígitos enviado para o teu e-mail.', isError: true);
-      return;
-    }
-
-    final newUser = {
-      'firstName': _firstNameCtrl.text.trim().isEmpty ? 'Criador' : _firstNameCtrl.text.trim(),
-      'lastName': _lastNameCtrl.text.trim(),
-      'nickname': _nickCtrl.text.trim().isEmpty ? email.split('@').first : _nickCtrl.text.trim(),
-      'email': email,
-      'phone': _phoneCtrl.text.trim(),
-      'password': pass,
-      'photoUrl': UserAccountManager.gravatarUrlForEmail(email),
-      'provider': 'email',
-      'status': 'online',
-      'publicProfile': true,
-      'showPrivateData': false,
-      'securityMethods': <String>['password'],
-    };
-    await UserAccountManager.registerOrUpdateAccount(newUser);
-    widget.onAuthenticated(newUser);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(center: Alignment(0, -0.3), radius: 1.1, colors: [Color(0xFF132E73), Color(0xFF050B1E)]),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(22),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 440),
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0B1636),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFF1E78FF), width: 1.5),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(child: Image.asset('icon.png', height: 68, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 60, color: Color(0xFF38BDF8)))),
-                  const SizedBox(height: 8),
-                  const Text('HELL LIVE', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2.5)),
-                  Text(_isRegister ? 'Criar Conta Verificada e Segura' : 'Acesso Seguro à Tua Conta', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: Color(0xFF7DD3FC))),
-                  const SizedBox(height: 16),
-                  if (_isRegister) ...[
-                    Row(
+      backgroundColor: const Color(0xFF050B1E),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              children: [
+                Image.asset('icon.png', height: 76, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 64, color: Color(0xFF38BDF8))),
+                const SizedBox(height: 8),
+                const Text('HELL LIVE', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8), letterSpacing: 2)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: !_isRegister ? const Color(0xFF1E78FF) : const Color(0xFF0E1D47)),
+                        onPressed: () => setState(() => _isRegister = false),
+                        child: const Text('Entrar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: _isRegister ? const Color(0xFF1E78FF) : const Color(0xFF0E1D47)),
+                        onPressed: () => setState(() => _isRegister = true),
+                        child: const Text('Criar Registo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _busy ? null : _googleAuth,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome', isDense: true, border: OutlineInputBorder()))),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: _lastNameCtrl, decoration: const InputDecoration(labelText: 'Apelido', isDense: true, border: OutlineInputBorder()))),
+                        const GoogleOfficialLogo(size: 22),
+                        const SizedBox(width: 12),
+                        Text(
+                          _isRegister ? 'Registar com o Google' : 'Continuar com o Google',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Canal', prefixIcon: Icon(Icons.alternate_email), isDense: true, border: OutlineInputBorder())),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'E-mail', prefixIcon: Icon(Icons.email_outlined), isDense: true, border: OutlineInputBorder()),
                   ),
+                ),
+                const SizedBox(height: 14),
+                if (_isRegister) ...[
+                  TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nome de Criador', isDense: true)),
                   const SizedBox(height: 10),
-                  if (_isRegister) ...[
-                    TextField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Contacto Telefónico (Para Código SMS/Backup)', prefixIcon: Icon(Icons.phone_android), isDense: true, border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: _passCtrl,
-                    obscureText: true,
-                    onChanged: (val) async {
-                      if (!_isRegister) {
-                        final existing = await UserAccountManager.findAccountByEmail(_emailCtrl.text.trim().toLowerCase());
-                        if (existing != null && (existing['password'] ?? '') == val.trim()) {
-                          await UserAccountManager.registerOrUpdateAccount(existing);
-                          widget.onAuthenticated(existing);
-                        }
-                      }
-                    },
-                    decoration: const InputDecoration(labelText: 'Palavra-Passe (Entra automaticamente ao acertar)', prefixIcon: Icon(Icons.lock_outline), isDense: true, border: OutlineInputBorder()),
-                  ),
-                  if (_isRegister) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Checkbox(value: _acceptedTerms, activeColor: const Color(0xFF38BDF8), onChanged: (v) => setState(() => _acceptedTerms = v ?? false)),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: _openTermsDialog,
-                            child: const Text('Aceito os Termos de Utilização, Regras e Isenção de Responsabilidade (Ler)', style: TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8), decoration: TextDecoration.underline)),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _verifyCodeCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Código 6 Dígitos', isDense: true, border: OutlineInputBorder()),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF122E73)),
-                          onPressed: _sendVerificationCode,
-                          child: Text(_codeSent ? 'Reenviar' : 'Enviar Código', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
-                    onPressed: _loading ? null : _submitForm,
-                    child: Text(_isRegister ? 'Confirmar Código e Criar Conta' : 'Entrar na Conta', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
+                  TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telemóvel (Opcional)', isDense: true)),
                   const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _loading ? null : _signInWithGoogle,
-                    icon: const Icon(Icons.g_mobiledata, size: 26, color: Colors.redAccent),
-                    label: const Text('Entrar / Sincronizar com Conta Google', style: TextStyle(color: Colors.white, fontSize: 12.5)),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _isRegister = !_isRegister;
-                      _codeSent = false;
-                    }),
-                    child: Text(_isRegister ? 'Já tenho conta registada · Iniciar Sessão' : 'Ainda não tens conta? Criar Registo Obrigatório', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12.5)),
-                  ),
                 ],
-              ),
+                TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'E-mail ou Nome de Utilizador', isDense: true)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _passCtrl,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText: 'Palavra-passe',
+                    isDense: true,
+                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
+                    onPressed: _submitManual,
+                    child: Text(_isRegister ? 'Concluir Registo' : 'Entrar Agora', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -436,89 +431,63 @@ class AppLockScreen extends StatefulWidget {
 }
 
 class _AppLockScreenState extends State<AppLockScreen> {
-  final _unlockCtrl = TextEditingController();
-  final LocalAuthentication _localAuth = LocalAuthentication();
+  final _localAuth = LocalAuthentication();
+  final _ctrl = TextEditingController();
+  String _error = '';
+
+  List<String> get _methods => List<String>.from(widget.user['securityMethods'] ?? []);
 
   @override
   void initState() {
     super.initState();
-    final methods = List<String>.from(widget.user['securityMethods'] ?? []);
-    if (methods.contains('biometric')) {
-      _tryBiometric();
+    if (_methods.contains('biometric')) _tryBio();
+  }
+
+  Future<void> _tryBio() async {
+    try {
+      final ok = await _localAuth.authenticate(localizedReason: 'Desbloqueia o HELL Live');
+      if (ok) widget.onUnlocked();
+    } catch (_) {
+      setState(() => _error = 'Falha na biometria. Utiliza a palavra-passe abaixo.');
     }
   }
 
-  Future<void> _tryBiometric() async {
-    try {
-      final ok = await _localAuth.authenticate(
-        localizedReason: 'Desbloqueia a tua conta HELL Live',
-        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
-      );
-      if (ok && mounted) widget.onUnlocked();
-    } catch (_) {}
-  }
-
-  void _checkAutoUnlock(String val) {
-    final savedPass = (widget.user['password'] ?? '').toString();
-    final savedPin = (widget.user['pin'] ?? '').toString();
-    if ((savedPass.isNotEmpty && val == savedPass) || (savedPin.isNotEmpty && val == savedPin)) {
+  void _check() {
+    final val = _ctrl.text.trim();
+    if (val == (widget.user['pinSecret'] ?? '') || val == (widget.user['passwordSecret'] ?? '')) {
       widget.onUnlocked();
+    } else {
+      setState(() => _error = 'PIN ou palavra-passe incorretos.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isOwner = DefaultMediaLibrary.isOwnerEmail(widget.user['email']);
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(center: Alignment(0, -0.2), radius: 1.0, colors: [Color(0xFF132E73), Color(0xFF050B1E)]),
-        ),
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
-            margin: const EdgeInsets.all(24),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B1636),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: isOwner ? const Color(0xFFFACC15) : const Color(0xFF38BDF8), width: 1.6),
-            ),
+      backgroundColor: const Color(0xFF050B1E),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                UserAccountManager.buildUserAvatar(widget.user, radius: 36),
+                UserAccountManager.buildUserAvatar(widget.user, radius: 38),
                 const SizedBox(height: 12),
-                Text(widget.user['nickname'] ?? 'Criador', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                if (isOwner)
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(color: const Color(0xFFFACC15), borderRadius: BorderRadius.circular(8)),
-                    child: const Text('👑 FUNDADOR / DONO', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 10.5)),
-                  ),
+                Text('Olá, ${widget.user['nickname'] ?? 'Criador'}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _unlockCtrl,
-                  obscureText: true,
-                  onChanged: _checkAutoUnlock,
-                  decoration: const InputDecoration(
-                    labelText: 'Palavra-Passe ou PIN (Entrada Automática)',
-                    prefixIcon: Icon(Icons.lock_open),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
+                if (_methods.contains('biometric'))
+                  ElevatedButton.icon(onPressed: _tryBio, icon: const Icon(Icons.fingerprint), label: const Text('Desbloquear com Biometria')),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _tryBiometric,
-                  icon: const Icon(Icons.fingerprint, color: Color(0xFF38BDF8)),
-                  label: const Text('Desbloquear com Biometria / Dispositivo', style: TextStyle(color: Colors.white)),
+                TextField(controller: _ctrl, obscureText: true, decoration: const InputDecoration(labelText: 'PIN ou Palavra-passe', border: OutlineInputBorder())),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)), onPressed: _check, child: const Text('Entrar', style: TextStyle(color: Colors.white))),
                 ),
-                TextButton(
-                  onPressed: widget.onLogout,
-                  child: const Text('Trocar de Conta', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                ),
+                if (_error.isNotEmpty) ...[const SizedBox(height: 8), Text(_error, style: const TextStyle(color: Colors.redAccent))],
+                TextButton(onPressed: widget.onLogout, child: const Text('Trocar de Conta', style: TextStyle(color: Colors.white54))),
               ],
             ),
           ),
@@ -527,310 +496,207 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
   }
 }
-class ProfileFullScreen extends StatefulWidget {
+
+class ProfilePrivacySecurityScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
   final VoidCallback onLogout;
-
-  const ProfileFullScreen({
-    super.key,
-    required this.user,
-    required this.onUserUpdated,
-    required this.onLogout,
-  });
+  const ProfilePrivacySecurityScreen({super.key, required this.user, required this.onUserUpdated, required this.onLogout});
 
   @override
-  State<ProfileFullScreen> createState() => _ProfileFullScreenState();
+  State<ProfilePrivacySecurityScreen> createState() => _ProfilePrivacySecurityScreenState();
 }
 
-class _ProfileFullScreenState extends State<ProfileFullScreen> {
-  late TextEditingController _firstCtrl;
-  late TextEditingController _lastCtrl;
+class _ProfilePrivacySecurityScreenState extends State<ProfilePrivacySecurityScreen> {
   late TextEditingController _nickCtrl;
-  late TextEditingController _birthCtrl;
-  late TextEditingController _countryCtrl;
-  late TextEditingController _cityCtrl;
-  late TextEditingController _phoneCtrl;
   late TextEditingController _bioCtrl;
-  final _vipGenCtrl = TextEditingController();
-
+  late TextEditingController _phoneCtrl;
+  late TextEditingController _birthCtrl;
+  late TextEditingController _discordCtrl;
+  late String _gender;
   late String _status;
+  late String _bannerId;
   late bool _publicProfile;
-  late bool _showPrivateData;
-  List<String> _vipCodes = [];
+  late List<String> _methods;
 
   @override
   void initState() {
     super.initState();
-    _firstCtrl = TextEditingController(text: widget.user['firstName'] ?? '');
-    _lastCtrl = TextEditingController(text: widget.user['lastName'] ?? '');
     _nickCtrl = TextEditingController(text: widget.user['nickname'] ?? '');
-    _birthCtrl = TextEditingController(text: widget.user['birthDate'] ?? '');
-    _countryCtrl = TextEditingController(text: widget.user['country'] ?? 'Portugal');
-    _cityCtrl = TextEditingController(text: widget.user['city'] ?? '');
-    _phoneCtrl = TextEditingController(text: widget.user['phone'] ?? '');
     _bioCtrl = TextEditingController(text: widget.user['bio'] ?? '');
+    _phoneCtrl = TextEditingController(text: widget.user['phone'] ?? '');
+    _birthCtrl = TextEditingController(text: widget.user['birthDate'] ?? '');
+    _discordCtrl = TextEditingController(text: widget.user['discord'] ?? '');
+    _gender = widget.user['gender'] ?? 'Não especificado';
     _status = widget.user['status'] ?? 'online';
+    _bannerId = widget.user['bannerId'] ?? 'bn_cyber';
     _publicProfile = widget.user['publicProfile'] ?? true;
-    _showPrivateData = widget.user['showPrivateData'] ?? false;
-    _loadCodes();
+    _methods = List<String>.from(widget.user['securityMethods'] ?? []);
   }
 
-  Future<void> _loadCodes() async {
-    final codes = await UserAccountManager.getVipCodes();
-    if (mounted) setState(() => _vipCodes = codes);
-  }
-
-  Future<void> _saveProfile() async {
+  Future<void> _save() async {
     final updated = Map<String, dynamic>.from(widget.user);
-    updated['firstName'] = _firstCtrl.text.trim();
-    updated['lastName'] = _lastCtrl.text.trim();
     updated['nickname'] = _nickCtrl.text.trim();
-    updated['birthDate'] = _birthCtrl.text.trim();
-    updated['country'] = _countryCtrl.text.trim();
-    updated['city'] = _cityCtrl.text.trim();
-    updated['phone'] = _phoneCtrl.text.trim();
     updated['bio'] = _bioCtrl.text.trim();
+    updated['phone'] = _phoneCtrl.text.trim();
+    updated['birthDate'] = _birthCtrl.text.trim();
+    updated['discord'] = _discordCtrl.text.trim();
+    updated['gender'] = _gender;
     updated['status'] = _status;
+    updated['bannerId'] = _bannerId;
     updated['publicProfile'] = _publicProfile;
-    updated['showPrivateData'] = _showPrivateData;
-    await UserAccountManager.registerOrUpdateAccount(updated);
+    updated['securityMethods'] = _methods;
+    await UserAccountManager.saveUser(updated);
     widget.onUserUpdated(updated);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil atualizado com sucesso!'), backgroundColor: Colors.green));
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil público e segurança guardados!')));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isOwner = DefaultMediaLibrary.isOwnerEmail(widget.user['email']);
-    final bioCardLink = "https://hell.live{_nickCtrl.text.trim().isEmpty ? 'criador' : _nickCtrl.text.trim()}";
+  Widget _buildBannerHeader(Map<String, dynamic> bannerData) {
+    final pCol = Color(int.parse(bannerData['primary'] ?? '0xFF0EA5E9'));
+    final sCol = Color(int.parse(bannerData['secondary'] ?? '0xFF1E3A8A'));
+    final customBanner = widget.user['bannerImagePath'];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('O Meu Perfil Completo', style: TextStyle(fontWeight: FontWeight.bold))),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [pCol, sCol]),
+        image: (customBanner != null && File(customBanner).existsSync())
+            ? DecorationImage(image: FileImage(File(customBanner)), fit: BoxFit.cover)
+            : null,
+        border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
+      ),
+      child: Stack(
         children: [
-          Center(
-            child: Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                UserAccountManager.buildUserAvatar(widget.user, radius: 44),
-                CircleAvatar(
-                  radius: 15,
-                  backgroundColor: const Color(0xFF1E78FF),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.camera_alt, size: 15, color: Colors.white),
-                    onPressed: () async {
-                      final res = await FilePicker.platform.pickFiles(type: FileType.image);
-                      if (res != null && res.files.single.path != null) {
-                        final updated = Map<String, dynamic>.from(widget.user);
-                        updated['avatarPath'] = res.files.single.path!;
-                        await UserAccountManager.registerOrUpdateAccount(updated);
-                        widget.onUserUpdated(updated);
-                        setState(() {});
-                      }
-                    },
-                  ),
-                ),
-              ],
+          Positioned(
+            top: 8,
+            right: 8,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.black54, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              onPressed: () async {
+                final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                if (res != null && res.files.single.path != null) {
+                  final updated = Map<String, dynamic>.from(widget.user);
+                  updated['bannerImagePath'] = res.files.single.path!;
+                  await UserAccountManager.saveUser(updated);
+                  widget.onUserUpdated(updated);
+                }
+              },
+              icon: const Icon(Icons.wallpaper, size: 15, color: Colors.white),
+              label: const Text('Banner Próprio (GIF/Foto)', style: TextStyle(color: Colors.white, fontSize: 11)),
             ),
           ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              isOwner ? '👑 FUNDADOR / DONO HELL LIVE' : (widget.user['isVip'] == true ? '⭐ CRIADOR VIP ATIVO' : 'Criador Registado'),
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: isOwner ? const Color(0xFFFACC15) : const Color(0xFF38BDF8)),
+          Positioned(
+            bottom: 12,
+            left: 16,
+            child: GestureDetector(
+              onTap: () async {
+                final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                if (res != null && res.files.single.path != null) {
+                  final updated = Map<String, dynamic>.from(widget.user);
+                  updated['avatarPath'] = res.files.single.path!;
+                  await UserAccountManager.saveUser(updated);
+                  widget.onUserUpdated(updated);
+                }
+              },
+              child: UserAccountManager.buildUserAvatar(widget.user, radius: 36),
             ),
           ),
-          if (isOwner) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFF122E73), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFFACC15))),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('👑 Painel de Fundador · Gerador de Chaves VIP / Parceiro', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFACC15), fontSize: 13)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: TextField(controller: _vipGenCtrl, decoration: const InputDecoration(hintText: 'Ex: PARCEIRO-2026', isDense: true, border: OutlineInputBorder()))),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFACC15)),
-                        onPressed: () async {
-                          await UserAccountManager.addVipCode(_vipGenCtrl.text);
-                          _vipGenCtrl.clear();
-                          await _loadCodes();
-                        },
-                        child: const Text('Criar Chave', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: _vipCodes.map((c) => ActionChip(
-                          label: Text(c, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          avatar: const Icon(Icons.copy, size: 14),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: c));
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chave VIP "$c" copiada!')));
-                          },
-                        )).toList(),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF38BDF8))),
-            child: Row(
-              children: [
-                const Icon(Icons.badge_outlined, color: Color(0xFF38BDF8)),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Cartão de Visita / Bio HELL:\n$bioCardLink', style: const TextStyle(fontSize: 11.5, color: Colors.white70))),
-                IconButton(
-                  icon: const Icon(Icons.copy, color: Color(0xFF38BDF8)),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: bioCardLink));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link Cartão Bio HELL copiado!')));
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: TextField(controller: _firstCtrl, decoration: const InputDecoration(labelText: 'Nome', isDense: true))),
-              const SizedBox(width: 8),
-              Expanded(child: TextField(controller: _lastCtrl, decoration: const InputDecoration(labelText: 'Apelido', isDense: true))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Canal', isDense: true)),
-          const SizedBox(height: 8),
-          TextField(controller: _birthCtrl, decoration: const InputDecoration(labelText: 'Data de Nascimento (Opcional)', isDense: true)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: TextField(controller: _countryCtrl, decoration: const InputDecoration(labelText: 'País (Opcional)', isDense: true))),
-              const SizedBox(width: 8),
-              Expanded(child: TextField(controller: _cityCtrl, decoration: const InputDecoration(labelText: 'Cidade (Opcional)', isDense: true))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Contacto Telefónico', isDense: true)),
-          const SizedBox(height: 8),
-          TextField(controller: _bioCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Sobre Mim (Apresentação para a Comunidade)', border: OutlineInputBorder())),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Perfil Público na Comunidade', style: TextStyle(fontSize: 13)),
-            value: _publicProfile,
-            onChanged: (v) => setState(() => _publicProfile = v),
-          ),
-          SwitchListTile(
-            title: const Text('Tornar Dados Pessoais Visíveis (Assumo total responsabilidade)', style: TextStyle(fontSize: 12.5)),
-            subtitle: const Text('Se desligado, cidade, telefone e e-mail ficam ocultos do público.', style: TextStyle(fontSize: 11, color: Colors.white54)),
-            value: _showPrivateData,
-            onChanged: (v) => setState(() => _showPrivateData = v),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
-            onPressed: _saveProfile,
-            child: const Text('Guardar Perfil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-          TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
         ],
       ),
     );
   }
-}
-class PrivacySecurityTermsPanel extends StatefulWidget {
-  final Map<String, dynamic> user;
-  final Function(Map<String, dynamic>) onUserUpdated;
-  const PrivacySecurityTermsPanel({super.key, required this.user, required this.onUserUpdated});
-
-  @override
-  State<PrivacySecurityTermsPanel> createState() => _PrivacySecurityTermsPanelState();
-}
-
-class _PrivacySecurityTermsPanelState extends State<PrivacySecurityTermsPanel> {
-  final _pinCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final methods = List<String>.from(widget.user['securityMethods'] ?? []);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final activeBanner = DefaultMediaLibrary.profileBannersCatalog.firstWhere(
+      (b) => b['id'] == _bannerId,
+      orElse: () => DefaultMediaLibrary.profileBannersCatalog.first,
+    );
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        SwitchListTile(
-          title: const Text('Desbloqueio por Biometria / Impressão Digital', style: TextStyle(fontSize: 13.5)),
-          value: methods.contains('biometric'),
-          onChanged: (v) async {
-            final updated = Map<String, dynamic>.from(widget.user);
-            final list = List<String>.from(updated['securityMethods'] ?? []);
-            v ? list.add('biometric') : list.remove('biometric');
-            updated['securityMethods'] = list.toSet().toList();
-            await UserAccountManager.registerOrUpdateAccount(updated);
-            widget.onUserUpdated(updated);
-            setState(() {});
-          },
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Row(
-            children: [
-              Expanded(child: TextField(controller: _pinCtrl, keyboardType: TextInputType.number, obscureText: true, decoration: const InputDecoration(labelText: 'Definir PIN Rápido (4-6 dígitos)', isDense: true))),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                onPressed: () async {
-                  if (_pinCtrl.text.trim().length < 4) return;
-                  final updated = Map<String, dynamic>.from(widget.user);
-                  updated['pin'] = _pinCtrl.text.trim();
-                  final list = List<String>.from(updated['securityMethods'] ?? []);
-                  if (!list.contains('pin')) list.add('pin');
-                  updated['securityMethods'] = list;
-                  await UserAccountManager.registerOrUpdateAccount(updated);
-                  widget.onUserUpdated(updated);
-                  _pinCtrl.clear();
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN de desbloqueio automático guardado!')));
-                },
-                child: const Text('Guardar PIN', style: TextStyle(color: Colors.white)),
-              ),
-            ],
+        _buildBannerHeader(activeBanner),
+        const SizedBox(height: 12),
+        const Text('🎨 Biblioteca de Banners de Perfil:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8), fontSize: 13)),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: DefaultMediaLibrary.profileBannersCatalog.map((b) {
+              final sel = _bannerId == b['id'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text('${b['name']} (${b['type']})', style: const TextStyle(fontSize: 11.5)),
+                  selected: sel,
+                  selectedColor: const Color(0xFF1E78FF),
+                  onSelected: (_) {
+                    final updated = Map<String, dynamic>.from(widget.user);
+                    updated['bannerImagePath'] = null;
+                    widget.onUserUpdated(updated);
+                    setState(() => _bannerId = b['id']!);
+                  },
+                ),
+              );
+            }).toList(),
           ),
         ),
-        ListTile(
-          leading: const Icon(Icons.gavel, color: Color(0xFF38BDF8)),
-          title: const Text('Regras, Termos de Utilização & Responsabilidades', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-          subtitle: const Text('Consultar cláusulas de isenção, RGPD e direitos de autor', style: TextStyle(fontSize: 11.5)),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: const Color(0xFF08112B),
-                title: const Text('Termos Legais & Responsabilidades — HELL Live', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 14.5, fontWeight: FontWeight.bold)),
-                content: const SizedBox(
-                  width: 500,
-                  height: 380,
-                  child: SingleChildScrollView(
-                    child: Text(DefaultMediaLibrary.legalTermsAndResponsibilityText, style: TextStyle(fontSize: 12, height: 1.45, color: Colors.white70)),
-                  ),
-                ),
-                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
+        const SizedBox(height: 12),
+        TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nome de Criador / Nickname')),
+        const SizedBox(height: 8),
+        TextField(controller: _bioCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'Biografia (Sobre ti para os seguidores)')),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+                child: DropdownButtonFormField<String>(
+                value: _gender,
+                decoration: const InputDecoration(labelText: 'Género (Opcional)'),
+                items: const [
+                  DropdownMenuItem(value: 'Não especificado', child: Text('Não especificado')),
+                  DropdownMenuItem(value: 'Masculino', child: Text('Masculino')),
+                  DropdownMenuItem(value: 'Feminino', child: Text('Feminino')),
+                  DropdownMenuItem(value: 'Outro', child: Text('Outro')),
+                ],
+                onChanged: (v) => setState(() => _gender = v ?? 'Não especificado'),
               ),
-            );
-          },
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _birthCtrl, decoration: const InputDecoration(labelText: 'Data Nascimento (Opcional)'))),
+          ],
         ),
+        const SizedBox(height: 8),
+        TextField(controller: _discordCtrl, decoration: const InputDecoration(labelText: 'Discord / Redes Sociais')),
+        const SizedBox(height: 8),
+        TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Telemóvel')),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _status,
+          decoration: const InputDecoration(labelText: 'Estado na Comunidade'),
+          items: const [
+            DropdownMenuItem(value: 'online', child: Text('🟢 Online')),
+            DropdownMenuItem(value: 'dnd', child: Text('🟠 Não Incomodar')),
+            DropdownMenuItem(value: 'invisible', child: Text('⚪ Invisível')),
+            DropdownMenuItem(value: 'offline', child: Text('🔴 Offline')),
+          ],
+          onChanged: (v) => setState(() => _status = v ?? 'online'),
+        ),
+        SwitchListTile(
+          title: const Text('Perfil Público (Visível para seguidores na Comunidade)'),
+          value: _publicProfile,
+          onChanged: (v) => setState(() => _publicProfile = v),
+        ),
+        SwitchListTile(
+          title: const Text('Bloqueio por Biometria / Impressão Digital'),
+          value: _methods.contains('biometric'),
+          onChanged: (v) => setState(() => v ? _methods.add('biometric') : _methods.remove('biometric')),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)), onPressed: _save, child: const Text('Guardar Alterações', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
       ],
     );
   }
