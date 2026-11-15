@@ -667,3 +667,14 @@ class _EstudioVipHellScreenState extends State<EstudioVipHellScreen> {
                     _descCtrl.clear();
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚀 Publicado na Loja HELL com sucesso!'), backgroundColor: Colors.green));
                   },
+                  icon: const Icon(Icons.publish, color: Colors.white),
+                  label: const Text('Publicar na Loja HELL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
