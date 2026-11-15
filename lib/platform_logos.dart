@@ -144,7 +144,7 @@ class PlatformGlassTile extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  PlatformBrandLogo(platform: platform, size: 38),
+                  PlatformBrandLogo(platform: platform, size: 48),
                   const SizedBox(height: 8),
                   Text(
                     label,
@@ -168,61 +168,74 @@ class PlatformBrandLogo extends StatelessWidget {
   final String platform;
   final double size;
 
-  const PlatformBrandLogo({super.key, required this.platform, this.size = 34});
+  const PlatformBrandLogo({super.key, required this.platform, this.size = 48});
 
   @override
   Widget build(BuildContext context) {
-    switch (platform.toLowerCase()) {
-      case 'tiktok':
-        return Container(
-          width: size + 12,
-          height: size + 12,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0A0A0A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF25F4EE).withOpacity(0.5), width: 1.3),
-            boxShadow: [BoxShadow(color: const Color(0xFFFE2C55).withOpacity(0.25), blurRadius: 8)],
-          ),
-          child: CustomPaint(painter: _TikTokLogoPainter()),
-        );
-      case 'twitch':
-        return Container(
-          width: size + 12,
-          height: size + 12,
-          decoration: BoxDecoration(
-            color: const Color(0xFF9146FF),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: const Color(0xFF9146FF).withOpacity(0.4), blurRadius: 8)],
-          ),
-          child: CustomPaint(painter: _TwitchLogoPainter()),
-        );
-      case 'youtube':
-        return Container(
-          width: size + 12,
-          height: size + 12,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFF0000),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: const Color(0xFFFF0000).withOpacity(0.4), blurRadius: 8)],
-          ),
-          child: CustomPaint(painter: _YouTubeLogoPainter()),
-        );
-      case 'kick':
-      default:
-        return Container(
-          width: size + 12,
-          height: size + 12,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B0E0F),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF53FC18).withOpacity(0.6), width: 1.3),
-            boxShadow: [BoxShadow(color: const Color(0xFF53FC18).withOpacity(0.25), blurRadius: 8)],
-          ),
-          child: CustomPaint(painter: _KickLogoPainter()),
-        );
+    final p = platform.toLowerCase();
+    Color baseColor = const Color(0xFF0A0A0A);
+    Color topHighlight = Colors.white24;
+    Color glowColor = const Color(0xFF25F4EE);
+    CustomPainter painter = _TikTokLogoPainter();
+
+    if (p == 'twitch') {
+      baseColor = const Color(0xFF772CE8);
+      topHighlight = const Color(0xFFB983FF);
+      glowColor = const Color(0xFF9146FF);
+      painter = _TwitchLogoPainter();
+    } else if (p == 'youtube') {
+      baseColor = const Color(0xFFCC0000);
+      topHighlight = const Color(0xFFFF5252);
+      glowColor = const Color(0xFFFF0000);
+      painter = _YouTubeLogoPainter();
+    } else if (p == 'kick') {
+      baseColor = const Color(0xFF0B0E0F);
+      topHighlight = const Color(0xFF53FC18).withOpacity(0.35);
+      glowColor = const Color(0xFF53FC18);
+      painter = _KickLogoPainter();
+    } else {
+      topHighlight = const Color(0xFF25F4EE).withOpacity(0.30);
     }
+
+    return Container(
+      width: size + 12,
+      height: size + 12,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(15),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [topHighlight, baseColor, Colors.black],
+          stops: const [0.0, 0.45, 1.0],
+        ),
+        border: Border.all(color: glowColor.withOpacity(0.75), width: 1.6),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.75), blurRadius: 8, offset: const Offset(0, 5)),
+          BoxShadow(color: glowColor.withOpacity(0.45), blurRadius: 12, spreadRadius: 0.5),
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            top: 1,
+            left: 6,
+            right: 6,
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                gradient: LinearGradient(colors: [Colors.transparent, Colors.white.withOpacity(0.65), Colors.transparent]),
+              ),
+            ),
+          ),
+          CustomPaint(painter: painter),
+        ],
+      ),
+    );
   }
 }
+
 
 class _TikTokLogoPainter extends CustomPainter {
   @override
