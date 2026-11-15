@@ -732,3 +732,106 @@ class _ProfileFullScreenState extends State<ProfileFullScreen> {
           SwitchListTile(
             title: const Text('Perfil Público na Comunidade', style: TextStyle(fontSize: 13)),
             value: _publicProfile,
+            onChanged: (v) => setState(() => _publicProfile = v),
+          ),
+          SwitchListTile(
+            title: const Text('Tornar Dados Pessoais Visíveis (Assumo total responsabilidade)', style: TextStyle(fontSize: 12.5)),
+            subtitle: const Text('Se desligado, cidade, telefone e e-mail ficam ocultos do público.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+            value: _showPrivateData,
+            onChanged: (v) => setState(() => _showPrivateData = v),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
+            onPressed: _saveProfile,
+            child: const Text('Guardar Perfil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+          TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+  }
+}
+class PrivacySecurityTermsPanel extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final Function(Map<String, dynamic>) onUserUpdated;
+  const PrivacySecurityTermsPanel({super.key, required this.user, required this.onUserUpdated});
+
+  @override
+  State<PrivacySecurityTermsPanel> createState() => _PrivacySecurityTermsPanelState();
+}
+
+class _PrivacySecurityTermsPanelState extends State<PrivacySecurityTermsPanel> {
+  final _pinCtrl = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final methods = List<String>.from(widget.user['securityMethods'] ?? []);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          title: const Text('Desbloqueio por Biometria / Impressão Digital', style: TextStyle(fontSize: 13.5)),
+          value: methods.contains('biometric'),
+          onChanged: (v) async {
+            final updated = Map<String, dynamic>.from(widget.user);
+            final list = List<String>.from(updated['securityMethods'] ?? []);
+            v ? list.add('biometric') : list.remove('biometric');
+            updated['securityMethods'] = list.toSet().toList();
+            await UserAccountManager.registerOrUpdateAccount(updated);
+            widget.onUserUpdated(updated);
+            setState(() {});
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Row(
+            children: [
+              Expanded(child: TextField(controller: _pinCtrl, keyboardType: TextInputType.number, obscureText: true, decoration: const InputDecoration(labelText: 'Definir PIN Rápido (4-6 dígitos)', isDense: true))),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                onPressed: () async {
+                  if (_pinCtrl.text.trim().length < 4) return;
+                  final updated = Map<String, dynamic>.from(widget.user);
+                  updated['pin'] = _pinCtrl.text.trim();
+                  final list = List<String>.from(updated['securityMethods'] ?? []);
+                  if (!list.contains('pin')) list.add('pin');
+                  updated['securityMethods'] = list;
+                  await UserAccountManager.registerOrUpdateAccount(updated);
+                  widget.onUserUpdated(updated);
+                  _pinCtrl.clear();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN de desbloqueio automático guardado!')));
+                },
+                child: const Text('Guardar PIN', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel, color: Color(0xFF38BDF8)),
+          title: const Text('Regras, Termos de Utilização & Responsabilidades', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+          subtitle: const Text('Consultar cláusulas de isenção, RGPD e direitos de autor', style: TextStyle(fontSize: 11.5)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(0xFF08112B),
+                title: const Text('Termos Legais & Responsabilidades — HELL Live', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 14.5, fontWeight: FontWeight.bold)),
+                content: const SizedBox(
+                  width: 500,
+                  height: 380,
+                  child: SingleChildScrollView(
+                    child: Text(DefaultMediaLibrary.legalTermsAndResponsibilityText, style: TextStyle(fontSize: 12, height: 1.45, color: Colors.white70)),
+                  ),
+                ),
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
