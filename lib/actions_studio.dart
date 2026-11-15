@@ -49,7 +49,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
   Future<void> _refreshOnlineRepositories() async {
     setState(() => _refreshingOnlineRepos = true);
     try {
-      const topics = ['gaming', 'fire', 'crown', 'trophy', 'rocket', 'heart', 'music', 'star'];
+           const topics = ['gaming', 'fire', 'crown', 'trophy', 'rocket', 'heart', 'music', 'star'];
       for (final topic in topics) {
         final res = await http.get(Uri.parse('https://iconify.design'));
         if (res.statusCode == 200) {
@@ -58,9 +58,9 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
           for (final ic in icons) {
             final parts = ic.split(':');
             if (parts.length == 2) {
-              final url = 'https://iconify.design{parts[0]}/${parts[1]}.png?height=96';
+              final url = 'https://iconify.design{parts.first}/${parts.last}.png?height=96';
               if (!widget.mediaLibrary.any((m) => m['url'] == url)) {
-                widget.mediaLibrary.add({'name': '${parts[1]} ($topic)', 'url': url});
+                widget.mediaLibrary.add({'name': '${parts.last} ($topic)', 'url': url});
               }
             }
           }
@@ -80,6 +80,11 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
           }
         }
       }
+
+            }
+          }
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Repositórios atualizados: ${widget.mediaLibrary.length} imagens e ${widget.sounds.length} sons prontos!'), backgroundColor: Colors.green),
@@ -88,12 +93,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
     } catch (_) {}
     if (mounted) setState(() => _refreshingOnlineRepos = false);
   }
-  Future<List<Map<String, String>>> _searchIconifyOnline(String query) async {
-    final clean = query.trim();
-    if (clean.isEmpty) return [];
-    final results = <Map<String, String>>[];
-    try {
-      final res = await http.get(Uri.parse('https://iconify.design{Uri.encodeComponent(clean)}&limit=30'));
+       final res = await http.get(Uri.parse('https://iconify.design{Uri.encodeComponent(clean)}&limit=30'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final icons = List<String>.from(data['icons'] ?? []);
@@ -101,6 +101,13 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
           final parts = ic.split(':');
           if (parts.length == 2) {
             results.add({
+              'name': parts.last,
+              'url': 'https://iconify.design{parts.first}/${parts.last}.png?height=96',
+            });
+          }
+        }
+      }
+
               'name': parts,
               'url': 'https://iconify.design{parts}/${parts}.png?height=96',
             });
