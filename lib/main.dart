@@ -146,11 +146,11 @@ class _MainShellState extends State<MainShell> {
   final List<Map<String, String>> _mediaLibrary = List<Map<String, String>>.from(DefaultMediaLibrary.builtInGifsAndPngs);
   final List<Map<String, String>> _soundsLibrary = List<Map<String, String>>.from(DefaultMediaLibrary.onlineSoundsRepository);
 
-  final List<Map<String, dynamic>> _alertsList = [
-    {'id': 'a1', 'trigger': 'follow', 'name': 'Novo Seguidor', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Muito obrigado {user} por seguires o canal!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs['url']!, 'sound': ''},
-    {'id': 'a2', 'trigger': 'like500', 'name': 'Meta de Gostos', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Obrigado {user} pelos gostos na live!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs['url']!, 'sound': ''},
-    {'id': 'a3', 'trigger': 'sub', 'name': 'Novo Subscritor', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Bem-vindo ao clube VIP {user}!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs['url']!, 'sound': ''},
-    {'id': 'a4', 'trigger': 'share', 'name': 'Partilha da Live', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Obrigado {user} por partilhares a transmissão!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs['url']!, 'sound': ''},
+    final List<Map<String, dynamic>> _alertsList = [
+    {'id': 'a1', 'trigger': 'follow', 'name': 'Novo Seguidor', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Muito obrigado {user} por seguires o canal!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs.first['url']!, 'sound': ''},
+    {'id': 'a2', 'trigger': 'like500', 'name': 'Meta de Gostos', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Obrigado {user} pelos gostos na live!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs.last['url']!, 'sound': ''},
+    {'id': 'a3', 'trigger': 'sub', 'name': 'Novo Subscritor', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Bem-vindo ao clube VIP {user}!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs.first['url']!, 'sound': ''},
+    {'id': 'a4', 'trigger': 'share', 'name': 'Partilha da Live', 'enabled': true, 'autoRecognize': true, 'ttsThank': true, 'customMessage': 'Obrigado {user} por partilhares a transmissão!', 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs.last['url']!, 'sound': ''},
   ];
 
   final List<Map<String, dynamic>> _goalsList = [
