@@ -1,3 +1,5 @@
+import 'dart:math';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -96,6 +98,47 @@ class UserAccountManager {
     if (status == 'invisible') return 'Invisível';
     if (status == 'offline') return 'Offline';
     return 'Online';
+      static const List<String> ownerEmails = ['hellgamer2026@gmail.com', 'heldermsf_@hotmail.com'];
+  static const String _staffKey = 'hell_staff_team_emails';
+  static const String _vipKeysKey = 'hell_vip_partner_keys';
+
+  static bool isOwnerEmail(String? email) => ownerEmails.contains((email ?? '').trim().toLowerCase());
+
+  static Future<List<String>> getStaffEmails() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_staffKey) ?? [];
+  }
+
+  static Future<void> setStaffEmails(List<String> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_staffKey, list.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet().toList());
+  }
+
+  static Future<bool> isStaffEmail(String? email) async {
+    final clean = (email ?? '').trim().toLowerCase();
+    if (clean.isEmpty) return false;
+    return (await getStaffEmails()).contains(clean);
+  }
+
+  static Future<String> generateVipKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_vipKeysKey) ?? [];
+    final code = 'HELL-VIP-${100000 + Random().nextInt(900000)}';
+    list.add(code);
+    await prefs.setStringList(_vipKeysKey, list);
+    return code;
+  }
+
+  static Future<bool> redeemVipKey(String code, Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_vipKeysKey) ?? [];
+    final clean = code.trim().toUpperCase();
+    if (!list.contains(clean)) return false;
+    list.remove(clean);
+    await prefs.setStringList(_vipKeysKey, list);
+    user['isVip'] = true;
+    await saveUser(user);
+    return true;
   }
 }
 class AuthScreen extends StatefulWidget {
@@ -114,6 +157,25 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  bool _acceptedTerms = false;
+  String _sentSmsCode = '';
+  final _smsCodeCtrl = TextEditingController();
+
+  Future<void> _sendSmsVerificationCode() async {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.length < 6) {
+      _msg('Introduz um número de telemóvel válido para receber o código SMS.');
+      return;
+    }
+    final code = (100000 + Random().nextInt(900000)).toString();
+    setState(() => _sentSmsCode = code);
+    final body = Uri.encodeComponent('HELL Live - O teu codigo de ativacao e: $code');
+    final smsUri = Uri.parse('sms:$phone?body=$body');
+    if (await canLaunchUrl(smsUri)) {
+      await launchUrl(smsUri);
+    }
+    _msg('Código SMS de 6 dígitos gerado e enviado para $phone!', isError: false);
+  }
 
   void _msg(String text, {bool isError = true}) {
     if (!mounted) return;
@@ -300,10 +362,18 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     final existing = await UserAccountManager.findRegisteredUser(id);
-    if (_isRegister) {
+       if (_isRegister) {
       if (existing != null) {
         _msg('Esta conta já está registada. Usa o separador "Entrar".');
         setState(() => _isRegister = false);
+        return;
+      }
+      if (_sentSmsCode.isEmpty || _smsCodeCtrl.text.trim() != _sentSmsCode) {
+        _msg('Envia e confirma primeiro o código SMS de 6 dígitos recebido no telemóvel.');
+        return;
+      }
+      if (!_acceptedTerms) {
+        _msg('Tens de aceitar as Regras, Termos & Responsabilidades antes de concluir o registo.');
         return;
       }
       final email = id.contains('@') ? id : '$id@helllive.app';
@@ -386,12 +456,30 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                if (_isRegister) ...[
+                               if (_isRegister) ...[
                   TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nome de Criador', isDense: true)),
                   const SizedBox(height: 10),
-                  TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telemóvel (Opcional)', isDense: true)),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telemóvel (SMS)', isDense: true))),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                        onPressed: _sendSmsVerificationCode,
+                        child: const Text('Enviar SMS', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
+                  TextField(controller: _smsCodeCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Código SMS de 6 Dígitos', isDense: true)),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _acceptedTerms,
+                    onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+                    title: const Text('Li e aceito as Regras, Termos & Responsabilidades', style: TextStyle(fontSize: 11.5)),
+                  ),
                 ],
+                
                 TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'E-mail ou Nome de Utilizador', isDense: true)),
                 const SizedBox(height: 10),
                 TextField(
@@ -480,7 +568,20 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 if (_methods.contains('biometric'))
                   ElevatedButton.icon(onPressed: _tryBio, icon: const Icon(Icons.fingerprint), label: const Text('Desbloquear com Biometria')),
                 const SizedBox(height: 12),
-                TextField(controller: _ctrl, obscureText: true, decoration: const InputDecoration(labelText: 'PIN ou Palavra-passe', border: OutlineInputBorder())),
+                                TextField(
+                  controller: _ctrl,
+                  obscureText: true,
+                  onChanged: (v) {
+                    final clean = v.trim();
+                    final pin = (widget.user['pinSecret'] ?? '').toString();
+                    final pass = (widget.user['passwordSecret'] ?? '').toString();
+                    if ((pin.isNotEmpty && clean == pin) || (pass.isNotEmpty && clean == pass)) {
+                      widget.onUnlocked();
+                    }
+                  },
+                  decoration: const InputDecoration(labelText: 'PIN ou Palavra-passe (Desbloqueia Automático)', border: OutlineInputBorder()),
+                ),
+
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -694,6 +795,77 @@ class _ProfilePrivacySecurityScreenState extends State<ProfilePrivacySecurityScr
           value: _methods.contains('biometric'),
           onChanged: (v) => setState(() => v ? _methods.add('biometric') : _methods.remove('biometric')),
         ),
+                  if (UserAccountManager.isOwnerEmail(widget.user['email'])) ...[
+            const Divider(height: 24),
+            const Text('👑 Administração do Dono · Equipa & Chaves VIP', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF122E73)),
+              icon: const Icon(Icons.group_add, color: Color(0xFF38BDF8)),
+              label: const Text('Gerir Equipa Autorizada (STAFF)', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                final team = await UserAccountManager.getStaffEmails();
+                final ctrl = TextEditingController();
+                if (!context.mounted) return;
+                showDialog(
+                  context: context,
+                  builder: (ctx) => StatefulBuilder(
+                    builder: (ctx, setSt) => AlertDialog(
+                      backgroundColor: const Color(0xFF08112B),
+                      title: const Text('Equipa HELL Live (Sem Acesso à Raiz)', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 14)),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'E-mail colaborador...', isDense: true))),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Colors.greenAccent),
+                                onPressed: () async {
+                                  if (ctrl.text.trim().isNotEmpty) {
+                                    team.add(ctrl.text.trim().toLowerCase());
+                                    await UserAccountManager.setStaffEmails(team);
+                                    ctrl.clear();
+                                    setSt(() {});
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          ...team.map((e) => ListTile(
+                                dense: true,
+                                title: Text(e, style: const TextStyle(fontSize: 12)),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                                  onPressed: () async {
+                                    team.remove(e);
+                                    await UserAccountManager.setStaffEmails(team);
+                                    setSt(() {});
+                                  },
+                                ),
+                              )),
+                        ],
+                      ),
+                      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 6),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              icon: const Icon(Icons.vpn_key, color: Colors.white),
+              label: const Text('Gerar Nova Chave VIP', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                final key = await UserAccountManager.generateVipKey();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chave VIP Gerada: $key')));
+                }
+              },
+            ),
+          ],
+
         const SizedBox(height: 12),
         ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)), onPressed: _save, child: const Text('Guardar Alterações', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
         TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
