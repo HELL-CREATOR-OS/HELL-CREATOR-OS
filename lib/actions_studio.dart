@@ -674,8 +674,7 @@ class _ActionsStudioScreenState extends State<ActionsStudioScreen> {
                         children: [
                           const Icon(Icons.layers, color: Color(0xFF38BDF8)),
                           const SizedBox(width: 8),
-                          Expanded(child: Text('Overlay Metas OBS / Studio:
-$overlayGoalsUrl', style: const TextStyle(fontSize: 11.5))),
+                          Expanded(child: Text('Overlay Metas OBS / Studio:$overlayGoalsUrl', style: const TextStyle(fontSize: 11.5))),
                           IconButton(
                             icon: const Icon(Icons.copy, color: Color(0xFF38BDF8)),
                             onPressed: () {
