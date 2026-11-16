@@ -1,38 +1,41 @@
-name: hell_live
-description: HELL LIVE - Aplicativo de alertas e leitura de lives em tempo real.
+name: hell_creator_os
+description: HELL CREATOR OS - One Creator. Every Platform. Total Control.
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  socket_io_client: ^2.0.3+1
-  flutter_tts: ^4.0.2
-  shared_preferences: ^2.2.3
-  file_picker: ^8.0.0+1
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.3.3
+  flutter_tts: ^4.2.0
   audioplayers: ^6.1.0
-  http: ^1.2.1
-  url_launcher: ^6.2.5
+  record: ^5.1.2
+  file_picker: ^10.1.2
+  http: ^1.2.2
+  url_launcher: ^6.3.1
+  path_provider: ^2.1.5
+  socket_io_client: ^3.0.2
   local_auth: ^2.3.0
+  google_sign_in: ^6.2.2
   wakelock_plus: ^1.2.8
-  google_sign_in: ^6.2.1
-  record: ^6.1.2
-  lottie: ^3.1.2
-  path_provider: ^2.1.4
+  fl_chart: ^0.69.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "icon.png"
-  adaptive_icon_background: "#050811"
+  adaptive_icon_background: "#050B1E"
   adaptive_icon_foreground: "icon.png"
   windows:
     generate: true
