@@ -25,7 +25,8 @@ jobs:
           echo "flutter.minSdkVersion=23" >> android/local.properties
           sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
-          printf '\nsubprojects {\n    afterEvaluate {\n        extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.compileSdkVersion(36)\n    }\n}\n' >> android/build.gradle.kts || true
+                    printf '\nsubprojects {\n    plugins.withId("com.android.library") {\n        extensions.configure<com.android.build.gradle.LibraryExtension>("android") {\n            compileSdk = 36\n        }\n    }\n}\n' >> android/build.gradle.kts || true
+
           sudo apt-get update && sudo apt-get install -y python3-pil
           python3 -c "from PIL import Image, ImageDraw; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 20 and g < 20 and b < 30) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); bg = Image.new('RGBA', (1024, 1024), (5, 8, 17, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); draw = ImageDraw.Draw(glow); [draw.ellipse([512-r, 512-r, 512+r, 512+r], fill=(0, 229, 255, int(115*(1-r/430)))) for r in range(430, 0, -8)]; bg = Image.alpha_composite(bg, glow); fg = img.resize((660, 660)); bg.paste(fg, (182, 182), fg); bg.save('icon_tablet.png')"
           sed -i 's/adaptive_icon_background: "#000000"/adaptive_icon_background: "#050811"/g' pubspec.yaml
