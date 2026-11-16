@@ -98,6 +98,7 @@ class UserAccountManager {
     if (status == 'invisible') return 'Invisível';
     if (status == 'offline') return 'Offline';
     return 'Online';
+  }
       static const List<String> ownerEmails = ['hellgamer2026@gmail.com', 'heldermsf_@hotmail.com'];
   static const String _staffKey = 'hell_staff_team_emails';
   static const String _vipKeysKey = 'hell_vip_partner_keys';
