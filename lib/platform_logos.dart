@@ -308,3 +308,28 @@ class _YouTubeLogoPainter extends CustomPainter {
     final play = Path()
       ..moveTo(w * 0.40, h * 0.30)
       ..lineTo(w * 0.70, h * 0.50)
+      ..lineTo(w * 0.40, h * 0.70)
+      ..close();
+    canvas.drawPath(play, white);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _KickLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final green = Paint()..color = const Color(0xFF53FC18)..style = PaintingStyle.fill;
+
+    canvas.drawRect(Rect.fromLTWH(w * 0.28, h * 0.22, w * 0.15, h * 0.56), green);
+    canvas.drawRect(Rect.fromLTWH(w * 0.43, h * 0.43, w * 0.12, h * 0.14), green);
+    canvas.drawRect(Rect.fromLTWH(w * 0.55, h * 0.22, w * 0.15, h * 0.21), green);
+    canvas.drawRect(Rect.fromLTWH(w * 0.55, h * 0.57, w * 0.15, h * 0.21), green);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
