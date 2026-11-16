@@ -465,3 +465,23 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
                   Text('${(_cloneSec ~/ 60).toString().padLeft(2, '0')}:${(_cloneSec % 60).toString().padLeft(2, '0')} / 02:00', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 ],
               ),
+              ),
+              const SizedBox(height: 8),
+              const Text(DefaultMediaLibrary.voiceCloneScript2Min, style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: _isRecordingClone ? Colors.redAccent : const Color(0xFF1E78FF)),
+                  onPressed: _toggleCloneRecord,
+                  icon: Icon(_isRecordingClone ? Icons.stop : Icons.mic, color: Colors.white),
+                  label: Text(_isRecordingClone ? 'Parar Gravação' : 'Gravar Guião de 2 Minutos', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
