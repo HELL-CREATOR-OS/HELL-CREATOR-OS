@@ -279,6 +279,8 @@ class _InteractionScreenState extends State<InteractionScreen> with SingleTicker
   double _currentAngle = 0;
   String _lastWinner = 'Toca em Girar!';
   String _wheelTheme = 'neon';
+  bool _chatCanSpinWheel = true;
+  int _podiumLimit = 5;
 
   int _subathonSeconds = 1800;
   bool _subathonRunning = false;
@@ -613,6 +615,35 @@ class _InteractionScreenState extends State<InteractionScreen> with SingleTicker
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: _studioCardDeco(),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Posições visíveis no Pódio:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          DropdownButton<int>(
+                            value: _podiumLimit,
+                            dropdownColor: const Color(0xFF0B1636),
+                            items: List.generate(10, (i) => DropdownMenuItem(value: i + 1, child: Text('Top ${i + 1}'))),
+                            onChanged: (v) => setState(() => _podiumLimit = v ?? 5),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 12)),
+                      icon: const Icon(Icons.movie_filter, color: Colors.white),
+                      label: const Text('🎬 Rolagem de Créditos (Fim de Live)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        final names = topOverall.isEmpty ? ['Comunidade HELL Live'] : topOverall.take(_podiumLimit).map((e) => '${e['user']} (${e['score']} pts)').toList();
+                        LocalObsServer.pushAlert('🎬 CRÉDITOS DA LIVE', names.join(' · '), DefaultMediaLibrary.builtInGifsAndPngs.first['url']!);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Créditos finais enviados para o ecrã da live!')));
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
                     _buildRankingCard('🏆 TOP GERAL DE INTERAÇÕES', topOverall, 'pts', const Color(0xFF38BDF8), medals),
                     const SizedBox(height: 12),
                     _buildRankingCard('💎 TOP PRESENTES DA LIVE', widget.topGifts, 'moedas', const Color(0xFFFACC15), medals),
@@ -639,7 +670,7 @@ class _InteractionScreenState extends State<InteractionScreen> with SingleTicker
           if (list.isEmpty)
             const Text('Aguardando interações dos espectadores em direto...', style: TextStyle(color: Colors.white54, fontSize: 12))
           else
-            ...list.take(5).toList().asMap().entries.map((e) {
+            ...list.take(_podiumLimit).toList().asMap().entries.map((e) {
               final avatar = (e.value['avatar'] ?? '').toString();
               return ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -678,18 +709,33 @@ class _Wheel3DPainter extends CustomPainter {
     final radius = size.width / 2;
     final sweep = (2 * pi) / options.length;
 
-    for (int i = 0; i < options.length; i++) {
+       for (int i = 0; i < options.length; i++) {
+      final startAngle = i * sweep;
       final paint = Paint()
         ..color = colors[i % colors.length]
         ..style = PaintingStyle.fill;
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), i * sweep, sweep, true, paint);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweep, true, paint);
 
       final border = Paint()
-        ..color = Colors.white24
+        ..color = Colors.white38
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), i * sweep, sweep, true, border);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweep, true, border);
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(startAngle + sweep / 2);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: options[i].length > 14 ? '${options[i].substring(0, 12)}..' : options[i],
+          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: radius * 0.65);
+      tp.paint(canvas, Offset(radius * 0.28, -tp.height / 2));
+      canvas.restore();
     }
+
 
     final gloss = Paint()
       ..shader = LinearGradient(
