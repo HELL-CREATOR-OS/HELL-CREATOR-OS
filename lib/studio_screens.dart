@@ -295,6 +295,50 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
+                                                               Expanded(child: TextField(controller: _syncInputCtrl, decoration: const InputDecoration(hintText: 'Validar código do aparelho principal...', isDense: true))),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                                onPressed: () => widget.onValidateSyncCode(_syncInputCtrl.text.trim()),
+                                child: const Text('Sincronizar', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                          if (widget.isSecondScreenPaired)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text('✅ 2.º Aparelho Sincronizado! Stream Deck Pro desbloqueado.', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (isOwner) ...[
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                        onPressed: () async {
+                          final key = await UserAccountManager.generateVipKey();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chave VIP Gerada: $key')));
+                          }
+                        },
+                        icon: const Icon(Icons.vpn_key, color: Colors.white),
+                        label: const Text('👑 Gerar Nova Chave VIP (Dono)', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+ 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
 class SmartBrainScreen extends StatefulWidget {
   const SmartBrainScreen({super.key});
