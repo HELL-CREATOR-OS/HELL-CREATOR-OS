@@ -1,376 +1,584 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:record/record.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'app_data.dart';
+import 'live_connectors.dart';
 
-class HellLiveEvent {
-  final String id;
-  final String platform;
-  final String type; // follow, gift, sub, raid, chat, disconnect
-  final String username;
-  final String message;
-  final double euroValue;
-  final int count;
-  final DateTime timestamp;
+class ActionsStudioTab extends StatefulWidget {
+  final List<Map<String, dynamic>> alertsList;
+  final List<Map<String, dynamic>> goalsList;
+  final List<Map<String, String>> sounds;
+  final AudioPlayer sfxPlayer;
+  final AudioRecorder voiceRecorder;
+  final bool allGiftsEnabled;
+  final Function(bool) onToggleAllGifts;
+  final Function(String) onSpeakVoice;
+  final VoidCallback onStateChanged;
 
-  HellLiveEvent({
-    required this.id,
-    required this.platform,
-    required this.type,
-    required this.username,
-    required this.message,
-    this.euroValue = 0.0,
-    this.count = 1,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
-}
-
-class HellAutomationRule {
-  final String id;
-  String triggerName;
-  String triggerType;
-  String actionDescription;
-  String assignedSoundId;
-  bool enabled;
-
-  HellAutomationRule({
-    required this.id,
-    required this.triggerName,
-    required this.triggerType,
-    required this.actionDescription,
-    required this.assignedSoundId,
-    this.enabled = true,
-  });
-}
-
-class ActionsAndAutomationsView extends StatefulWidget {
-  final List<HellLiveEvent> eventHistory;
-  final Function(HellLiveEvent) onTriggerTestEvent;
-  final VoidCallback onRefreshLibrary;
-
-  const ActionsAndAutomationsView({
+  const ActionsStudioTab({
     super.key,
-    required this.eventHistory,
-    required this.onTriggerTestEvent,
-    required this.onRefreshLibrary,
+    required this.alertsList,
+    required this.goalsList,
+    required this.sounds,
+    required this.sfxPlayer,
+    required this.voiceRecorder,
+    required this.allGiftsEnabled,
+    required this.onToggleAllGifts,
+    required this.onSpeakVoice,
+    required this.onStateChanged,
   });
 
   @override
-  State<ActionsAndAutomationsView> createState() => _ActionsAndAutomationsViewState();
+  State<ActionsStudioTab> createState() => _ActionsStudioTabState();
 }
 
-class _ActionsAndAutomationsViewState extends State<ActionsAndAutomationsView> {
-  bool _refreshing = false;
-  String _selectedSoundCategory = 'Todos';
-  String _soundSearchQuery = '';
-  String _playingSoundId = '';
+class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerProviderStateMixin {
+  String? _currentlyPlayingUrl;
 
-  final List<HellAutomationRule> _rules = [
-    HellAutomationRule(
-      id: 'rule_follow',
-      triggerName: 'Novo Seguidor',
-      triggerType: 'follow',
-      actionDescription: 'HELL VOICE anuncia o nome + Som Alerta',
-      assignedSoundId: 'neon_ping',
-      enabled: true,
-    ),
-    HellAutomationRule(
-      id: 'rule_rose',
-      triggerName: 'Presente / Rosa Recebida',
-      triggerType: 'gift',
-      actionDescription: 'Agrupar na Voice Queue + Alerta Visual na Live',
-      assignedSoundId: 'rose_sparkle',
-      enabled: true,
-    ),
-    HellAutomationRule(
-      id: 'rule_sub',
-      triggerName: 'Novo Membro / Subscrição',
-      triggerType: 'sub',
-      actionDescription: 'Voz prioritária + Fanfarra + Destaque Pódio',
-      assignedSoundId: 'vip_fanfare',
-      enabled: true,
-    ),
-    HellAutomationRule(
-      id: 'rule_raid',
-      triggerName: 'Raid Recebida',
-      triggerType: 'raid',
-      actionDescription: 'Anunciar número de viewers + Som Épico',
-      assignedSoundId: 'raid_horn',
-      enabled: true,
-    ),
-    HellAutomationRule(
-      id: 'rule_disconnect',
-      triggerName: 'Queda de Ligação na Live',
-      triggerType: 'disconnect',
-      actionDescription: 'Alerta crítico imediato nos auriculares',
-      assignedSoundId: 'critical_disconnect',
-      enabled: true,
-    ),
+  // Donation State
+  final _mbwayCtrl = TextEditingController();
+  final _paypalCtrl = TextEditingController();
+  final _revolutCtrl = TextEditingController();
+  final _pixCtrl = TextEditingController();
+  final _minAmountCtrl = TextEditingController(text: '1.00');
+  bool _readTtsThank = true;
+
+  // Desafios & Roleta 3D State
+  late AnimationController _wheelCtrl;
+  double _currentAngle = 0;
+  String _lastWinner = 'Toca em Girar!';
+  final _optionCtrl = TextEditingController();
+  final List<String> _wheelOptions = [
+    '10 Flexões',
+    'Escolher Música',
+    'Sem Mira 1 Ronda',
+    'Salve Especial',
+    'Desafio do Chat',
+    'Sorte Grande!',
+  ];
+  int _subathonSec = 1800;
+  bool _subathonRunning = false;
+  Timer? _subathonTimer;
+  int _podiumLimit = 3;
+
+  // Regras Automáticas ("Quando X -> Faz Y")
+  String _ruleProfile = 'Live Padrão';
+  final List<Map<String, dynamic>> _automationRules = [
+    {'when': 'Novo Seguidor', 'then': 'Anunciar nome por voz + Som Cristalino', 'priority': 'Alta', 'active': true},
+    {'when': '30 Rosas Seguidas', 'then': 'Agrupar anúncio na Voice Queue', 'priority': 'Média', 'active': true},
+    {'when': 'Presente Especial (>= 500)', 'then': 'Alerta Prioritário + Confetes', 'priority': 'Crítica', 'active': true},
+    {'when': 'Live Desligada / Queda', 'then': 'Emitir alerta crítico nos auriculares', 'priority': 'Crítica', 'active': true},
+  ];
+  final List<String> _executionHistory = [
+    '18:40 • Regra "Novo Seguidor" executada com sucesso.',
+    '18:32 • Meta de Gostos atualizada para 25%.',
   ];
 
-  void _runRefresh() async {
-    setState(() => _refreshing = true);
-    widget.onRefreshLibrary();
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) setState(() => _refreshing = false);
+  @override
+  void initState() {
+    super.initState();
+    _wheelCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 4));
   }
 
-  Future<void> _previewOnlineSound(OnlineSoundItem sound) async {
-    setState(() => _playingSoundId = sound.id);
-    await HellAudioEngine.playUrl(sound.url);
+  @override
+  void dispose() {
+    _wheelCtrl.dispose();
+    _subathonTimer?.cancel();
+    super.dispose();
   }
 
-  void _assignSoundToRule(OnlineSoundItem sound) {
+  BoxDecoration _neonCard() => BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
+      );
+  Future<void> _togglePlayAudio(String url, {bool isLocal = false, VoidCallback? onStateUpdate}) async {
+    if (url.isEmpty) return;
+    if (_currentlyPlayingUrl == url) {
+      await widget.sfxPlayer.stop();
+      _currentlyPlayingUrl = null;
+      if (mounted) setState(() {});
+      onStateUpdate?.call();
+      return;
+    }
+    _currentlyPlayingUrl = url;
+    if (mounted) setState(() {});
+    onStateUpdate?.call();
+    try {
+      await widget.sfxPlayer.stop();
+      if (isLocal || !url.startsWith('http')) {
+        await widget.sfxPlayer.play(DeviceFileSource(url));
+      } else {
+        await widget.sfxPlayer.play(UrlSource(url));
+      }
+      widget.sfxPlayer.onPlayerComplete.listen((_) {
+        if (_currentlyPlayingUrl == url) {
+          _currentlyPlayingUrl = null;
+          if (mounted) setState(() {});
+          onStateUpdate?.call();
+        }
+      });
+    } catch (_) {
+      _currentlyPlayingUrl = null;
+      if (mounted) setState(() {});
+      onStateUpdate?.call();
+    }
+  }
+
+  Widget _buildSmartMediaWidget(String mediaPath, {double size = 42}) {
+    if (mediaPath.isEmpty) {
+      return Icon(Icons.card_giftcard, size: size, color: const Color(0xFF38BDF8));
+    }
+    if (!mediaPath.startsWith('http')) {
+      final f = File(mediaPath);
+      if (f.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(f, width: size, height: size, fit: BoxFit.contain),
+        );
+      }
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(
+        mediaPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Icon(Icons.auto_awesome, size: size, color: const Color(0xFF38BDF8)),
+      ),
+    );
+  }
+
+  void _openInstantPreviewDialog({
+    required String title,
+    required String mediaUrl,
+    required String soundUrl,
+    String? customVoicePath,
+    required String message,
+  }) {
+    if (customVoicePath != null && customVoicePath.isNotEmpty) {
+      widget.sfxPlayer.stop().then((_) => widget.sfxPlayer.play(DeviceFileSource(customVoicePath)));
+    } else if (soundUrl.isNotEmpty) {
+      widget.sfxPlayer.stop().then((_) {
+        if (soundUrl.startsWith('http')) {
+          widget.sfxPlayer.play(UrlSource(soundUrl));
+        } else {
+          widget.sfxPlayer.play(DeviceFileSource(soundUrl));
+        }
+      });
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: HellTheme.cardElevated,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: HellTheme.neonBlue),
-        ),
-        title: Text(
-          'Associar "${sound.title}"',
-          style: const TextStyle(color: HellTheme.textWhite, fontSize: 15),
-        ),
+        backgroundColor: const Color(0xFF050B1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 2)),
+        title: Text('Pré-visualização · $title', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: _rules.map((r) {
-            return ListTile(
-              dense: true,
-              leading: const Icon(Icons.bolt_rounded, color: HellTheme.neonGreen),
-              title: Text(r.triggerName, style: const TextStyle(color: HellTheme.textWhite, fontSize: 13)),
-              onTap: () {
-                setState(() => r.assignedSoundId = sound.id);
-                Navigator.pop(ctx);
-              },
-            );
-          }).toList(),
+          children: [
+            _buildSmartMediaWidget(mediaUrl, size: 84),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+            onPressed: () {
+              widget.sfxPlayer.stop();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Fechar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openRichCustomizer({
+    required String title,
+    required String initialMedia,
+    required String initialSound,
+    required String? initialCustomVoice,
+    required bool initialTtsThank,
+    required String? initialCustomMessage,
+    required String defaultMessageTemplate,
+    required Function(String media, String sound, String? voicePath, bool ttsThank, String customMsg) onSave,
+  }) {
+    String chosenMedia = initialMedia;
+    String chosenSound = initialSound;
+    String? customVoicePath = initialCustomVoice;
+    bool ttsThank = initialTtsThank;
+    final msgCtrl = TextEditingController(text: (initialCustomMessage == null || initialCustomMessage.isEmpty) ? defaultMessageTemplate : initialCustomMessage);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF08112B),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
+          child: SizedBox(
+            height: 460,
+            child: ListView(
+              children: [
+                Text('⚙️ Personalizar · $title', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                const SizedBox(height: 10),
+                TextField(controller: msgCtrl, decoration: const InputDecoration(labelText: 'Mensagem do Alerta (usa {user})', isDense: true, border: OutlineInputBorder())),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ler agradecimento por voz (TTS)', style: TextStyle(fontSize: 13)),
+                  value: ttsThank,
+                  onChanged: (v) => setModalState(() => ttsThank = v),
+                ),
+                const Text('🔊 Escolher Som:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF38BDF8))),
+                ...DefaultMediaLibrary.onlineSoundsRepository.map((s) {
+                  final url = s['url']!;
+                  final isSelected = chosenSound == url;
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: const Color(0xFF38BDF8)),
+                    title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 12.5)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.play_circle_fill, color: Colors.greenAccent),
+                      onPressed: () => _togglePlayAudio(url, onStateUpdate: () => setModalState(() {})),
+                    ),
+                    onTap: () => setModalState(() {
+                      chosenSound = url;
+                      customVoicePath = null;
+                    }),
+                  );
+                }),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                  onPressed: () async {
+                    await widget.sfxPlayer.stop();
+                    onSave(chosenMedia, chosenSound, customVoicePath, ttsThank, msgCtrl.text.trim());
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: const Text('Guardar Alterações', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
-  @override
-  Widget build(BuildContext context) {
-    final filteredSounds = AppData.onlineSoundLibrary.where((s) {
-      final matchesCat = _selectedSoundCategory == 'Todos' || s.category == _selectedSoundCategory;
-      final matchesQuery = _soundSearchQuery.isEmpty ||
-          s.title.toLowerCase().contains(_soundSearchQuery.toLowerCase());
-      return matchesCat && matchesQuery;
-    }).toList();
+  Widget _buildUniformActionCard({
+    required String title,
+    required String subtitle,
+    required String mediaUrl,
+    required bool isEnabled,
+    required VoidCallback onDelete,
+    required VoidCallback onEdit,
+    required VoidCallback onPlayPreview,
+    required Function(bool) onToggleEnabled,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: _neonCard(),
+      child: Row(
+        children: [
+          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20), onPressed: onDelete),
+          _buildSmartMediaWidget(mediaUrl, size: 42),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                const SizedBox(height: 2),
+                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
+              ],
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 20), onPressed: onEdit),
+          IconButton(icon: const Icon(Icons.play_circle_fill, color: Colors.greenAccent, size: 26), onPressed: onPlayPreview),
+          Switch(activeColor: Colors.white, activeTrackColor: const Color(0xFF1E78FF), value: isEnabled, onChanged: onToggleEnabled),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildDonationSubTab() {
+    final donateLink = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/donate';
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Expanded(
-              child: Text(
-                'UNIVERSAL EVENT ENGINE & BIBLIOTECA SONORA',
-                style: TextStyle(
-                  color: HellTheme.neonBlue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Atualizar Bibliotecas Online',
-              onPressed: _runRefresh,
-              icon: AnimatedRotation(
-                turns: _refreshing ? 1 : 0,
-                duration: const Duration(milliseconds: 500),
-                child: const Icon(Icons.refresh_rounded, color: HellTheme.neonBlue, size: 26),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // Simulador Rápido de Eventos (Live + HELL VOICE + Som Real)
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: HellTheme.neonCard(),
+          padding: const EdgeInsets.all(16),
+          decoration: _neonCard(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Testar Alerta (Live + HELL VOICE + Som)',
-                style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _testChip('Seguidor', Icons.person_add_rounded, () {
-                    HellAudioEngine.playUrl(AppData.onlineSoundLibrary[0].url);
-                    widget.onTriggerTestEvent(HellLiveEvent(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      platform: 'TikTok',
-                      type: 'follow',
-                      username: 'Miguel_PT',
-                      message: 'O Miguel começou a seguir-te!',
-                    ));
-                  }),
-                  _testChip('30 Rosas', Icons.local_florist_rounded, () {
-                    HellAudioEngine.playUrl(AppData.onlineSoundLibrary[2].url);
-                    widget.onTriggerTestEvent(HellLiveEvent(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      platform: 'TikTok',
-                      type: 'gift',
-                      username: 'Ana_Gamer',
-                      count: 30,
-                      euroValue: 1.50,
-                      message: 'Recebeste 30 rosas de Ana_Gamer!',
-                    ));
-                  }),
-                  _testChip('Doação 12,50 €', Icons.euro_rounded, () {
-                    HellAudioEngine.playUrl(AppData.onlineSoundLibrary[4].url);
-                    widget.onTriggerTestEvent(HellLiveEvent(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      platform: 'YouTube',
-                      type: 'gift',
-                      username: 'Pedro_Silva',
-                      euroValue: 12.50,
-                      message: 'Doação de ${AppData.formatEuroSpeech(12.50)} de Pedro_Silva!',
-                    ));
-                  }),
+                  const Text('💸 Donation & Link /donate', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                    onPressed: () {
+                      final amount = double.tryParse(_minAmountCtrl.text.replaceAll(',', '.')) ?? 5.0;
+                      final natural = AppTranslations.formatEuroNaturalPt(amount);
+                      final msg = 'Muito obrigado Apoiante VIP pela doação de $natural!';
+                      if (_readTtsThank) widget.onSpeakVoice(msg);
+                      LocalObsServer.pushAlert('Apoiante VIP', msg, DefaultMediaLibrary.builtInGifsAndPngs.first['url']!);
+                    },
+                    icon: const Icon(Icons.play_arrow, size: 16, color: Colors.white),
+                    label: const Text('Testar Voz', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                  ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: _minAmountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Valor Mínimo (€)', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: _mbwayCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telemóvel MB WAY', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: _paypalCtrl, decoration: const InputDecoration(labelText: 'Link PayPal.me', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: _revolutCtrl, decoration: const InputDecoration(labelText: 'Link Revolut.me', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: _pixCtrl, decoration: const InputDecoration(labelText: 'Chave PIX', isDense: true)),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Ler doações em português natural (ex: cinco euros)', style: TextStyle(fontSize: 12)),
+                value: _readTtsThank,
+                onChanged: (v) => setState(() => _readTtsThank = v),
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: const Color(0xFF050B1E), borderRadius: BorderRadius.circular(10)),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(donateLink, style: const TextStyle(color: Colors.cyanAccent, fontSize: 12))),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 18, color: Colors.white),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: donateLink));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link /donate copiado!')));
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-
-        // Biblioteca Sonora Online com Pré-Escuta (▶)
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Biblioteca Sonora Online (Ouvir e Associar)',
-                style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
-                decoration: InputDecoration(
-                  hintText: 'Pesquisar efeito sonoro...',
-                  hintStyle: const TextStyle(color: HellTheme.textMuted, fontSize: 12),
-                  prefixIcon: const Icon(Icons.search_rounded, color: HellTheme.neonBlue, size: 18),
-                  isDense: true,
-                  filled: true,
-                  fillColor: HellTheme.cardElevated,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onChanged: (val) => setState(() => _soundSearchQuery = val),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 32,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: AppData.soundCategories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                  itemBuilder: (context, idx) {
-                    final cat = AppData.soundCategories[idx];
-                    final sel = cat == _selectedSoundCategory;
-                    return ChoiceChip(
-                      label: Text(cat, style: TextStyle(fontSize: 11, color: sel ? HellTheme.bgDark : HellTheme.textWhite)),
-                      selected: sel,
-                      selectedColor: HellTheme.neonBlue,
-                      backgroundColor: HellTheme.cardElevated,
-                      onSelected: (_) => setState(() => _selectedSoundCategory = cat),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...filteredSounds.map((sound) {
-                final isPlaying = _playingSoundId == sound.id;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: HellTheme.cardElevated,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isPlaying ? HellTheme.neonGreen : HellTheme.neonBlue.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          isPlaying ? Icons.volume_up_rounded : Icons.play_arrow_rounded,
-                          color: isPlaying ? HellTheme.neonGreen : HellTheme.neonBlue,
-                        ),
-                        onPressed: () => _previewOnlineSound(sound),
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(sound.title, style: const TextStyle(color: HellTheme.textWhite, fontSize: 12, fontWeight: FontWeight.bold)),
-                            Text(sound.category, style: const TextStyle(color: HellTheme.textMuted, fontSize: 10)),
-                          ],
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => _assignSoundToRule(sound),
-                        child: const Text('Associar', style: TextStyle(color: HellTheme.neonBlue, fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // Regras Automáticas ("Quando acontecer X -> Faz Y")
-        const Text(
-          'Regras Automáticas Ativas',
-          style: TextStyle(color: HellTheme.textWhite, fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ..._rules.map((rule) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: HellTheme.neonCard(isActiveGreen: rule.enabled),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('QUANDO: ${rule.triggerName}', style: const TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text('FAZ: ${rule.actionDescription}', style: const TextStyle(color: HellTheme.neonBlue, fontSize: 11)),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: rule.enabled,
-                    activeColor: HellTheme.neonGreen,
-                    onChanged: (val) => setState(() => rule.enabled = val),
-                  ),
-                ],
-              ),
-            )),
       ],
     );
   }
 
-  Widget _testChip(String label, IconData icon, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, color: HellTheme.bgDark, size: 15),
-      label: Text(label, style: const TextStyle(color: HellTheme.bgDark, fontWeight: FontWeight.bold, fontSize: 11)),
-      backgroundColor: HellTheme.neonBlue,
-      onPressed: onTap,
-    );
+  void _spinWheel() {
+    if (_wheelOptions.isEmpty) return;
+    final rnd = Random();
+    final end = _currentAngle + (5 + rnd.nextInt(4)) * 2 * pi + rnd.nextDouble() * 2 * pi;
+    final anim = Tween<double>(begin: _currentAngle, end: end).animate(CurvedAnimation(parent: _wheelCtrl, curve: Curves.easeOutQuart));
+    anim.addListener(() => setState(() => _currentAngle = anim.value));
+    _wheelCtrl.forward(from: 0).then((_) {
+      final winner = _wheelOptions[rnd.nextInt(_wheelOptions.length)];
+      setState(() {
+        _lastWinner = '🎉 $winner';
+        _executionHistory.insert(0, 'Roleta 3D sorteou: $winner');
+      });
+    });
   }
-}
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          const TabBar(
+            isScrollable: true,
+            indicatorColor: Color(0xFF38BDF8),
+            labelColor: Color(0xFF38BDF8),
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: '🎁 Presentes'),
+              Tab(text: '🔔 Alertas'),
+              Tab(text: '💸 Donation'),
+              Tab(text: '🎯 Metas & Desafios'),
+              Tab(text: '⚡ Regras & Histórico'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 1. PRESENTES
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: _neonCard(),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Ativar Todos os Presentes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                          Switch(activeColor: Colors.white, activeTrackColor: const Color(0xFF1E78FF), value: widget.allGiftsEnabled, onChanged: widget.onToggleAllGifts),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...DefaultMediaLibrary.tiktokGiftsCatalog.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final g = entry.value;
+                      final defaultMsg = 'Obrigado {user} pelo presente ${g['name']}!';
+                      return _buildUniformActionCard(
+                        title: g['name'] ?? 'Presente',
+                        subtitle: '${g['coins']} moedas · ${(g['sound'] ?? '').toString().isEmpty ? 'Sem som' : 'Som ativo'}',
+                        mediaUrl: g['png'] ?? '',
+                        isEnabled: g['enabled'] == true,
+                        onDelete: () => setState(() => DefaultMediaLibrary.tiktokGiftsCatalog.removeAt(idx)),
+                        onEdit: () => _openRichCustomizer(
+                          title: g['name'] ?? 'Presente',
+                          initialMedia: g['png'] ?? '',
+                          initialSound: g['sound'] ?? '',
+                          initialCustomVoice: g['customVoicePath'],
+                          initialTtsThank: g['ttsThank'] ?? true,
+                          initialCustomMessage: g['customMessage'],
+                          defaultMessageTemplate: defaultMsg,
+                          onSave: (m, s, v, tts, msg) => setState(() {
+                            g['png'] = m;
+                            g['sound'] = s;
+                            g['customVoicePath'] = v;
+                            g['ttsThank'] = tts;
+                            g['customMessage'] = msg;
+                          }),
+                        ),
+                        onPlayPreview: () {
+                          final spoken = defaultMsg.replaceAll('{user}', 'Apoiante');
+                          _openInstantPreviewDialog(title: g['name'], mediaUrl: g['png'] ?? '', soundUrl: g['sound'] ?? '', message: spoken);
+                          if ((g['ttsThank'] ?? true) == true) widget.onSpeakVoice(spoken);
+                        },
+                        onToggleEnabled: (v) => setState(() => g['enabled'] = v),
+                      );
+                    }),
+                  ],
+                ),
+
+                // 2. ALERTAS
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: widget.alertsList.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final al = entry.value;
+                    final defaultMsg = '{user} ativou ${al['name']}!';
+                    return _buildUniformActionCard(
+                      title: al['name'] ?? 'Alerta',
+                      subtitle: (al['sound'] ?? '').toString().isEmpty ? 'Sem som selecionado' : 'Som ativo',
+                      mediaUrl: al['media'] ?? '',
+                      isEnabled: al['enabled'] == true,
+                      onDelete: () => setState(() => widget.alertsList.removeAt(idx)),
+                      onEdit: () => _openRichCustomizer(
+                        title: al['name'] ?? 'Alerta',
+                        initialMedia: al['media'] ?? '',
+                        initialSound: al['sound'] ?? '',
+                        initialCustomVoice: al['customVoicePath'],
+                        initialTtsThank: al['ttsThank'] ?? true,
+                        initialCustomMessage: al['customMessage'],
+                        defaultMessageTemplate: defaultMsg,
+                        onSave: (m, s, v, tts, msg) => setState(() {
+                          al['media'] = m;
+                          al['sound'] = s;
+                          al['customVoicePath'] = v;
+                          al['ttsThank'] = tts;
+                          al['customMessage'] = msg;
+                        }),
+                      ),
+                      onPlayPreview: () {
+                        final spoken = defaultMsg.replaceAll('{user}', 'Apoiante');
+                        _openInstantPreviewDialog(title: al['name'], mediaUrl: al['media'] ?? '', soundUrl: al['sound'] ?? '', message: spoken);
+                        if ((al['ttsThank'] ?? true) == true) widget.onSpeakVoice(spoken);
+                      },
+                      onToggleEnabled: (v) => setState(() => al['enabled'] = v),
+                    );
+                  }).toList(),
+                ),
+
+                // 3. DONATION
+                _buildDonationSubTab(),
+
+                // 4. METAS, DESAFIOS (SUBATHON + ROLETA 3D) & PÓDIO TOP 1-10
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonCard(),
+                      child: Column(
+                        children: [
+                          const Text('🎡 Roleta 3D Interativa (Texto nas Fatias)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8), fontSize: 15)),
+                          const Icon(Icons.arrow_drop_down, size: 34, color: Colors.amberAccent),
+                          Transform.rotate(
+                            angle: _currentAngle,
+                            child: SizedBox(
+                              width: 190,
+                              height: 190,
+                              child: CustomPaint(painter: _LabeledWheelPainter(_wheelOptions)),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(_lastWinner, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                            onPressed: _spinWheel,
+                            child: const Text('GIRAR ROLETA 3D', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(child: TextField(controller: _optionCtrl, decoration: const InputDecoration(hintText: 'Novo prémio / desafio...', isDense: true))),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
+                                onPressed: () {
+                                  if (_optionCtrl.text.trim().isNotEmpty) {
+                                    setState(() {
+                                      _wheelOptions.add(_optionCtrl.text.trim());
+                                      _optionCtrl.clear();
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonCard(),
+                      child: Column(
+                        children: [
+                          const Text('⏱️ Temporizador Subathon', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${(_subathonSec ~/ 3600).toString().padLeft(2, '0')}:${((_subathonSec % 3600) ~/ 60).toString().padLeft(2, '0')}:${(_subathonSec % 60).toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: _subathonRunning ? Colors.amber : Colors.green),
+                                onPressed: () {
+                                  if (_subathonRunning) {
+                                    _subathonTimer?.cancel();
+                                    setState(() => _subathonRunning = false);
