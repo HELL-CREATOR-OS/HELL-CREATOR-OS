@@ -302,12 +302,12 @@ class _MainShellState extends State<MainShell> {
     await prefs.setDouble('tts_volume', _voiceVolume);
   }
 
-  Future<void> _speakRealVoice(String text) async {
+    Future<void> _speakRealVoice(String text) async {
     if (_isMuted || text.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
-    final activeId = prefs.getString('hell_active_voice_id') ?? 'google_pt_duarte';
-    final isFemale = activeId.contains('raquel') || activeId.contains('francisca') || activeId.contains('jenny');
-    final lang = activeId.contains('_br_') ? 'pt-BR' : (activeId.contains('_en_') ? 'en-US' : (activeId.contains('_es_') ? 'es-ES' : 'pt-PT'));
+    final activeId = prefs.getString('hell_active_voice_id') ?? 'pt_m1';
+    final isFemale = activeId.startsWith('pt_f') || activeId.startsWith('en_f') || activeId.contains('raquel');
+    final lang = activeId.startsWith('en_') ? 'en-US' : 'pt-PT';
 
     try {
       await flutterTts.stop();
@@ -315,12 +315,13 @@ class _MainShellState extends State<MainShell> {
         await flutterTts.setEngine('com.google.android.tts');
       }
       await flutterTts.setLanguage(lang);
-      await flutterTts.setPitch(isFemale ? 1.18 : (activeId == 'google_pt_locutor' ? 0.55 : 0.72));
+      await flutterTts.setPitch(activeId == 'pt_m3' ? 0.58 : (isFemale ? 1.18 : 0.78));
       await flutterTts.setSpeechRate(_speechRate);
       await flutterTts.setVolume(_voiceVolume);
       await flutterTts.speak(text);
     } catch (_) {}
   }
+
 
   void _initConnectors() {
     socket = IO.io('http://${LocalObsServer.localIp}:${LocalObsServer.port}', IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build());
@@ -478,7 +479,11 @@ class _MainShellState extends State<MainShell> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () => launchUrl(Uri.parse('https://tiktok.com'), mode: LaunchMode.externalApplication),
+                            onPressed: () {
+                              const ttHost = 'https://tiktok.com';
+                              launchUrl(Uri.parse('$ttHost/studio/download'), mode: LaunchMode.externalApplication);
+                            },
+
                             icon: const Icon(Icons.open_in_new, size: 16),
                             label: const Text('Abrir Studio', style: TextStyle(fontSize: 11.5)),
                           ),
@@ -617,6 +622,43 @@ class _MainShellState extends State<MainShell> {
           }).toList(),
         ),
         const SizedBox(height: 16),
+                if (_liveConnected || _chatFeed.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: _neonCard(),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('💬 Chat: ${_chatFeed.length} msgs · 🎁 Top: ${_topGifts.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                TextButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        backgroundColor: const Color(0xFF0B1636),
+                        title: const Text('🧠 AI Stream Director · Relatório', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 16)),
+                        content: Text(
+                          '• Mensagens analisadas: ${_chatFeed.length}\n'
+                          '• Apoiantes ativos: ${_topGifts.length + _topLikes.length}\n'
+                          '• Tempo poupado (Creator Time Saved): ~2.5h/sem\n\n'
+                          'Recomendações:\n'
+                          '1. Lança um desafio na Roleta 3D nos próximos 5 min.\n'
+                          '2. Marca clip dos momentos com pico de mensagens.\n'
+                          '3. Ativa o Natural Voice Alerts em Modo Concentração.',
+                          style: const TextStyle(fontSize: 12.5, height: 1.45),
+                        ),
+                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar'))],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.greenAccent),
+                  label: const Text('AI Director', style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+
         _menuTile(Icons.bolt_outlined, AppTranslations.t(_appLang, 'actions'), () => setState(() => _selectedIndex = 1), badge: 'ALERTAS & METAS'),
         _menuTile(Icons.record_voice_over_outlined, AppTranslations.t(_appLang, 'chat_tts'), () => setState(() => _selectedIndex = 2), badge: 'VOZES GOOGLE'),
         _menuTile(Icons.volunteer_activism_outlined, AppTranslations.t(_appLang, 'donation'), () => setState(() => _selectedIndex = 3), badge: 'PAGAMENTOS'),
@@ -738,7 +780,7 @@ class _MainShellState extends State<MainShell> {
       InteractionScreen(socket: socket, roomName: _channelCtrl.text.trim(), topGifts: _topGifts, topLikes: _topLikes),
       OverlayStudioScreen(socket: socket, serverUrl: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}', roomName: _channelCtrl.text.trim()),
       const MarketplacePublicScreen(),
-      CreatorStudioProScreen(creatorName: widget.user['nickname'] ?? 'Criador'),
+     CreatorStudioProScreen(creatorName: widget.user['nickname'] ?? 'Criador', userEmail: widget.user['email'] ?? ''),
       const SizedBox(),
       DefaultTabController(
         length: 2,
