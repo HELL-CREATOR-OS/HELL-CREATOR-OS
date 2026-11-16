@@ -427,3 +427,184 @@ class _AuthScreenState extends State<AuthScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    onPressed: _busy ? null : _googleAuth,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const GoogleOfficialLogo(size: 22),
+                        const SizedBox(width: 12),
+                        Text(
+                          _isRegister ? 'Registar com o Google' : 'Continuar com o Google',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (_isRegister) ...[
+                  TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Nome de Criador', isDense: true)),
+                  const SizedBox(height: 10),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _emailCtrl,
+                        decoration: InputDecoration(
+                          labelText: _isRegister ? 'E-mail Oficial' : 'Nickname ou E-mail',
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    if (_isRegister) ...[
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                        onPressed: _sendEmailVerificationCode,
+                        child: const Text('Enviar Código', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ],
+                  ],
+                ),
+                if (_isRegister) ...[
+                  const SizedBox(height: 10),
+                  TextField(controller: _emailCodeCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Código de 6 Dígitos (Recebido no E-mail)', isDense: true)),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _passCtrl,
+                  obscureText: _obscure,
+                  onChanged: (_) {
+                    if (!_isRegister && _autoEnterOnPass) {
+                      _submitManual(silentAuto: true);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Palavra-passe',
+                    isDense: true,
+                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
+                  ),
+                ),
+                if (!_isRegister)
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: const Color(0xFF38BDF8),
+                    title: const Text('Entrar automaticamente ao digitar a palavra-passe', style: TextStyle(fontSize: 12)),
+                    value: _autoEnterOnPass,
+                    onChanged: (v) => setState(() => _autoEnterOnPass = v),
+                  ),
+                if (_isRegister)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _acceptedTerms,
+                    onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+                    title: const Text('Li e aceito as Regras de Conduta & Termos de Responsabilidade', style: TextStyle(fontSize: 11.5)),
+                  ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
+                    onPressed: () => _submitManual(silentAuto: false),
+                    child: Text(_isRegister ? 'Concluir Registo' : 'Confirmar e Entrar', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppLockScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final VoidCallback onUnlocked;
+  final VoidCallback onLogout;
+  const AppLockScreen({super.key, required this.user, required this.onUnlocked, required this.onLogout});
+
+  @override
+  State<AppLockScreen> createState() => _AppLockScreenState();
+}
+
+class _AppLockScreenState extends State<AppLockScreen> {
+  final _localAuth = LocalAuthentication();
+  final _ctrl = TextEditingController();
+  String _error = '';
+
+  List<String> get _methods => List<String>.from(widget.user['securityMethods'] ?? []);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_methods.contains('biometric')) _tryBio();
+  }
+
+  Future<void> _tryBio() async {
+    try {
+      final ok = await _localAuth.authenticate(localizedReason: 'Desbloqueia o HELL CREATOR OS');
+      if (ok) widget.onUnlocked();
+    } catch (_) {
+      setState(() => _error = 'Falha na biometria. Utiliza a palavra-passe abaixo.');
+    }
+  }
+
+  void _check() {
+    final val = _ctrl.text.trim();
+    if (val == (widget.user['pinSecret'] ?? '') || val == (widget.user['passwordSecret'] ?? '')) {
+      widget.onUnlocked();
+    } else {
+      setState(() => _error = 'PIN ou palavra-passe incorretos.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF050B1E),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                UserAccountManager.buildUserAvatar(widget.user, radius: 38),
+                const SizedBox(height: 12),
+                Text('Olá, ${widget.user['nickname'] ?? 'Criador'}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                if (_methods.contains('biometric'))
+                  ElevatedButton.icon(onPressed: _tryBio, icon: const Icon(Icons.fingerprint), label: const Text('Desbloquear com Biometria')),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ctrl,
+                  obscureText: true,
+                  onChanged: (v) {
+                    final clean = v.trim();
+                    final pin = (widget.user['pinSecret'] ?? '').toString();
+                    final pass = (widget.user['passwordSecret'] ?? '').toString();
+                    if ((pin.isNotEmpty && clean == pin) || (pass.isNotEmpty && clean == pass)) {
+                      widget.onUnlocked();
+                    }
+                  },
+                  decoration: const InputDecoration(labelText: 'PIN ou Palavra-passe (Desbloqueia Automático)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)), onPressed: _check, child: const Text('Entrar', style: TextStyle(color: Colors.white))),
+                ),
+                if (_error.isNotEmpty) ...[const SizedBox(height: 8), Text(_error, style: const TextStyle(color: Colors.redAccent))],
+                TextButton(onPressed: widget.onLogout, child: const Text('Trocar de Conta', style: TextStyle(color: Colors.white54))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
