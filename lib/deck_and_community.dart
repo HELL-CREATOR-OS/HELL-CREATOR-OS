@@ -1,11 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'account_security.dart';
 
 class StreamDeckScreen extends StatefulWidget {
   final IO.Socket socket;
@@ -13,9 +12,9 @@ class StreamDeckScreen extends StatefulWidget {
   final String? generatedCode;
   final String? pairedRoom;
   final bool isMuted;
-  final bool isSecondDevicePaired;
   final VoidCallback onToggleMute;
-  final VoidCallback onPairDeviceConfirmed;
+  final VoidCallback onGenerateCode;
+  final Function(String) onJoinWithCode;
   final Function(String, dynamic) onSendCommand;
   final VoidCallback onMinimizeDeck;
 
@@ -23,12 +22,12 @@ class StreamDeckScreen extends StatefulWidget {
     super.key,
     required this.socket,
     required this.activeRoom,
-    required this.generatedCode,
-    required this.pairedRoom,
+    this.generatedCode,
+    this.pairedRoom,
     required this.isMuted,
-    required this.isSecondDevicePaired,
     required this.onToggleMute,
-    required this.onPairDeviceConfirmed,
+    required this.onGenerateCode,
+    required this.onJoinWithCode,
     required this.onSendCommand,
     required this.onMinimizeDeck,
   });
@@ -39,117 +38,30 @@ class StreamDeckScreen extends StatefulWidget {
 
 class _StreamDeckScreenState extends State<StreamDeckScreen> {
   int _cols = 4;
-  int _rows = 2;
-  String _selectedSoftware = 'OBS Studio';
-  final _pairInputCtrl = TextEditingController();
-  late final String _sessionPairCode;
-  int? _flashingIndex;
+  int _rows = 3;
+  final Map<int, bool> _activeContinuousStates = {};
 
-  // isToggle = true (cenas contínuas ficam acesas); isToggle = false (sons pontuais apenas piscam)
-  late List<Map<String, dynamic>> _buttons;
+  final Map<String, IconData> _iconCatalog = {
+    'bolt': Icons.bolt_rounded,
+    'mic': Icons.mic_rounded,
+    'music': Icons.music_note_rounded,
+    'skip': Icons.skip_next_rounded,
+    'clap': Icons.celebration_rounded,
+    'horn': Icons.campaign_rounded,
+    'scene': Icons.videocam_rounded,
+  };
 
-  @override
-  void initState() {
-    super.initState();
-    _sessionPairCode = 'HELL-${100000 + Random().nextInt(900000)}';
-    _buttons = [
-      {'label': 'PÂNICO SOM', 'icon': Icons.volume_off_rounded, 'color': 0xFFEF4444, 'cmd': 'toggle_mute', 'isToggle': true, 'active': false},
-      {'label': 'SILENCIAR MIC', 'icon': Icons.mic_off_rounded, 'color': 0xFFF59E0B, 'cmd': 'obs_mic_mute', 'isToggle': true, 'active': false},
-      {'label': 'CENA JOGO', 'icon': Icons.videocam_rounded, 'color': 0xFF38BDF8, 'cmd': 'obs_scene_live', 'isToggle': true, 'active': true},
-      {'label': 'PAUSA / VOLTO JÁ', 'icon': Icons.pause_circle_filled, 'color': 0xFF8B5CF6, 'cmd': 'obs_scene_pause', 'isToggle': true, 'active': false},
-      {'label': 'MÚSICA PLAY', 'icon': Icons.music_note_rounded, 'color': 0xFF10B981, 'cmd': 'music_toggle', 'isToggle': true, 'active': false},
-      {'label': 'APLAUSOS', 'icon': Icons.celebration_rounded, 'color': 0xFF38BDF8, 'cmd': 'sound_clap', 'isToggle': false, 'active': false},
-      {'label': 'BUZINA ÉPICA', 'icon': Icons.campaign_rounded, 'color': 0xFFEC4899, 'cmd': 'sound_horn', 'isToggle': false, 'active': false},
-      {'label': 'GIRAR ROLETA', 'icon': Icons.casino_rounded, 'color': 0xFF1E78FF, 'cmd': 'wheel_spin', 'isToggle': false, 'active': false},
-    ];
-  }
+  final List<Map<String, dynamic>> _buttons = [
+    {'label': 'CORTAR SOM', 'cmd': 'toggle_mute', 'val': '', 'iconKey': 'mic', 'colorVal': 0xFFEF4444, 'isContinuous': true},
+    {'label': 'CENA JOGO', 'cmd': 'scene_game', 'val': 'game', 'iconKey': 'scene', 'colorVal': 0xFF38BDF8, 'isContinuous': true},
+    {'label': 'CÂMARA', 'cmd': 'scene_cam', 'val': 'cam', 'iconKey': 'scene', 'colorVal': 0xFF3B82F6, 'isContinuous': true},
+    {'label': 'PAUSA', 'cmd': 'scene_brb', 'val': 'brb', 'iconKey': 'scene', 'colorVal': 0xFFF59E0B, 'isContinuous': true},
+    {'label': 'PLAY / PAUSE', 'cmd': 'music_toggle', 'val': '', 'iconKey': 'music', 'colorVal': 0xFF10B981, 'isContinuous': false},
+    {'label': 'PRÓXIMA', 'cmd': 'music_next', 'val': '', 'iconKey': 'skip', 'colorVal': 0xFF06B6D4, 'isContinuous': false},
+    {'label': 'APLAUSOS', 'cmd': 'sound_clap', 'val': '', 'iconKey': 'clap', 'colorVal': 0xFF8B5CF6, 'isContinuous': false},
+    {'label': 'BUZINA', 'cmd': 'sound_horn', 'val': '', 'iconKey': 'horn', 'colorVal': 0xFFF97316, 'isContinuous': false},
+  ];
 
-  void _addNewKeyDialog() {
-    final nameCtrl = TextEditingController();
-    bool isToggle = false;
-    String cmd = 'sound_clap';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: const Color(0xFF08112B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFF38BDF8))),
-          title: const Text('+ Adicionar Tecla ao Deck', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: cmd,
-                dropdownColor: const Color(0xFF0B1636),
-                decoration: const InputDecoration(labelText: 'Ação / Som', isDense: true),
-                items: const [
-                  DropdownMenuItem(value: 'sound_clap', child: Text('Som Pontual: Aplausos')),
-                  DropdownMenuItem(value: 'sound_horn', child: Text('Som Pontual: Buzina')),
-                  DropdownMenuItem(value: 'wheel_spin', child: Text('Ação Pontual: Girar Roleta')),
-                  DropdownMenuItem(value: 'obs_scene_live', child: Text('Cena Contínua: Live / Jogo')),
-                  DropdownMenuItem(value: 'obs_scene_pause', child: Text('Cena Contínua: Pausa')),
-                ],
-                onChanged: (v) => setSt(() => cmd = v ?? 'sound_clap'),
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Tecla Contínua (fica acesa até desativar)', style: TextStyle(fontSize: 12)),
-                value: isToggle,
-                onChanged: (v) => setSt(() => isToggle = v),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-              onPressed: () {
-                setState(() {
-                  _buttons.add({
-                    'label': nameCtrl.text.trim().isEmpty ? 'NOVA TECLA' : nameCtrl.text.trim().toUpperCase(),
-                    'icon': isToggle ? Icons.layers_rounded : Icons.bolt_rounded,
-                    'color': isToggle ? 0xFF38BDF8 : 0xFF10B981,
-                    'cmd': cmd,
-                    'isToggle': isToggle,
-                    'active': false,
-                  });
-                });
-                Navigator.pop(ctx);
-              },
-              child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _onKeyPressed(int index) {
-    HapticFeedback.lightImpact();
-    final b = _buttons[index];
-    final bool isToggle = b['isToggle'] == true;
-
-    if (b['cmd'] == 'toggle_mute') {
-      widget.onToggleMute();
-      setState(() => b['active'] = !widget.isMuted);
-      return;
-    }
-
-    if (isToggle) {
-      setState(() => b['active'] = !(b['active'] == true));
-    } else {
-      setState(() => _flashingIndex = index);
-      Future.delayed(const Duration(milliseconds: 260), () {
-        if (mounted) setState(() => _flashingIndex = null);
-      });
-    }
-    // Executa silenciosamente sem leitura TTS
-    widget.onSendCommand(b['cmd'], {'software': _selectedSoftware, 'active': b['active']});
-  }
  void _executeKeyAction(int index, Map<String, dynamic> b) {
     final cmd = (b['cmd'] ?? '').toString();
     final val = (b['val'] ?? '').toString();
