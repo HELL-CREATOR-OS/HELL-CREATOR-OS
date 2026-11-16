@@ -568,3 +568,280 @@ class _MainShellState extends State<MainShell> {
                   const Text('Volume Independente da Voz:', style: TextStyle(fontSize: 12.5)),
                   Expanded(
                     child: Slider(
+                                            value: _voiceVolume,
+                      min: 0.0,
+                      max: 1.0,
+                      onChanged: (v) {
+                        setState(() => _voiceVolume = v);
+                        _saveSettings();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: _neonCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Idioma da Aplicação', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _appLang,
+                dropdownColor: const Color(0xFF0B1636),
+                items: const [
+                  DropdownMenuItem(value: 'pt', child: Text('Português (Portugal)')),
+                  DropdownMenuItem(value: 'en', child: Text('English')),
+                  DropdownMenuItem(value: 'es', child: Text('Español')),
+                ],
+                onChanged: (v) async {
+                  if (v != null) {
+                    setState(() => _appLang = v);
+                    await _saveSettings();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: _neonCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(padding: EdgeInsets.only(left: 12, top: 4, bottom: 4), child: Text('Tema Visual', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+              RadioListTile<String>(activeColor: const Color(0xFF38BDF8), title: const Text('Azul Néon (Padrão)'), value: 'azul', groupValue: widget.currentTheme, onChanged: (v) => widget.onThemeChanged(v!)),
+              RadioListTile<String>(activeColor: const Color(0xFF38BDF8), title: const Text('Escuro Profundo'), value: 'escuro', groupValue: widget.currentTheme, onChanged: (v) => widget.onThemeChanged(v!)),
+              RadioListTile<String>(activeColor: const Color(0xFF38BDF8), title: const Text('Claro'), value: 'claro', groupValue: widget.currentTheme, onChanged: (v) => widget.onThemeChanged(v!)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = UserAccountManager.isOwnerEmail(widget.user['email']);
+    final titles = [
+      '',
+      AppTranslations.t(_appLang, 'automations'),
+      AppTranslations.t(_appLang, 'control_center'),
+      AppTranslations.t(_appLang, 'hell_voice'),
+      AppTranslations.t(_appLang, 'game_mode'),
+      AppTranslations.t(_appLang, 'second_screen'),
+      AppTranslations.t(_appLang, 'music'),
+      AppTranslations.t(_appLang, 'smart_brain'),
+      AppTranslations.t(_appLang, 'content_factory'),
+      AppTranslations.t(_appLang, 'community'),
+      AppTranslations.t(_appLang, 'growth'),
+      AppTranslations.t(_appLang, 'business'),
+      AppTranslations.t(_appLang, 'plugins_market'),
+      AppTranslations.t(_appLang, 'info_hub'),
+      AppTranslations.t(_appLang, 'settings'),
+    ];
+
+    final screens = [
+      _buildHomeTab(),
+      ActionsStudioTab(
+        alertsList: _alertsList,
+        goalsList: _goalsList,
+        sounds: _sounds,
+        sfxPlayer: sfxAudioPlayer,
+        voiceRecorder: _voiceRecorder,
+        allGiftsEnabled: _allGiftsEnabled,
+        onToggleAllGifts: (v) => setState(() => _allGiftsEnabled = v),
+        onSpeakVoice: (txt) => _speakRealVoice(txt),
+        onStateChanged: () => setState(() {}),
+      ),
+      ControlCenterScreen(
+        user: widget.user,
+        onUserUpdated: widget.onUserUpdated,
+        onLogout: widget.onLogout,
+        activePlatforms: _activePlatforms,
+        chatFeed: _chatFeed,
+        syncCode: _syncCode,
+        isSecondScreenPaired: _isSecondScreenPaired,
+        onValidateSyncCode: (code) {
+          if (code.isNotEmpty) {
+            setState(() => _isSecondScreenPaired = true);
+            _showSnack('2.º Aparelho Sincronizado! Stream Deck Pro ativo.');
+          }
+        },
+      ),
+      ChatTtsRepositoryScreen(
+        ttsEnabled: _ttsEnabled,
+        speechRate: _speechRate,
+        pitch: _voicePitch,
+        volume: _voiceVolume,
+        onToggleTts: (v) {
+          setState(() => _ttsEnabled = v);
+          _saveSettings();
+        },
+        onParamsChanged: (r, p, vol) {
+          setState(() {
+            _speechRate = r;
+            _voicePitch = p;
+            _voiceVolume = vol;
+          });
+          _saveSettings();
+        },
+        onTestVoice: (sample) => _speakRealVoice(sample),
+      ),
+      _buildGameModeScreen(),
+      const SizedBox(),
+      MusicBackgroundScreen(bgPlayer: bgMusicPlayer),
+      const SmartBrainScreen(),
+      const ContentFactoryScreen(),
+      DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const TabBar(
+              indicatorColor: Color(0xFF38BDF8),
+              labelColor: Color(0xFF38BDF8),
+              unselectedLabelColor: Colors.white54,
+              tabs: [Tab(text: '🌍 Globo 3D Real'), Tab(text: '👥 Comunidade & Chat')],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  CommunityGlobeScreen(serverUrl: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}', isOwner: isOwner),
+                  CommunitySocialScreen(serverUrl: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}', currentUser: widget.user),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const GrowthAnalyticsScreen(),
+      CreatorBusinessScreen(isOwner: isOwner),
+      MarketplacePublicScreen(hasFreeOwnerOrStaffAccess: isOwner),
+      const HellInfoHubScreen(),
+      _buildSettingsTab(),
+    ];
+
+    final sponsor = SponsorBannerManager.activeSponsors.isNotEmpty
+        ? SponsorBannerManager.activeSponsors[_sponsorIndex % SponsorBannerManager.activeSponsors.length]
+        : null;
+
+    return PopScope(
+      canPop: _selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectedIndex != 0) setState(() => _selectedIndex = 0);
+      },
+      child: _selectedIndex == 5
+          ? StreamDeckScreen(
+              socket: socket,
+              activeRoom: _channelCtrl.text.trim(),
+              generatedCode: _syncCode,
+              pairedRoom: _isSecondScreenPaired ? _syncCode : null,
+              isMuted: _isMuted,
+              onToggleMute: _toggleMuteState,
+              onGenerateCode: () {},
+              onJoinWithCode: (code) => setState(() => _isSecondScreenPaired = code.isNotEmpty),
+              onSendCommand: (cmd, val) async {
+                if (cmd == 'music_toggle') await MusicDeckController.togglePlayPause();
+                if (cmd == 'music_next') await MusicDeckController.nextTrack();
+                if (cmd == 'sound_clap' && !_isMuted) await sfxAudioPlayer.play(UrlSource(DefaultMediaLibrary.onlineSoundsRepository.first['url']!));
+                if (cmd == 'sound_horn' && !_isMuted) await sfxAudioPlayer.play(UrlSource(DefaultMediaLibrary.onlineSoundsRepository.last['url']!));
+              },
+              onMinimizeDeck: () => setState(() => _selectedIndex = 0),
+            )
+          : Scaffold(
+              appBar: AppBar(
+                centerTitle: true,
+                leading: _selectedIndex == 0
+                    ? GestureDetector(
+                        onTap: () => setState(() => _selectedIndex = 2),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: UserAccountManager.buildUserAvatar(widget.user, radius: 17),
+                        ),
+                      )
+                    : IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _selectedIndex = 0)),
+                title: _selectedIndex == 0
+                    ? const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: 4, color: Colors.white, height: 1.0)),
+                          Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10.5, letterSpacing: 3, color: Color(0xFF38BDF8))),
+                        ],
+                      )
+                    : Text(titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: _toggleMuteState,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: _isMuted ? Colors.redAccent : Colors.green, borderRadius: BorderRadius.circular(10)),
+                        child: Icon(_isMuted ? Icons.volume_off : Icons.volume_up, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              body: screens[_selectedIndex],
+              bottomNavigationBar: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (sponsor != null)
+                    GestureDetector(
+                      onTap: () => launchUrl(Uri.parse(sponsor['url']!), mode: LaunchMode.externalApplication),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B1636),
+                          border: Border(top: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.35))),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.campaign_outlined, size: 14, color: Color(0xFF38BDF8)),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                sponsor['title']!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 10.5, color: Colors.white70, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08)))),
+                    child: const Text(
+                      'UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 10.5, letterSpacing: 1.4, color: Color(0xFF7DD3FC), fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
