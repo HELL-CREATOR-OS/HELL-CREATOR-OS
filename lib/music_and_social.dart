@@ -616,3 +616,78 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
                     ..._faqTopics.map((f) => Card(
                           color: const Color(0xFF0B1636),
                           child: ExpansionTile(
+                            title: Text(f['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                                child: Text(f['example']!, style: const TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.45)),
+                              ),
+                            ],
+                          ),
+                        )),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1E429F))),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('⚖️ Regras de Conduta, Termos & Privacidade', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          SizedBox(height: 8),
+                          Text(
+                            '• Respeito mútuo obrigatório na comunidade e nas transmissões.\n'
+                            '• Proibido spam, discurso de ódio ou partilha de links maliciosos.\n'
+                            '• Privacidade garantida: o HELL CREATOR OS não cruza automaticamente identidades de utilizadores entre TikTok, Twitch, YouTube e Kick.\n'
+                            '• Cada criador é responsável pelo conteúdo transmitido nos seus canais.',
+                            style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HellRobotMascot extends StatelessWidget {
+  const _HellRobotMascot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 78,
+      height: 78,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(colors: [Colors.white, Color(0xFFE0F2FE)]),
+        border: Border.all(color: const Color(0xFF38BDF8), width: 2.5),
+        boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 16)],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0xFF050B1E), borderRadius: BorderRadius.circular(10)),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF38BDF8)),
+                SizedBox(width: 8),
+                CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF38BDF8)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('H', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1E78FF), height: 1.0)),
+        ],
+      ),
+    );
+  }
+}
