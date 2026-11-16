@@ -37,6 +37,43 @@ class ActionsStudioTab extends StatefulWidget {
 
 class _ActionsStudioTabState extends State<ActionsStudioTab> {
   String? _currentlyPlayingUrl;
+  void triggerLiveEvent({required String type, required String user, String giftName = '', int coins = 0}) {
+    if (type == 'gift' && widget.allGiftsEnabled) {
+      final match = DefaultMediaLibrary.tiktokGiftsCatalog.firstWhere(
+        (g) => g['enabled'] == true && g['name'].toString().toLowerCase() == giftName.toLowerCase(),
+        orElse: () => DefaultMediaLibrary.tiktokGiftsCatalog.firstWhere((g) => g['enabled'] == true, orElse: () => {}),
+      );
+      if (match.isNotEmpty) {
+        final raw = (match['customMessage'] ?? 'Obrigado {user} pelo presente ${match['name']}!').toString();
+        final spoken = raw.replaceAll('{user}', user);
+        final vPath = match['customVoicePath']?.toString() ?? '';
+        final snd = match['sound']?.toString() ?? '';
+        if (vPath.isNotEmpty) {
+          _togglePlayAudio(vPath, isLocal: true);
+        } else {
+          if (snd.isNotEmpty) _togglePlayAudio(snd);
+          if (match['ttsThank'] == true) widget.onSpeakVoice(spoken);
+        }
+      }
+    } else {
+      final al = widget.alertsList.firstWhere(
+        (a) => a['enabled'] == true && (a['trigger'] == type || a['name'].toString().toLowerCase().contains(type.toLowerCase())),
+        orElse: () => {},
+      );
+      if (al.isNotEmpty) {
+        final raw = (al['customMessage'] ?? '{user} ativou ${al['name']}!').toString();
+        final spoken = raw.replaceAll('{user}', user);
+        final vPath = al['customVoicePath']?.toString() ?? '';
+        final snd = al['sound']?.toString() ?? '';
+        if (vPath.isNotEmpty) {
+          _togglePlayAudio(vPath, isLocal: true);
+        } else {
+          if (snd.isNotEmpty) _togglePlayAudio(snd);
+          if (al['ttsThank'] == true) widget.onSpeakVoice(spoken);
+        }
+      }
+    }
+  }
 
   BoxDecoration _neonCard() => BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
@@ -101,12 +138,15 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> {
       ),
     );
   }
-    Future<List<Map<String, String>>> _fetchIconifySearch(String query) async {
+  static const String _iconifyHost = 'https://iconify.design';
+  int _refreshSeed = 0;
+
+  Future<List<Map<String, String>>> _fetchIconifySearch(String query) async {
     final clean = query.trim();
     if (clean.isEmpty) return [];
     final results = <Map<String, String>>[];
     try {
-      final res = await http.get(Uri.parse('https://api.iconify.design/search?query=${Uri.encodeComponent(clean)}&limit=24'));
+      final res = await http.get(Uri.parse('$_iconifyHost/search?query=${Uri.encodeComponent(clean)}&limit=32'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final icons = List<String>.from(data['icons'] ?? []);
@@ -115,7 +155,7 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> {
           if (parts.length == 2) {
             results.add({
               'name': parts[1],
-              'url': 'https://api.iconify.design/${parts[0]}/${parts[1]}.png?height=96',
+              'url': '$_iconifyHost/${parts[0]}/${parts[1]}.png?height=96',
             });
           }
         }
@@ -241,6 +281,18 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> {
                         child: const Icon(Icons.search, color: Colors.white),
                       ),
                       const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.greenAccent),
+                        tooltip: 'Atualizar / Novos Ícones Online',
+                        onPressed: () async {
+                          const topics = ['trophy', 'crown', 'rocket', 'gaming', 'magic', 'fire', 'diamond', 'heart'];
+                          final topic = topics[_refreshSeed % topics.length];
+                          _refreshSeed++;
+                          searchCtrl.text = topic;
+                          await runSearch();
+                        },
+                      ),
+
                       IconButton(
                         icon: const Icon(Icons.folder_open, color: Color(0xFF38BDF8)),
                         tooltip: 'Carregar do Dispositivo',
