@@ -1,307 +1,529 @@
-import 'dart:math' as math;
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'app_data.dart';
+import 'live_connectors.dart';
+import 'account_security.dart';
 
-class StudioAndGrowthView extends StatefulWidget {
-  final Function(String speechText) onSpeakAlert;
+BoxDecoration _neonBox() => BoxDecoration(
+      gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
+    );
 
-  const StudioAndGrowthView({
+class SponsorBannerManager {
+  static final List<Map<String, String>> activeSponsors = [
+    {
+      'title': 'HELL CREATOR OS PRO · Controlo Total das Tuas Lives',
+      'url': 'mailto:hellcreatoros@gmail.com',
+    },
+    {
+      'title': 'Espaço Oficial Patrocinadores · Anuncie aqui: hellcreatoros@gmail.com',
+      'url': 'mailto:hellcreatoros@gmail.com',
+    },
+  ];
+}
+
+// ABA 2: CENTRO DE CONTROLO + PERFIS & EMPARELHAMENTO QR
+class ControlCenterScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final Function(Map<String, dynamic>) onUserUpdated;
+  final VoidCallback onLogout;
+  final Map<String, bool> activePlatforms;
+  final List<Map<String, String>> chatFeed;
+  final String syncCode;
+  final bool isSecondScreenPaired;
+  final Function(String) onValidateSyncCode;
+
+  const ControlCenterScreen({
     super.key,
-    required this.onSpeakAlert,
+    required this.user,
+    required this.onUserUpdated,
+    required this.onLogout,
+    required this.activePlatforms,
+    required this.chatFeed,
+    required this.syncCode,
+    required this.isSecondScreenPaired,
+    required this.onValidateSyncCode,
   });
 
   @override
-  State<StudioAndGrowthView> createState() => _StudioAndGrowthViewState();
+  State<ControlCenterScreen> createState() => _ControlCenterScreenState();
 }
 
-class _StudioAndGrowthViewState extends State<StudioAndGrowthView>
-    with SingleTickerProviderStateMixin {
-  int _subSection = 0; // 0 = HELL Studio & Content, 1 = Growth Intelligence
-  late AnimationController _wheelController;
-  double _currentAngle = 0;
-  String _wheelResult = 'Escreve !roleta no chat ou gira manualmente';
-  int _podiumSize = 3; // Configurável de Top 1 a Top 10
-  String _selectedAnalyticsPlatform = 'TikTok LIVE';
-
-  final List<String> _wheelSlices = [
-    'Jogar sem Mira',
-    '10 Flexões',
-    'Subir Sensibilidade',
-    'VIP 7 Dias',
-    'Só Pistola',
-    'Escolher Música',
-    'Desafio Chat',
-    'Salto Duplo',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _wheelController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
-  }
-
-  @override
-  void dispose() {
-    _wheelController.dispose();
-    super.dispose();
-  }
-
-  void spinWheel() {
-    if (_wheelController.isAnimating) return;
-    final randomTurns = 4 + math.Random().nextDouble() * 4;
-    final targetAngle = _currentAngle + (randomTurns * 2 * math.pi);
-
-    final anim = Tween<double>(begin: _currentAngle, end: targetAngle).animate(
-      CurvedAnimation(parent: _wheelController, curve: Curves.easeOutCubic),
-    );
-
-    anim.addListener(() {
-      setState(() => _currentAngle = anim.value);
-    });
-
-    _wheelController.forward(from: 0).then((_) {
-      final index = math.Random().nextInt(_wheelSlices.length);
-      final chosen = _wheelSlices[index];
-      setState(() => _wheelResult = 'Resultado: $chosen');
-      widget.onSpeakAlert('A roleta parou em: $chosen!');
-    });
-  }
+class _ControlCenterScreenState extends State<ControlCenterScreen> {
+  final _chatFilterCtrl = TextEditingController();
+  final _syncInputCtrl = TextEditingController();
+  final _bannedWordCtrl = TextEditingController();
+  final List<String> _bannedWords = ['spam', 'scam', 'link falso'];
+  final List<String> _moderators = ['@Mod_Joao', '@Mod_Sofia'];
+  String _activeObsScene = 'Cena Principal (Jogo)';
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              Expanded(child: _subTabBtn('HELL Studio & Content', 0)),
-              const SizedBox(width: 8),
-              Expanded(child: _subTabBtn('Growth Intelligence', 1)),
+    final activeCount = widget.activePlatforms.values.where((v) => v).length;
+    final obsUrl = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay';
+    final isOwner = UserAccountManager.isOwnerEmail(widget.user['email']);
+
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          const TabBar(
+            isScrollable: true,
+            indicatorColor: Color(0xFF38BDF8),
+            labelColor: Color(0xFF38BDF8),
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: '📡 Live Monitor'),
+              Tab(text: '💬 Unified Chat & Mod'),
+              Tab(text: '🎬 OBS Control'),
+              Tab(text: '📊 Stats & Diagnóstico'),
+              Tab(text: '👤 Perfil & Sync QR'),
             ],
           ),
-        ),
-        Expanded(
-          child: _subSection == 0 ? _buildStudioAndContent() : _buildGrowthIntelligence(),
-        ),
-      ],
-    );
-  }
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 2.1 LIVE MONITOR & 2.8 MULTI-PLATFORM CONTROL
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('📡 Estado das Transmissões', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+                              Text(activeCount > 0 ? '● EM DIRETO ($activeCount)' : '○ EM ESPERA', style: TextStyle(fontWeight: FontWeight.bold, color: activeCount > 0 ? Colors.greenAccent : Colors.orangeAccent)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          ...['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
+                            final on = widget.activePlatforms[p] == true;
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.circle, size: 11, color: on ? Colors.greenAccent : Colors.white24),
+                              title: Text(p.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(on ? 'Ligação estável · Bitrate 6000 kbps' : 'Desligado', style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
+                              trailing: Text(on ? 'ATIVA' : 'OFF', style: TextStyle(fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white38)),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                // 2.2 UNIFIED CHAT, 2.3 EVENT MONITOR & 2.4 MODERAÇÃO
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    TextField(
+                      controller: _chatFilterCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(hintText: 'Pesquisar mensagens ou utilizador...', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: _neonBox(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('🛡️ Moderação & Moderadores', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            children: _moderators.map((m) => Chip(label: Text(m, style: const TextStyle(fontSize: 11)))).toList(),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(child: TextField(controller: _bannedWordCtrl, decoration: const InputDecoration(hintText: 'Adicionar palavra bloqueada...', isDense: true))),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
+                                onPressed: () {
+                                  if (_bannedWordCtrl.text.trim().isNotEmpty) {
+                                    setState(() {
+                                      _bannedWords.add(_bannedWordCtrl.text.trim().toLowerCase());
+                                      _bannedWordCtrl.clear();
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (widget.chatFeed.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: Text('Aguardando mensagens do TikTok, Twitch, YouTube ou Kick...', style: TextStyle(color: Colors.white54))),
+                      )
+                    else
+                      ...widget.chatFeed
+                          .where((m) => _chatFilterCtrl.text.isEmpty || (m['msg'] ?? '').toLowerCase().contains(_chatFilterCtrl.text.toLowerCase()))
+                          .map((m) => Card(
+                                color: const Color(0xFF0B1636),
+                                child: ListTile(
+                                  dense: true,
+                                  title: Text('${m['user']} [${(m['type'] ?? 'chat').toUpperCase()}]', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                                  subtitle: Text(m['msg'] ?? ''),
+                                ),
+                              )),
+                  ],
+                ),
 
-  Widget _subTabBtn(String label, int idx) {
-    final active = _subSection == idx;
-    return GestureDetector(
-      onTap: () => setState(() => _subSection = idx),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: HellTheme.neonCard(isActiveGreen: false, radius: 10).copyWith(
-          color: active ? HellTheme.neonBlue : HellTheme.cardDark,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? HellTheme.bgDark : HellTheme.textWhite,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
+                // 2.5 OBS CONTROL
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('🎬 Controlo OBS Studio / Live Studio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 8),
+                          SelectableText(obsUrl, style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: obsUrl));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL Browser Source copiado!')));
+                            },
+                            icon: const Icon(Icons.copy, size: 16, color: Colors.white),
+                            label: const Text('Copiar Browser Source OBS', style: TextStyle(color: Colors.white)),
+                          ),
+                          const Divider(color: Colors.white12, height: 22),
+                          const Text('Mudar Cena Ativa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: ['Cena Principal (Jogo)', 'Just Chatting / Câmara', 'Pausa / Volto Já', 'Encerramento'].map((sc) => ChoiceChip(
+                              label: Text(sc),
+                              selected: _activeObsScene == sc,
+                              selectedColor: const Color(0xFF1E78FF),
+                              onSelected: (_) => setState(() => _activeObsScene = sc),
+                            )).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-  Widget _buildStudioAndContent() {
+                // 2.6 DIAGNÓSTICO & 2.7 LIVE STATISTICS
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('🩺 Diagnóstico de Rede & Incidentes', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          SizedBox(height: 8),
+                          Text('• Servidor Local OBS: Online (8765)\n• Motor de Voz PT-PT: Operacional\n• Incidentes registados na sessão: 0', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // PERFIL, EMPARELHAMENTO QR / CÓDIGO & GESTÃO DONO
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: Column(
+                        children: [
+                          UserAccountManager.buildUserAvatar(widget.user, radius: 36),
+                          const SizedBox(height: 8),
+                          Text(widget.user['nickname'] ?? 'Criador', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(widget.user['email'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white60)),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF122B6B)),
+                            onPressed: () async {
+                              final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                              if (res != null && res.files.single.path != null) {
+                                final updated = Map<String, dynamic>.from(widget.user);
+                                updated['avatarPath'] = res.files.single.path!;
+                                await UserAccountManager.saveUser(updated);
+                                widget.onUserUpdated(updated);
+                              }
+                            },
+                            icon: const Icon(Icons.photo_camera, size: 16, color: Colors.white),
+                            label: const Text('Alterar Foto de Perfil', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: Column(
+                        children: [
+                          const Text('📱 Sincronizar 2.º Aparelho (Telemóvel Velho)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                            child: QrImageView(data: 'hellcreatoros://sync/${widget.syncCode}', version: QrVersions.auto, size: 130),
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText('Código: ${widget.syncCode}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 15)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+// ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
+class SmartBrainScreen extends StatefulWidget {
+  const SmartBrainScreen({super.key});
+
+  @override
+  State<SmartBrainScreen> createState() => _SmartBrainScreenState();
+}
+
+class _SmartBrainScreenState extends State<SmartBrainScreen> {
+  final _promptCtrl = TextEditingController();
+  final List<String> _directorFeed = [
+    '🎯 AI Stream Director: Pico de atividade no chat nos últimos 4 minutos. Boa altura para lançar a Roleta 3D!',
+    '📈 Growth Recommendation: As tuas lives entre as 21h00 e as 23h30 têm +38% de retenção média.',
+    '👥 Audience Intelligence: 64% da audiência interage mais durante desafios interativos.',
+    '📋 Automatic Report: Última live gerou +42 novos seguidores e 1.250 gostos.',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            children: [
-              const Text(
-                'ROLETA 3D INTERATIVA (Gatilho Chat: !roleta)',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: 210,
-                height: 210,
-                child: Transform.rotate(
-                  angle: _currentAngle,
-                  child: CustomPaint(
-                    painter: _Wheel3DPainter(_wheelSlices),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _wheelResult,
-                style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: HellTheme.neonBlue,
-                  foregroundColor: HellTheme.bgDark,
-                ),
-                onPressed: spinWheel,
-                icon: const Icon(Icons.casino_rounded),
-                label: const Text('Girar Roleta na Live', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Galeria de Presentes 3D HD com Som Real
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
+          decoration: _neonBox(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Presentes 3D HD & Efeitos Sonoros Online',
-                style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
+              const Text('🧠 HELL Gestão IA · AI Stream Director', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5, color: Color(0xFF38BDF8))),
               const SizedBox(height: 10),
-              SizedBox(
-                height: 92,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: AppData.hdGifts.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, i) {
-                    final gift = AppData.hdGifts[i];
-                    return GestureDetector(
-                      onTap: () {
-                        final matchedSound = AppData.onlineSoundLibrary.firstWhere(
-                          (s) => s.id == gift.soundId,
-                          orElse: () => AppData.onlineSoundLibrary.first,
-                        );
-                        HellAudioEngine.playUrl(matchedSound.url);
-                        widget.onSpeakAlert(
-                          'Presente ${gift.name} no valor de ${AppData.formatEuroSpeech(gift.euroValue)}!',
-                        );
-                      },
-                      child: Container(
-                        width: 88,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: HellTheme.cardElevated,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: gift.glowColor.withValues(alpha: 0.7)),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(gift.icon, color: gift.glowColor, size: 30),
-                            const SizedBox(height: 4),
-                            Text(
-                              gift.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: HellTheme.textWhite, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              '${gift.euroValue.toStringAsFixed(2)} €',
-                              style: const TextStyle(color: HellTheme.neonBlue, fontSize: 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Pódios Configuráveis (Top 1 a Top 10) & Créditos Finais
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+              ..._directorFeed.map((item) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFF050B1E), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
+                    child: Text(item, style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+                  )),
+              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Pódio Apoiantes (Top 1 a 10)',
-                    style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 14),
+                  Expanded(
+                    child: TextField(
+                      controller: _promptCtrl,
+                      decoration: const InputDecoration(hintText: 'Pedir análise de horário, título ou ideia de live...', isDense: true, border: OutlineInputBorder()),
+                    ),
                   ),
-                  DropdownButton<int>(
-                    value: _podiumSize,
-                    dropdownColor: HellTheme.cardElevated,
-                    style: const TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.bold),
-                    items: List.generate(10, (i) => i + 1)
-                        .map((n) => DropdownMenuItem(value: n, child: Text('Top $n')))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _podiumSize = val);
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                    onPressed: () {
+                      final q = _promptCtrl.text.trim();
+                      if (q.isEmpty) return;
+                      setState(() {
+                        _directorFeed.insert(0, '🤖 Resposta IA para "$q": Foca os primeiros 10 minutos num desafio rápido com o chat para maximizar o algoritmo.');
+                        _promptCtrl.clear();
+                      });
                     },
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ABA 8: HELL FÁBRICA DE CONTEÚDOS
+class ContentFactoryScreen extends StatefulWidget {
+  const ContentFactoryScreen({super.key});
+
+  @override
+  State<ContentFactoryScreen> createState() => _ContentFactoryScreenState();
+}
+
+class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
+  String _captionLang = 'Português (PT-PT)';
+  final _thumbTitleCtrl = TextEditingController(text: 'JOGADA ÉPICA AO VIVO!');
+  final List<Map<String, String>> _clipsQueue = [
+    {'title': 'Clip #1 · Pico de Reações no Chat (00:42)', 'format': 'Vertical 9:16 · TikTok / Shorts', 'status': 'Pronto'},
+    {'title': 'Clip #2 · Vitória no Desafio da Roleta (00:58)', 'format': 'Vertical 9:16 · Reels', 'status': 'Legendado'},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonBox(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🎬 Automatic Clips & Vertical Video (9:16)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
               const SizedBox(height: 8),
-              ...List.generate(_podiumSize, (idx) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    children: [
-                      Text('#${idx + 1}', style: const TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text('Apoiante_PT_${idx + 1}', style: const TextStyle(color: HellTheme.textWhite, fontSize: 13)),
+              ..._clipsQueue.map((c) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.movie_creation_outlined, color: Color(0xFF38BDF8)),
+                    title: Text(c['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                    subtitle: Text(c['format']!, style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                    trailing: Text(c['status']!, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  )),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                onPressed: () {
+                  setState(() {
+                    _clipsQueue.insert(0, {
+                      'title': 'Clip #${_clipsQueue.length + 1} · Momento Marcado Agora',
+                      'format': 'Vertical 9:16 · Legendas $_captionLang',
+                      'status': 'Exportado',
+                    });
+                  });
+                },
+                icon: const Icon(Icons.cut, size: 17, color: Colors.white),
+                label: const Text('Marcar & Gerar Clip Vertical 9:16', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonBox(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('📝 Legendas Automáticas, Tradução & Thumbnail Creator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _captionLang,
+                dropdownColor: const Color(0xFF0B1636),
+                decoration: const InputDecoration(labelText: 'Idioma das Legendas & Tradução', isDense: true),
+                items: const [
+                  DropdownMenuItem(value: 'Português (PT-PT)', child: Text('Português (PT-PT)')),
+                  DropdownMenuItem(value: 'English (EN)', child: Text('English (EN)')),
+                  DropdownMenuItem(value: 'Español (ES)', child: Text('Español (ES)')),
+                ],
+                onChanged: (v) => setState(() => _captionLang = v ?? 'Português (PT-PT)'),
+              ),
+              const SizedBox(height: 8),
+              TextField(controller: _thumbTitleCtrl, decoration: const InputDecoration(labelText: 'Texto da Thumbnail HD', isDense: true)),
+              const SizedBox(height: 8),
+              Container(
+                height: 75,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF050B1E)]),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF38BDF8)),
+                ),
+                alignment: Alignment.center,
+                child: Text(_thumbTitleCtrl.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.5, color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+// ABA 10: HELL CRESCIMENTO E NEGÓCIO (GRÁFICOS REAIS FL_CHART)
+class GrowthAnalyticsScreen extends StatelessWidget {
+  const GrowthAnalyticsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonBox(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('📈 Evolução de Seguidores (Últimos 7 Dias)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 170,
+                child: LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: false),
+                    titlesData: const FlTitlesData(show: false),
+                    borderData: FlBorderData(show: true, border: Border.all(color: Colors.white12)),
+                    lineBarsData: [
+                      LineChartBarData(
+                        isCurved: true,
+                        color: const Color(0xFF38BDF8),
+                        barWidth: 3.5,
+                        dotData: const FlDotData(show: true),
+                        belowBarData: BarAreaData(show: true, color: const Color(0xFF38BDF8).withOpacity(0.18)),
+                        spots: const [
+                          FlSpot(1, 120),
+                          FlSpot(2, 185),
+                          FlSpot(3, 240),
+                          FlSpot(4, 310),
+                          FlSpot(5, 420),
+                          FlSpot(6, 510),
+                          FlSpot(7, 645),
+                        ],
                       ),
-                      Text('${(50 - idx * 4).clamp(2, 100)},00 €', style: const TextStyle(color: HellTheme.neonGreen, fontSize: 12)),
                     ],
                   ),
-                );
-              }),
-              const Divider(color: HellTheme.textMuted),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.movie_creation_rounded, color: HellTheme.neonBlue),
-                  label: const Text('Lançar Créditos Finais da Live', style: TextStyle(color: HellTheme.textWhite)),
-                  style: OutlinedButton.styleFrom(side: const BorderSide(color: HellTheme.neonBlue)),
-                  onPressed: () => widget.onSpeakAlert('A exibir os créditos finais da transmissão na live!'),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-
-        // Content Factory (Fábrica de Conteúdos)
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
+          decoration: _neonBox(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text('📊 Métricas Individuais por Plataforma', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 4),
               const Text(
-                'CONTENT FACTORY • FÁBRICA DE CONTEÚDOS',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
+                'Nota: Os espectadores simultâneos são apresentados separadamente por canal e nunca somados como pessoas únicas.',
+                style: TextStyle(fontSize: 11, color: Colors.white60),
               ),
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _factoryChip(Icons.content_cut_rounded, 'Clips Automáticos'),
-                  _factoryChip(Icons.stay_current_portrait_rounded, 'Formato Vertical 9:16'),
-                  _factoryChip(Icons.subtitles_rounded, 'Legendas PT-PT'),
-                  _factoryChip(Icons.image_rounded, 'Criador Thumbnails'),
-                ],
-              ),
+              _platformStatRow('TikTok LIVE', '142 simultâneos', '+84 seguidores', const Color(0xFF25F4EE)),
+              _platformStatRow('Twitch', '68 simultâneos', '+29 seguidores', const Color(0xFF9146FF)),
+              _platformStatRow('YouTube LIVE', '54 simultâneos', '+21 seguidores', const Color(0xFFFF4444)),
+              _platformStatRow('Kick', '41 simultâneos', '+18 seguidores', const Color(0xFF53FC18)),
             ],
           ),
         ),
@@ -309,153 +531,140 @@ class _StudioAndGrowthViewState extends State<StudioAndGrowthView>
     );
   }
 
-  Widget _factoryChip(IconData icon, String label) {
-    return Chip(
-      avatar: Icon(icon, color: HellTheme.neonBlue, size: 16),
-      label: Text(label, style: const TextStyle(color: HellTheme.textWhite, fontSize: 12)),
-      backgroundColor: HellTheme.cardElevated,
-      side: BorderSide(color: HellTheme.neonBlue.withValues(alpha: 0.4)),
-    );
-  }
-
-  Widget _buildGrowthIntelligence() {
-    final platformMetrics = {
-      'TikTok LIVE': {'viewers': '412', 'followers': '+185', 'hours': '14,5 h'},
-      'Twitch': {'viewers': '128', 'followers': '+42', 'hours': '18,0 h'},
-      'YouTube LIVE': {'viewers': '265', 'followers': '+94', 'hours': '11,2 h'},
-      'Kick': {'viewers': '89', 'followers': '+31', 'hours': '9,0 h'},
-    };
-
-    final current = platformMetrics[_selectedAnalyticsPlatform]!;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'GROWTH INTELLIGENCE (Por Plataforma Individual)',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Os espectadores são apresentados separadamente por canal para rigor total.',
-                style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: platformMetrics.keys.map((plat) {
-                  final sel = plat == _selectedAnalyticsPlatform;
-                  return ChoiceChip(
-                    label: Text(plat),
-                    selected: sel,
-                    selectedColor: HellTheme.neonBlue,
-                    backgroundColor: HellTheme.cardElevated,
-                    labelStyle: TextStyle(
-                      color: sel ? HellTheme.bgDark : HellTheme.textWhite,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                    onSelected: (_) => setState(() => _selectedAnalyticsPlatform = plat),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _metricCard('Média Viewers', current['viewers']!),
-                  const SizedBox(width: 8),
-                  _metricCard('Novos Seguidores', current['followers']!),
-                  const SizedBox(width: 8),
-                  _metricCard('Tempo Live', current['hours']!),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _metricCard(String title, String val) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-          color: HellTheme.cardElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.4)),
-        ),
-        child: Column(
-          children: [
-            Text(val, style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.w900, fontSize: 18)),
-            const SizedBox(height: 4),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: HellTheme.textMuted, fontSize: 11)),
-          ],
-        ),
+  Widget _platformStatRow(String name, String concurrent, String followers, Color c) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: c)),
+          Text(concurrent, style: const TextStyle(fontSize: 12, color: Colors.white)),
+          Text(followers, style: const TextStyle(fontSize: 12, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
 }
 
-class _Wheel3DPainter extends CustomPainter {
-  final List<String> slices;
-  _Wheel3DPainter(this.slices);
+// ABA 11: HELL GESTÃO DO NEGÓCIO + PATROCÍNIOS & PUBLICIDADES PAGAS
+class CreatorBusinessScreen extends StatefulWidget {
+  final bool isOwner;
+  const CreatorBusinessScreen({super.key, this.isOwner = false});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final sweep = (2 * math.pi) / slices.length;
+  State<CreatorBusinessScreen> createState() => _CreatorBusinessScreenState();
+}
 
-    for (int i = 0; i < slices.length; i++) {
-      final paint = Paint()
-        ..color = i.isEven ? const Color(0xFF0B1A36) : const Color(0xFF102854)
-        ..style = PaintingStyle.fill;
+class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
+  final _descCtrl = TextEditingController();
+  final _valCtrl = TextEditingController();
+  String _txType = 'Receita';
 
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        i * sweep,
-        sweep,
-        true,
-        paint,
-      );
+  final List<Map<String, dynamic>> _transactions = [
+    {'desc': 'Presentes & Subscrições Live', 'amount': 145.50, 'type': 'Receita'},
+    {'desc': 'Campanha Patrocinador Gaming', 'amount': 250.00, 'type': 'Receita'},
+    {'desc': 'Equipamento Áudio / Microfone', 'amount': 65.00, 'type': 'Despesa'},
+  ];
 
-      final borderPaint = Paint()
-        ..color = HellTheme.neonBlue
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
+  final _sponsorTitleCtrl = TextEditingController();
+  final _sponsorUrlCtrl = TextEditingController();
 
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        i * sweep,
-        sweep,
-        true,
-        borderPaint,
-      );
-
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(i * sweep + sweep / 2);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: slices[i],
-          style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: radius * 0.72);
-      tp.paint(canvas, Offset(radius * 0.22, -tp.height / 2));
-      canvas.restore();
+  @override
+  Widget build(BuildContext context) {
+    double income = 0;
+    double expense = 0;
+    for (final t in _transactions) {
+      if (t['type'] == 'Receita') {
+        income += (t['amount'] as num).toDouble();
+      } else {
+        expense += (t['amount'] as num).toDouble();
+      }
     }
 
-    canvas.drawCircle(center, 18, Paint()..color = HellTheme.neonBlue);
-  }
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          const TabBar(
+            indicatorColor: Color(0xFF38BDF8),
+            labelColor: Color(0xFF38BDF8),
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: '💰 Finanças'),
+              Tab(text: '📢 Patrocínios & Ads'),
+              Tab(text: '🏢 Agência & Equipa'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 11.1 FINANCE MANAGER
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: _neonBox(),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(children: [const Text('Receitas', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('+${income.toStringAsFixed(2)} €', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))]),
+                          Column(children: [const Text('Despesas', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('-${expense.toStringAsFixed(2)} €', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))]),
+                          Column(children: [const Text('Saldo', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('${(income - expense).toStringAsFixed(2)} €', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.w900))]),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        DropdownButton<String>(
+                          value: _txType,
+                          dropdownColor: const Color(0xFF0B1636),
+                          items: ['Receita', 'Despesa'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                          onChanged: (v) => setState(() => _txType = v ?? 'Receita'),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(child: TextField(controller: _descCtrl, decoration: const InputDecoration(hintText: 'Descrição...', isDense: true))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 75, child: TextField(controller: _valCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: '€', isDense: true))),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
+                          onPressed: () {
+                            final v = double.tryParse(_valCtrl.text.replaceAll(',', '.')) ?? 0.0;
+                            if (_descCtrl.text.trim().isNotEmpty && v > 0) {
+                              setState(() {
+                                _transactions.insert(0, {'desc': _descCtrl.text.trim(), 'amount': v, 'type': _txType});
+                                _descCtrl.clear();
+                                _valCtrl.clear();
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    ..._transactions.map((t) => ListTile(
+                          dense: true,
+                          title: Text(t['desc'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          trailing: Text(
+                            '${t['type'] == 'Receita' ? '+' : '-'}${(t['amount'] as num).toStringAsFixed(2)} €',
+                            style: TextStyle(color: t['type'] == 'Receita' ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold),
+                          ),
+                        )),
+                  ],
+                ),
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
+                // 11.2 - 11.4 PATROCÍNIOS, CONTRATOS & PUBLICIDADES PAGAS (RODAPÉ)
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: _neonBox(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('📢 Patrocínios & Publicidades Ativas no Rodapé', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 8),
+                          ...SponsorBannerManager.activeSponsors.asMap().entries.map((e) => ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
