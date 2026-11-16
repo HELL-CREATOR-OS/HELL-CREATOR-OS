@@ -1,600 +1,618 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'app_data.dart';
+import 'account_security.dart';
 
-class MusicBusinessAndHelpView extends StatefulWidget {
-  final Function(String speechText) onSpeakAlert;
+class MusicDeckController {
+  static AudioPlayer? sharedPlayer;
+  static bool isPlaying = false;
+  static int currentIndex = 0;
+  static List<Map<String, String>> activeTracks =
+      List<Map<String, String>>.from(DefaultMediaLibrary.royaltyFreeMusicRepo);
 
-  const MusicBusinessAndHelpView({
-    super.key,
-    required this.onSpeakAlert,
-  });
+  static Future<void> togglePlayPause() async {
+    final player = sharedPlayer;
+    if (player == null || activeTracks.isEmpty) return;
+    if (isPlaying) {
+      await player.pause();
+      isPlaying = false;
+    } else {
+      final track = activeTracks[currentIndex % activeTracks.length];
+      final src = track['url'] ?? '';
+      if (src.startsWith('http')) {
+        await player.play(UrlSource(src));
+      } else if (src.isNotEmpty) {
+        await player.play(DeviceFileSource(src));
+      }
+      isPlaying = true;
+    }
+  }
 
-  @override
-  State<MusicBusinessAndHelpView> createState() => _MusicBusinessAndHelpViewState();
+  static Future<void> nextTrack() async {
+    final player = sharedPlayer;
+    if (player == null || activeTracks.isEmpty) return;
+    currentIndex = (currentIndex + 1) % activeTracks.length;
+    final track = activeTracks[currentIndex];
+    final src = track['url'] ?? '';
+    await player.stop();
+    if (src.startsWith('http')) {
+      await player.play(UrlSource(src));
+    } else if (src.isNotEmpty) {
+      await player.play(DeviceFileSource(src));
+    }
+    isPlaying = true;
+  }
 }
 
-class _MusicBusinessAndHelpViewState extends State<MusicBusinessAndHelpView> {
-  int _section = 0; // 0 = Música Embutida, 1 = Creator Business, 2 = Sobre Nós & Ajuda IA (Robô)
+class MusicBackgroundScreen extends StatefulWidget {
+  final AudioPlayer bgPlayer;
+  const MusicBackgroundScreen({super.key, required this.bgPlayer});
 
-  String _activeMusicSource = 'HELL Lo-Fi Gaming Radio';
-  bool _isPlayingMusic = false;
-  double _musicVolume = 0.65;
+  @override
+  State<MusicBackgroundScreen> createState() => _MusicBackgroundScreenState();
+}
 
-  final TextEditingController _aiInputCtrl = TextEditingController();
-  final List<Map<String, String>> _aiMessages = [
-    {
-      'sender': 'bot',
-      'text': 'Olá! Sou o Assistente IA do HELL CREATOR OS. Como posso ajudar na tua live hoje?',
-    },
-  ];
+class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
+  final TextEditingController _playlistUrlCtrl = TextEditingController();
+  double _volume = 0.35;
 
-  int _infoBottomTab = 0; // 0 = FAQ & Sobre, 1 = Assistente IA (Robô), 2 = Suporte
+  @override
+  void initState() {
+    super.initState();
+    MusicDeckController.sharedPlayer = widget.bgPlayer;
+  }
 
-  void _sendAiMessage(String query) {
-    final text = query.trim();
-    if (text.isEmpty) return;
+  Future<void> _playIndex(int index) async {
+    if (MusicDeckController.activeTracks.isEmpty) return;
+    MusicDeckController.currentIndex = index % MusicDeckController.activeTracks.length;
+    final track = MusicDeckController.activeTracks[MusicDeckController.currentIndex];
+    final src = track['url'] ?? '';
+    await widget.bgPlayer.setVolume(_volume);
+    await widget.bgPlayer.setReleaseMode(ReleaseMode.loop);
+    await widget.bgPlayer.stop();
+    if (src.startsWith('http')) {
+      await widget.bgPlayer.play(UrlSource(src));
+    } else if (src.isNotEmpty) {
+      await widget.bgPlayer.play(DeviceFileSource(src));
+    }
+    setState(() => MusicDeckController.isPlaying = true);
+  }
 
+  Future<void> _pickLocalTracks() async {
+    final res = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true);
+    if (res != null && res.files.isNotEmpty) {
+      setState(() {
+        for (final f in res.files) {
+          if (f.path != null) {
+            MusicDeckController.activeTracks.insert(0, {
+              'title': f.name,
+              'artist': 'Ficheiro Local',
+              'url': f.path!,
+            });
+          }
+        }
+      });
+      await _playIndex(0);
+    }
+  }
+
+  void _addCustomStreamOrPlaylist() {
+    final raw = _playlistUrlCtrl.text.trim();
+    if (raw.isEmpty) return;
+    final fullUrl = raw.startsWith('http') ? raw : 'https://$raw';
     setState(() {
-      _aiMessages.add({'sender': 'user', 'text': text});
-      _aiInputCtrl.clear();
-
-      String reply;
-      final q = text.toLowerCase();
-      if (q.contains('voz') || q.contains('clonar')) {
-        reply = 'Para clonar a tua voz em PT-PT, vai à aba HELL Voice e lê o guião oficial de 2 minutos. Depois podes aplicar efeitos e expressões típicas!';
-      } else if (q.contains('gaming') || q.contains('segundo plano')) {
-        reply = 'Ativa o Gaming Mode no topo: o ecrã fica 100% limpo sem distrações e recebes apenas voz e sons de alerta nos auriculares.';
-      } else if (q.contains('stream deck') || q.contains('paisagem')) {
-        reply = 'Ao abrir o Stream Deck, o ecrã roda automaticamente para paisagem e podes alternar entre grelha 4x e 5x.';
-      } else {
-        reply = 'Analisei o teu ecossistema HELL CREATOR OS: tens o motor PT-PT ativo, a biblioteca sonora online pronta e todas as plataformas sincronizadas!';
-      }
-      _aiMessages.add({'sender': 'bot', 'text': reply});
+      MusicDeckController.activeTracks.insert(0, {
+        'title': 'Stream / Playlist Externa',
+        'artist': fullUrl,
+        'url': fullUrl,
+      });
+      _playlistUrlCtrl.clear();
     });
+    _playIndex(0);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-          child: Row(
-            children: [
-              Expanded(child: _topPill('Música In-App', 0)),
-              const SizedBox(width: 6),
-              Expanded(child: _topPill('Business & €', 1)),
-              const SizedBox(width: 6),
-              Expanded(child: _topPill('Sobre & IA', 2)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _section == 0
-              ? _buildEmbeddedMusicPlayer()
-              : _section == 1
-                  ? _buildCreatorBusiness()
-                  : _buildAboutAndRobotHelp(),
-        ),
-      ],
-    );
-  }
-
-  Widget _topPill(String title, int index) {
-    final selected = _section == index;
-    return GestureDetector(
-      onTap: () => setState(() => _section = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: HellTheme.neonCard(radius: 10).copyWith(
-          color: selected ? HellTheme.neonBlue : HellTheme.cardDark,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          title,
-          style: TextStyle(
-            color: selected ? HellTheme.bgDark : HellTheme.textWhite,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmbeddedMusicPlayer() {
-    final tracks = [
-      {
-        'title': 'HELL Lo-Fi Gaming Radio (Sem Copyright)',
-        'source': 'Canal Interno HELL',
-        'url': 'https://mixkit.co',
-      },
-      {
-        'title': 'Synthwave Néon Focus 2026',
-        'source': 'Player Integrado',
-        'url': 'https://mixkit.co',
-      },
-      {
-        'title': 'YouTube Music Stream Embed (In-App)',
-        'source': 'Sessão Embutida',
-        'url': 'https://mixkit.co',
-      },
-      {
-        'title': 'Spotify Playlist Criador (In-App)',
-        'source': 'Sessão Embutida',
-        'url': 'https://mixkit.co',
-      },
-    ];
+    final tracks = MusicDeckController.activeTracks;
+    final activeTitle = tracks.isNotEmpty
+        ? tracks[MusicDeckController.currentIndex % tracks.length]['title']!
+        : 'Nenhuma faixa selecionada';
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Container(
-          padding: const EdgeInsets.all(18),
-          decoration: HellTheme.neonCard(isActiveGreen: _isPlayingMusic),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF38BDF8), width: 1.4),
+          ),
           child: Column(
             children: [
+              const Text('🎵 LEITOR INTEGRADO NA APP (SINCRONIZADO)', style: TextStyle(fontSize: 11, letterSpacing: 1.5, color: Color(0xFF38BDF8), fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              Text(activeTitle, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: HellTheme.cardElevated,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: HellTheme.neonBlue),
-                    ),
-                    child: Icon(
-                      _isPlayingMusic ? Icons.equalizer_rounded : Icons.music_note_rounded,
-                      color: _isPlayingMusic ? HellTheme.neonGreen : HellTheme.neonBlue,
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'LEITOR EMBUTIDO (SEM SAIR DA APP)',
-                          style: TextStyle(color: HellTheme.neonBlue, fontSize: 10, fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _activeMusicSource,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        Text(
-                          _isPlayingMusic ? 'A reproduzir dentro do HELL CREATOR OS' : 'Em pausa • Pronto a tocar',
-                          style: const TextStyle(color: HellTheme.textMuted, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
                   IconButton(
                     iconSize: 40,
-                    color: _isPlayingMusic ? HellTheme.neonGreen : HellTheme.neonBlue,
-                    icon: Icon(_isPlayingMusic ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded),
-                    onPressed: () {
-                      setState(() => _isPlayingMusic = !_isPlayingMusic);
-                      if (!_isPlayingMusic) HellAudioEngine.stop();
+                    color: Colors.greenAccent,
+                    icon: Icon(MusicDeckController.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                    onPressed: () async {
+                      await MusicDeckController.togglePlayPause();
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    iconSize: 38,
+                    color: Colors.redAccent,
+                    icon: const Icon(Icons.stop_circle),
+                    onPressed: () async {
+                      await widget.bgPlayer.stop();
+                      setState(() => MusicDeckController.isPlaying = false);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    iconSize: 36,
+                    color: const Color(0xFF38BDF8),
+                    icon: const Icon(Icons.skip_next_rounded),
+                    onPressed: () async {
+                      await MusicDeckController.nextTrack();
+                      setState(() {});
                     },
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.volume_down_rounded, color: HellTheme.textMuted, size: 18),
+                  const Icon(Icons.volume_down, size: 20, color: Colors.white70),
                   Expanded(
                     child: Slider(
-                      value: _musicVolume,
-                      activeColor: HellTheme.neonBlue,
-                      onChanged: (v) => setState(() => _musicVolume = v),
+                      value: _volume,
+                      min: 0.0,
+                      max: 1.0,
+                      activeColor: const Color(0xFF38BDF8),
+                      onChanged: (v) async {
+                        setState(() => _volume = v);
+                        await widget.bgPlayer.setVolume(v);
+                      },
                     ),
                   ),
-                  Text('${(_musicVolume * 100).round()}%', style: const TextStyle(color: HellTheme.textWhite, fontSize: 12)),
+                  Text('${(_volume * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF38BDF8))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
+                      onPressed: () => launchUrl(Uri.parse('https://spotify.com'), mode: LaunchMode.externalApplication),
+                      icon: const Icon(Icons.music_note, color: Colors.white, size: 18),
+                      label: const Text('Spotify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF0000)),
+                      onPressed: () => launchUrl(Uri.parse('https://youtube.com'), mode: LaunchMode.externalApplication),
+                      icon: const Icon(Icons.play_circle_fill, color: Colors.white, size: 18),
+                      label: const Text('YouTube Music', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _playlistUrlCtrl,
+                      decoration: const InputDecoration(hintText: 'Colar link Spotify, playlist ou MP3 direto...', isDense: true, border: OutlineInputBorder()),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                    onPressed: _addCustomStreamOrPlaylist,
+                    child: const Text('Rodar', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        const Text(
-          'Fontes de Áudio Integradas (Não abre apps externas)',
-          style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        ...tracks.map((t) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: HellTheme.neonCard(radius: 12),
-              child: ListTile(
-                leading: const Icon(Icons.play_arrow_rounded, color: HellTheme.neonBlue),
-                title: Text(t['title']!, style: const TextStyle(color: HellTheme.textWhite, fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text(t['source']!, style: const TextStyle(color: HellTheme.textMuted, fontSize: 11)),
-                onTap: () {
-                  setState(() {
-                    _activeMusicSource = t['title']!;
-                    _isPlayingMusic = true;
-                  });
-                  HellAudioEngine.playUrl(t['url']!);
-                },
-              ),
-            )),
-      ],
-    );
-  }
-  Widget _buildCreatorBusiness() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'CREATOR BUSINESS • FINANÇAS & DOAÇÕES',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '1.485,50 €',
-                style: TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.w900, fontSize: 28),
-              ),
-              const Text(
-                'Saldo acumulado (Doações /donate, Presentes e Subscrições)',
-                style: TextStyle(color: HellTheme.textMuted, fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: HellTheme.cardElevated,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.link_rounded, color: HellTheme.neonBlue),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'hellcreator.os/donate (MB WAY, PayPal, Cartão, Apple/Google Pay)',
-                        style: TextStyle(color: HellTheme.textWhite, fontSize: 12),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Testar Leitura Natural de Euros',
-                      icon: const Icon(Icons.record_voice_over_rounded, color: HellTheme.neonGreen),
-                      onPressed: () => widget.onSpeakAlert(
-                        'Nova doação recebida no valor de ${AppData.formatEuroSpeech(25.50)}! Muito obrigado pelo apoio!',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Gestão Profissional & Agências', style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 14)),
-              SizedBox(height: 8),
-              Text('• Patrocinadores & Contratos Ativos: 3 campanhas em curso', style: TextStyle(color: HellTheme.textMuted, fontSize: 12)),
-              SizedBox(height: 4),
-              Text('• Despesas de Equipamento / Software: 49,90 € este mês', style: TextStyle(color: HellTheme.textMuted, fontSize: 12)),
-              SizedBox(height: 4),
-              Text('• Agency Dashboard: Gestão multi-criador e permissões STAFF', style: TextStyle(color: HellTheme.textMuted, fontSize: 12)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAboutAndRobotHelp() {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: HellTheme.neonCard(radius: 10),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.email_rounded, color: HellTheme.neonBlue, size: 16),
-              SizedBox(width: 8),
-              SelectableText(
-                'Contacto Oficial: ${HellAppInfo.supportEmail}',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _infoBottomTab == 0
-              ? _buildAboutContent()
-              : _infoBottomTab == 1
-                  ? _buildRobotAiChat()
-                  : _buildSupportTicketView(),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: const BoxDecoration(
-            color: HellTheme.cardDark,
-            border: Border(top: BorderSide(color: HellTheme.neonBlue, width: 0.6)),
-          ),
-          child: Row(
-            children: [
-              Expanded(child: _bottomInfoBtn('FAQ & Sobre', Icons.info_outline_rounded, 0)),
-              const SizedBox(width: 8),
-              Expanded(child: _bottomInfoBtn('Assistente IA', Icons.smart_toy_rounded, 1)),
-              const SizedBox(width: 8),
-              Expanded(child: _bottomInfoBtn('Suporte', Icons.support_agent_rounded, 2)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _bottomInfoBtn(String label, IconData icon, int tab) {
-    final active = _infoBottomTab == tab;
-    return GestureDetector(
-      onTap: () => setState(() => _infoBottomTab = tab),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? HellTheme.neonBlue.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: active ? HellTheme.neonBlue : Colors.transparent),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, color: active ? HellTheme.neonBlue : HellTheme.textMuted, size: 18),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? HellTheme.textWhite : HellTheme.textMuted,
-                fontSize: 11,
-                fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
+            const Text('🎧 Faixas & Playlists (Sem Copyright)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+            TextButton.icon(onPressed: _pickLocalTracks, icon: const Icon(Icons.add, size: 18), label: const Text('+ MP3 Local')),
           ],
         ),
-      ),
-    );
-  }
+        ...tracks.asMap().entries.map((e) {
+          final isCurrent = (MusicDeckController.currentIndex % tracks.length) == e.key && MusicDeckController.isPlaying;
+          return Card(
+            color: isCurrent ? const Color(0xFF122E73) : const Color(0xFF0B1636),
+            child: ListTile(
+              dense: true,
+class CommunitySocialScreen extends StatefulWidget {
+  final String serverUrl;
+  final Map<String, dynamic> currentUser;
+  const CommunitySocialScreen({super.key, required this.serverUrl, required this.currentUser});
 
-  Widget _buildAboutContent() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: HellTheme.neonCard(),
-          child: const Column(
-            children: [
-              HellBrandIcon(size: 56),
-              SizedBox(height: 10),
-              Text(
-                'HELL CREATOR OS',
-                style: TextStyle(
-                  color: HellTheme.textWhite,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'ONE CREATOR. EVERY PLATFORM. TOTAL CONTROL.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: HellTheme.neonGreen, fontSize: 11, fontWeight: FontWeight.w800),
-              ),
-              SizedBox(height: 14),
-              Text(
-                'Um ecossistema completo para streamers, criadores de conteúdo e profissionais digitais.\n\n'
-                'Não precisas de ter um estúdio profissional para ter ferramentas profissionais. O HELL CREATOR OS funciona mesmo que tenhas apenas um telemóvel ou portátil, acompanhando-te por voz natural (HELL VOICE) em Web, Android e Windows, com expansão futura para o ecossistema Apple.\n\n'
-                '• Plataformas: TikTok LIVE, Twitch, YouTube LIVE e Kick\n'
-                '• Para iniciantes, gamers mobile/PC, criadores multiplataforma, equipas e agências.',
-                style: TextStyle(color: HellTheme.textWhite, fontSize: 12.5, height: 1.45),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRobotAiChat() {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          padding: const EdgeInsets.all(12),
-          decoration: HellTheme.neonCard(),
-          child: Row(
-            children: [
-              _buildHellNeonRobotAvatar(),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'HELL AI • AJUDA EM TEMPO REAL',
-                      style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Pronto para ajudar na configuração, vozes PT-PT, Stream Deck e estratégia da live.',
-                      style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: _aiMessages.length,
-            itemBuilder: (context, index) {
-              final msg = _aiMessages[index];
-              final isBot = msg['sender'] == 'bot';
-              return Align(
-                alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  decoration: BoxDecoration(
-                    color: isBot ? HellTheme.cardElevated : HellTheme.neonBlue,
-                    borderRadius: BorderRadius.circular(14),
-                    border: isBot ? Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.5)) : null,
-                  ),
-                                    child: Text(
-                    msg['text']!,
-                    style: TextStyle(
-                      color: isBot ? HellTheme.textWhite : HellTheme.bgDark,
-                      fontSize: 12.5,
-                      fontWeight: isBot ? FontWeight.normal : FontWeight.w600,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _aiInputCtrl,
-                  style: const TextStyle(color: HellTheme.textWhite, fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Pergunta algo ao Robô HELL AI...',
-                    hintStyle: const TextStyle(color: HellTheme.textMuted, fontSize: 12),
-                    filled: true,
-                    fillColor: HellTheme.cardElevated,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: HellTheme.neonBlue),
-                    ),
-                  ),
-                  onSubmitted: _sendAiMessage,
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: HellTheme.neonBlue,
-                  foregroundColor: HellTheme.bgDark,
-                ),
-                icon: const Icon(Icons.send_rounded),
-                onPressed: () => _sendAiMessage(_aiInputCtrl.text),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHellNeonRobotAvatar() {
-    return Container(
-      width: 64,
-      height: 70,
-      decoration: BoxDecoration(
-        color: HellTheme.bgDark,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: HellTheme.neonBlue, width: 1.5),
-        boxShadow: [
-          BoxShadow(color: HellTheme.neonBlue.withValues(alpha: 0.35), blurRadius: 10),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 34,
-            height: 22,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Container(
-                width: 24,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: HellTheme.bgDark,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    CircleAvatar(radius: 2.3, backgroundColor: HellTheme.neonBlue),
-                    CircleAvatar(radius: 2.3, backgroundColor: HellTheme.neonBlue),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 3),
-          Container(
-            width: 40,
-            height: 30,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Center(
-              child: HellBrandIcon(size: 22, showGlow: false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSupportTicketView() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: HellTheme.neonCard(),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Suporte Técnico Oficial', style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 15)),
-            SizedBox(height: 8),
-            Text(
-              'Precisas de ajuda com a ligação ao OBS, configuração de áudio em segundo plano ou planos de agência?\n\n'
-              'Envia mensagem direta para: ${HellAppInfo.supportEmail}',
-              style: TextStyle(color: HellTheme.textMuted, fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  @override
+  State<CommunitySocialScreen> createState() => _CommunitySocialScreenState();
 }
 
+class _CommunitySocialScreenState extends State<CommunitySocialScreen> {
+  final TextEditingController _chatCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _communityMessages = [
+    {'user': '@SofiaLive', 'msg': 'Alguém a testar os novos overlays néon hoje?', 'isOwner': false},
+    {'user': '@HELLCreatorOS', 'msg': 'Bem-vindos à comunidade oficial! Podem deixar aqui sugestões ou dúvidas.', 'isOwner': true},
+  ];
+
+  final List<Map<String, dynamic>> _creators = [
+    {'nick': '@SofiaLive', 'bio': 'FPS & Just Chatting · Portugal', 'status': 'online', 'following': false},
+    {'nick': '@KikoGamer', 'bio': 'Torneios e Desafios ao vivo', 'status': 'dnd', 'following': true},
+    {'nick': '@TugaStream', 'bio': 'Criador de Overlays PRO', 'status': 'online', 'following': false},
+  ];
+
+  Color _dotColor(String st) {
+    if (st == 'dnd') return Colors.orange;
+    if (st == 'invisible') return Colors.white;
+    if (st == 'offline') return Colors.redAccent;
+    return Colors.green;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = UserAccountManager.isOwnerEmail(widget.currentUser['email']);
+
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          const TabBar(
+            indicatorColor: Color(0xFF38BDF8),
+            labelColor: Color(0xFF38BDF8),
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: '💬 Chat Interativo'),
+              Tab(text: '👥 Criadores'),
+              Tab(text: '🏅 Fidelização & VIP'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 1. CHAT INTERATIVO COM DESTAQUE DO DONO
+                Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: _communityMessages.map((m) {
+                          final ownerMsg = m['isOwner'] == true;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: ownerMsg ? const Color(0xFF122E73) : const Color(0xFF0B1636),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: ownerMsg ? const Color(0xFF38BDF8) : Colors.white12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(m['user']!, style: TextStyle(fontWeight: FontWeight.bold, color: ownerMsg ? Colors.amberAccent : const Color(0xFF38BDF8), fontSize: 12.5)),
+                                    if (ownerMsg) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                        decoration: BoxDecoration(color: const Color(0xFF1E78FF), borderRadius: BorderRadius.circular(6)),
+                                        child: const Text('👑 CRIADOR & DONO HELL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(m['msg']!, style: const TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(child: TextField(controller: _chatCtrl, decoration: const InputDecoration(hintText: 'Publicar ou mencionar @Dono...', border: OutlineInputBorder(), isDense: true))),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                            onPressed: () {
+                              if (_chatCtrl.text.trim().isNotEmpty) {
+                                setState(() {
+                                  _communityMessages.add({
+                                    'user': '@${widget.currentUser['nickname'] ?? 'Criador'}',
+                                    'msg': _chatCtrl.text.trim(),
+                                    'isOwner': isOwner,
+                                  });
+                                  _chatCtrl.clear();
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 2. PERFIS PÚBLICOS (SEM CRUZAR IDENTIDADES ENTRE PLATAFORMAS)
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        'Privacidade: A identidade de cada espectador entre TikTok, Twitch, YouTube e Kick nunca é cruzada automaticamente.',
+                        style: TextStyle(fontSize: 11, color: Colors.white60),
+                      ),
+                    ),
+                    ..._creators.map((c) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFF1E429F)),
+                          ),
+                          child: Row(
+                            children: [
+                              Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  const CircleAvatar(backgroundColor: Color(0xFF1E78FF), child: Icon(Icons.person, color: Colors.white)),
+                                  Container(width: 11, height: 11, decoration: BoxDecoration(color: _dotColor(c['status']), shape: BoxShape.circle)),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(c['nick'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                                    Text(c['bio'], style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
+                                  ],
+                                ),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: c['following'] ? Colors.white12 : const Color(0xFF1E78FF)),
+                                onPressed: () => setState(() => c['following'] = !c['following']),
+                                child: Text(c['following'] ? 'A Seguir' : 'Seguir', style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
+                ),
+
+                // 3. FIDELIZAÇÃO, MISSÕES & VIP COMMUNITY
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF38BDF8)),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('🏅 Sistema de Fidelização & VIP Community', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+                          SizedBox(height: 8),
+                          Text('• Missões diárias de participação no chat e partilhas.\n• Níveis de fidelização e recompensas personalizadas para apoiantes.\n• Gestão de grupos VIP e histórico de seguidores, membros e subscritores.', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+class HellInfoHubScreen extends StatefulWidget {
+  const HellInfoHubScreen({super.key});
+
+  @override
+  State<HellInfoHubScreen> createState() => _HellInfoHubScreenState();
+}
+
+class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
+  final TextEditingController _aiInputCtrl = TextEditingController();
+  final List<Map<String, String>> _aiChat = [
+    {
+      'role': 'ai',
+      'text': 'Olá! Sou o Robô Assistente do HELL CREATOR OS. Pergunta-me como sincronizar um segundo aparelho, ligar o OBS, configurar vozes ou usar o Modo de Jogo!',
+    },
+  ];
+
+  final List<Map<String, String>> _faqTopics = [
+    {
+      'title': '1. Como fazer Live Direta no Telemóvel ou Tablet sem PC?',
+      'example': 'Toca num dos 4 quadrados (Twitch, YouTube ou Kick) no topo do ecrã inicial, cola a tua Stream Key e inicia. Ao minimizar para jogar, o Modo de Jogo Invisível ativa-se automaticamente sem nada no ecrã.',
+    },
+    {
+      'title': '2. Como sincronizar um Telemóvel Velho como Stream Deck Pro?',
+      'example': 'Inicia sessão com a mesma conta nos dois aparelhos, vai a "Centro de Controlo > Perfil & Sync QR" e lê o Código QR (ou escreve o código de 6 dígitos) para desbloquear o Stream Deck Pro sincronizado.',
+    },
+    {
+      'title': '3. Como escolher e instalar Vozes Masculinas e Femininas?',
+      'example': 'Abre "HELL Voz / Chat TTS", escolhe entre as 3 vozes masculinas e 3 femininas em Português, toca em Play para testar e instala na aplicação.',
+    },
+    {
+      'title': '4. Como ligar Overlays no OBS Studio / TikTok Live Studio?',
+      'example': 'Vai a "Centro de Controlo > OBS Control", copia o URL Browser Source local e cola-o como Fonte de Navegador (1920x1080) no teu software de transmissão.',
+    },
+  ];
+
+  String _generateAiReply(String question) {
+    final q = question.toLowerCase();
+    if (q.contains('qr') || q.contains('sincronizar') || q.contains('segundo') || q.contains('deck')) {
+      return 'Para sincronizar um segundo aparelho, entra na mesma conta nos dois dispositivos e valida o Código QR ou o código de 6 dígitos em "Centro de Controlo > Perfil & Sync QR".';
+    }
+    if (q.contains('obs') || q.contains('overlay') || q.contains('link')) {
+      return 'Em "Centro de Controlo > OBS Control", copia o endereço local http://IP:8765/overlay e adiciona-o como Browser Source no OBS Studio ou TikTok Live Studio.';
+    }
+    if (q.contains('voz') || q.contains('tts')) {
+      return 'Na aba "HELL Voz / Chat TTS" tens 3 vozes masculinas e 3 femininas em Português prontas a testar e instalar, além da clonagem de voz de 2 minutos.';
+    }
+    if (q.contains('doar') || q.contains('donation') || q.contains('mbway')) {
+      return 'Em "HELL Automações > Donation", configura o teu MB WAY, PayPal.me, Revolut ou PIX e copia o teu link único /donate para a bio da live.';
+    }
+    return 'Podes consultar os guias na sub-aba "FAQ & Regras" ou contactar diretamente a equipa oficial em hellcreatoros@gmail.com.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          const TabBar(
+            indicatorColor: Color(0xFF38BDF8),
+            labelColor: Color(0xFF38BDF8),
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: 'ℹ️ Quem Somos'),
+              Tab(text: '🤖 Ajuda (Robô IA)'),
+              Tab(text: '📜 FAQ & Regras'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 1. QUEM SOMOS
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Center(
+                      child: Image.asset('icon.png', height: 85, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 70, color: Color(0xFF38BDF8))),
+                    ),
+                    const SizedBox(height: 10),
+                    const Center(child: Text('HELL', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0))),
+                    const Center(child: Text('CREATOR OS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3, color: Color(0xFF38BDF8)))),
+                    const SizedBox(height: 6),
+                    const Center(child: Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 10.5, letterSpacing: 1.2, color: Color(0xFF7DD3FC)))),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF1E78FF)),
+                      ),
+                      child: const Text(
+                        'O HELL CREATOR OS é um sistema operativo completo criado para dar a todos os criadores de conteúdo — desde quem transmite apenas com um telemóvel até estúdios profissionais no PC — controlo total sobre múltiplas plataformas, voz natural em tempo real, automações sem código e ferramentas inteligentes de crescimento.',
+                        style: TextStyle(fontSize: 13.5, height: 1.5, color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      color: const Color(0xFF0B1636),
+                      child: ListTile(
+                        leading: const Icon(Icons.email_outlined, color: Color(0xFF38BDF8)),
+                        title: const Text('Contacto Oficial HELL CREATOR OS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                        subtitle: const Text('hellcreatoros@gmail.com', style: TextStyle(color: Colors.cyanAccent)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.open_in_new, size: 18, color: Colors.white),
+                          onPressed: () => launchUrl(Uri.parse('mailto:hellcreatoros@gmail.com')),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 2. AJUDA COM ROBÔ BRANCO & AZUL NÉON ("H")
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B1636),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF38BDF8)),
+                      ),
+                      child: Column(
+                        children: [
+                          const _HellRobotMascot(),
+                          const SizedBox(height: 8),
+                          const Text('Assistente IA · HELL CREATOR OS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 10),
+                          ..._aiChat.map((m) => Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: m['role'] == 'ai' ? const Color(0xFF122E73) : const Color(0xFF1E78FF).withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(m['text']!, style: const TextStyle(fontSize: 12.5)),
+                              )),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _aiInputCtrl,
+                                  decoration: const InputDecoration(hintText: 'Escreve a tua dúvida aqui...', isDense: true, border: OutlineInputBorder()),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                                onPressed: () {
+                                  final q = _aiInputCtrl.text.trim();
+                                  if (q.isEmpty) return;
+                                  setState(() {
+                                    _aiChat.add({'role': 'user', 'text': q});
+                                    _aiChat.add({'role': 'ai', 'text': _generateAiReply(q)});
+                                    _aiInputCtrl.clear();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 3. FAQ, REGRAS DE CONDUTA, TERMOS & PRIVACIDADE
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('📚 Guias Práticos (FAQ)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                    const SizedBox(height: 8),
+                    ..._faqTopics.map((f) => Card(
+                          color: const Color(0xFF0B1636),
+                          child: ExpansionTile(
