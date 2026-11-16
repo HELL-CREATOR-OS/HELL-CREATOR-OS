@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'account_security.dart';
 
 class StreamDeckScreen extends StatefulWidget {
   final IO.Socket socket;
@@ -459,6 +460,10 @@ class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with Single
     {'user': '@KikoArena', 'country': 'Brasil · São Paulo', 'platform': 'Kick', 'viewers': '2.1K', 'url': 'https://kick.com'},
     {'user': '@LukaCyber', 'country': 'Espanha · Madrid', 'platform': 'YouTube Live', 'viewers': '960', 'url': 'https://youtube.com'},
   ];
+  final List<Map<String, dynamic>> _communityMissions = [
+    {'title': '🎯 Missão Semanal: 500 Clips Partilhados', 'progress': 340, 'goal': 500},
+    {'title': '🔥 Maratona Multiplataforma: 10.000 Likes', 'progress': 7800, 'goal': 10000},
+  ];
 
   @override
   void initState() {
@@ -539,6 +544,36 @@ class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with Single
               ),
             )),
       ],
+              const SizedBox(height: 14),
+        const Text('🚀 Missões Coletivas da Comunidade', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+        const SizedBox(height: 8),
+        ..._communityMissions.map((m) {
+          final pct = ((m['progress'] as int) / (m['goal'] as int)).clamp(0.0, 1.0);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B1636),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF1E429F)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(m['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                    Text('${m['progress']}/${m['goal']}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(value: pct, minHeight: 6, backgroundColor: Colors.white12, valueColor: const AlwaysStoppedAnimation(Color(0xFF38BDF8))),
+              ],
+            ),
+          );
+        }),
+
     );
   }
 }
@@ -790,7 +825,8 @@ class _MarketplacePublicScreenState extends State<MarketplacePublicScreen> {
 
 class CreatorStudioProScreen extends StatefulWidget {
   final String creatorName;
-  const CreatorStudioProScreen({super.key, required this.creatorName});
+  final String userEmail;
+  const CreatorStudioProScreen({super.key, required this.creatorName, this.userEmail = ''});
 
   @override
   State<CreatorStudioProScreen> createState() => _CreatorStudioProScreenState();
@@ -798,15 +834,36 @@ class CreatorStudioProScreen extends StatefulWidget {
 
 class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
   bool _isProActive = false;
+  bool _isTrialActive = false;
+  bool _isOwnerOrStaff = false;
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _netPriceCtrl = TextEditingController(text: '10.00');
+  final _netPriceCtrl = TextEditingController(text: '0.00');
+  final _vipKeyCtrl = TextEditingController();
   String _category = 'Overlays 3D';
   String? _attachedFileName;
 
   @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    final owner = UserAccountManager.isOwnerEmail(widget.userEmail);
+    final staff = await UserAccountManager.isStaffEmail(widget.userEmail);
+    if (mounted) {
+      setState(() {
+        _isOwnerOrStaff = owner || staff;
+        if (_isOwnerOrStaff) _isProActive = true;
+      });
+    }
+  }
+  @override
   Widget build(BuildContext context) {
-    final double netVal = double.tryParse(_netPriceCtrl.text.replaceAll(',', '.')) ?? 0.0;
+    final bool canOpenStudio = _isProActive || _isTrialActive || _isOwnerOrStaff;
+    final bool canSellForMoney = _isProActive || _isOwnerOrStaff;
+    final double netVal = canSellForMoney ? (double.tryParse(_netPriceCtrl.text.replaceAll(',', '.')) ?? 0.0) : 0.0;
     final double finalConsumerPrice = netVal * 1.30;
 
     return ListView(
@@ -817,37 +874,75 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
           decoration: BoxDecoration(
             gradient: const LinearGradient(colors: [Color(0xFF132E73), Color(0xFF08112B)]),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _isProActive ? Colors.greenAccent : const Color(0xFFF59E0B), width: 1.6),
+            border: Border.all(color: canOpenStudio ? Colors.greenAccent : const Color(0xFFF59E0B), width: 1.6),
           ),
           child: Column(
             children: [
-              Icon(Icons.workspace_premium, size: 48, color: _isProActive ? Colors.greenAccent : const Color(0xFFF59E0B)),
+              Icon(Icons.workspace_premium, size: 48, color: canOpenStudio ? Colors.greenAccent : const Color(0xFFF59E0B)),
               const SizedBox(height: 8),
               Text(
-                _isProActive ? 'Estúdio de Criador PRO Ativo' : 'Estúdio de Criador PRO · HELL Live',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                _isOwnerOrStaff
+                    ? 'Estúdio VIP · Acesso Oficial Dono/Equipa'
+                    : (_isProActive ? 'Estúdio VIP Ativo (Vendas Desbloqueadas)' : (_isTrialActive ? 'Teste Grátis de 3 Dias Ativo (Modo Galeria Gratuita)' : 'Estúdio VIP · HELL Live')),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 6),
               const Text(
-                'Cria e vende os teus próprios Overlays 3D, Banners animados e Packs de Sons/GIFs no Market Place. Defines o teu valor líquido e a plataforma acrescenta automaticamente a taxa de serviço ao comprador.',
+                'Cria Overlays 3D, Banners, Packs de Sons e Plugins (sem apostas). No Teste Grátis de 3 dias podes publicar apenas itens gratuitos; com VIP ativo podes vender com +30% de taxa de plataforma.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.white70),
               ),
-              if (!_isProActive) ...[
-                const SizedBox(height: 14),
+              if (!_isProActive && !_isOwnerOrStaff) ...[
+                const SizedBox(height: 12),
+                if (!_isTrialActive)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.greenAccent), padding: const EdgeInsets.symmetric(vertical: 12)),
+                      icon: const Icon(Icons.timer, color: Colors.greenAccent),
+                      onPressed: () {
+                        setState(() {
+                          _isTrialActive = true;
+                          _netPriceCtrl.text = '0.00';
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🎁 Teste Grátis de 3 Dias ativado! Podes criar e partilhar gratuitamente.')));
+                      },
+                      label: const Text('Ativar Teste Grátis de 3 Dias (Publicação Gratuita)', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), padding: const EdgeInsets.symmetric(vertical: 13)),
                     onPressed: () => setState(() => _isProActive = true),
-                    child: const Text('Ativar Subscrição Criador PRO (4,99 €/mês)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+                    child: const Text('Ativar Plano VIP & Vendas (9,99 €/mês)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
                   ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: TextField(controller: _vipKeyCtrl, decoration: const InputDecoration(hintText: 'Tens uma Chave VIP? (HELL-VIP-...)', isDense: true))),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                      onPressed: () async {
+                        final ok = await UserAccountManager.redeemVipKey(_vipKeyCtrl.text, {'email': widget.userEmail});
+                        if (ok && mounted) {
+                          setState(() => _isProActive = true);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('👑 Chave VIP ativada com sucesso!'), backgroundColor: Colors.green));
+                        }
+                      },
+                      child: const Text('Ativar', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
                 ),
               ],
             ],
           ),
         ),
-        if (_isProActive) ...[
+        if (canOpenStudio) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
@@ -859,17 +954,19 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('🛠️ Publicar Novo Pack no Market Place', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                const Text('🛠️ Publicar Criação na Loja HELL', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
                 const SizedBox(height: 10),
                 TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Título do Pack / Overlay', isDense: true)),
                 const SizedBox(height: 8),
-                               DropdownButtonFormField<String>(
+                DropdownButtonFormField<String>(
                   value: _category,
-                  decoration: const InputDecoration(labelText: 'Categoria', isDense: true),
+                  decoration: const InputDecoration(labelText: 'Categoria (Plugins de apostas proibidos)', isDense: true),
                   items: const [
                     DropdownMenuItem(value: 'Overlays 3D', child: Text('Overlays 3D')),
                     DropdownMenuItem(value: 'Banners Perfil', child: Text('Banners de Perfil (Estático / GIF)')),
                     DropdownMenuItem(value: 'Sons & GIFs', child: Text('Packs de Sons & GIFs')),
+                    DropdownMenuItem(value: 'Plugins & Extensões', child: Text('Plugins & Extensões (Gaming / Música / Eventos)')),
+                    DropdownMenuItem(value: 'Merchandising', child: Text('Merchandising Oficial')),
                   ],
                   onChanged: (v) => setState(() => _category = v ?? 'Overlays 3D'),
                 ),
@@ -878,9 +975,13 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _netPriceCtrl,
+                  enabled: canSellForMoney,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(labelText: 'O Teu Valor Líquido a Receber (€) — 0 para Grátis', isDense: true),
+                  decoration: InputDecoration(
+                    labelText: canSellForMoney ? 'O Teu Valor Líquido a Receber (€) — 0 para Grátis' : 'Modo Teste Grátis: Publicação Fixa em 0,00 € (Grátis)',
+                    isDense: true,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -898,9 +999,7 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     final res = await FilePicker.platform.pickFiles();
-                    if (res != null) {
-                      setState(() => _attachedFileName = res.files.single.name);
-                    }
+                    if (res != null) setState(() => _attachedFileName = res.files.single.name);
                   },
                   icon: const Icon(Icons.upload_file),
                   label: Text(_attachedFileName ?? 'Anexar Ficheiros do Pack (PNG, GIF, MP3, ZIP)'),
@@ -918,15 +1017,15 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
                         'creator': '@${widget.creatorName}',
                         'category': _category,
                         'netPrice': netVal,
-                        'desc': _descCtrl.text.trim().isEmpty ? 'Criação exclusiva Estúdio PRO HELL Live.' : _descCtrl.text.trim(),
+                        'desc': _descCtrl.text.trim().isEmpty ? 'Criação exclusiva Estúdio VIP HELL Live.' : _descCtrl.text.trim(),
                         'owned': true,
                       });
                       _titleCtrl.clear();
                       _descCtrl.clear();
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚀 Publicado no Market Place HELL Live com sucesso!'), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚀 Publicado na Loja HELL Live com sucesso!'), backgroundColor: Colors.green));
                     },
                     icon: const Icon(Icons.publish, color: Colors.white),
-                    label: const Text('Publicar Agora no Market Place', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: const Text('Publicar Agora na Loja HELL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -937,4 +1036,5 @@ class _CreatorStudioProScreenState extends State<CreatorStudioProScreen> {
     );
   }
 }
+
 
