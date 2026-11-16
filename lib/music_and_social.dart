@@ -453,6 +453,9 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> {
         ],
       ),
     );
+      }
+}
+
 class HellInfoHubScreen extends StatefulWidget {
   const HellInfoHubScreen({super.key});
 
