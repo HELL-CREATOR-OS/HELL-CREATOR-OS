@@ -150,72 +150,110 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     // Executa silenciosamente sem leitura TTS
     widget.onSendCommand(b['cmd'], {'software': _selectedSoftware, 'active': b['active']});
   }
+ void _executeKeyAction(int index, Map<String, dynamic> b) {
+    final cmd = (b['cmd'] ?? '').toString();
+    final val = (b['val'] ?? '').toString();
+    if (cmd == 'toggle_mute') {
+      widget.onToggleMute();
+      return;
+    }
+    if (b['isContinuous'] == true) {
+      setState(() {
+        _activeContinuousStates[index] = !(_activeContinuousStates[index] == true);
+      });
+    } else {
+      setState(() => _activeContinuousStates[index] = true);
+      Timer(const Duration(milliseconds: 350), () {
+        if (mounted) setState(() => _activeContinuousStates[index] = false);
+      });
+    }
+    widget.onSendCommand(cmd, val);
+    try {
+      widget.socket.emit('deck_command', {'cmd': cmd, 'val': val});
+    } catch (_) {}
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF030612),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF090F22),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF38BDF8)), onPressed: widget.onMinimizeDeck),
-        title: const Text('SEGUNDO ECRÃ & STREAM DECK PRO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+  void _addNewKey() {
+    final labelCtrl = TextEditingController();
+    final valCtrl = TextEditingController();
+    bool isContinuous = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF0B1636),
+          title: const Text('+ Adicionar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: valCtrl, decoration: const InputDecoration(labelText: 'Ação / Comando', isDense: true)),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Modo Contínuo (Fica aceso ao ativar)', style: TextStyle(fontSize: 12)),
+                value: isContinuous,
+                onChanged: (v) => setDlg(() => isContinuous = v),
+              ),
+            ],
+          ),
+   actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              onPressed: () {
+                if (labelCtrl.text.trim().isNotEmpty) {
+                  setState(() {
+                    _buttons.add({
+                      'label': labelCtrl.text.trim(),
+                      'cmd': 'custom_action',
+                      'val': valCtrl.text.trim(),
+                      'iconKey': 'bolt',
+                      'colorVal': 0xFF38BDF8,
+                      'isContinuous': isContinuous,
+                    });
+                  });
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editKeyModal(int index) {
+    final b = _buttons[index];
+    final labelCtrl = TextEditingController(text: (b['label'] ?? '').toString());
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1636),
+        title: const Text('Editar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+        content: TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
         actions: [
-          TextButton.icon(
-            onPressed: _addNewKeyDialog,
-            icon: const Icon(Icons.add_circle, color: Colors.greenAccent, size: 18),
-            label: const Text('+ Tecla', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+          TextButton(
+            onPressed: () {
+              setState(() => _buttons.removeAt(index));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+            onPressed: () {
+              setState(() => b['label'] = labelCtrl.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('Guardar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(14),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: widget.isSecondDevicePaired ? Colors.greenAccent : const Color(0xFF38BDF8)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                      child: QrImageView(data: _sessionPairCode, version: QrVersions.auto, size: 78),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.isSecondDevicePaired ? '✅ 2.º Aparelho Sincronizado' : '📱 Sincronizar 2.º Aparelho (Telemóvel Velho)',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF38BDF8)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Código de Validação: $_sessionPairCode', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.greenAccent)),
-                          const SizedBox(height: 4),
-                          const Text('Abre a mesma conta no outro equipamento e valida o QR ou o código.', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (!widget.isSecondDevicePaired) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _pairInputCtrl,
-                          decoration: const InputDecoration(hintText: 'Colar código HELL-XXXXXX...', isDense: true, border: OutlineInputBorder()),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
+    );
+  }
   Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
     final isMuteBtn = b['cmd'] == 'toggle_mute';
     final isContinuous = b['isContinuous'] == true;
