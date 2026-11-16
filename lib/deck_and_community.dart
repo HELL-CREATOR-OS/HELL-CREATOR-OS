@@ -463,4 +463,78 @@ class _CommunityAndPlansViewState extends State<CommunityAndPlansView>
                       ),
                     ),
                   ),
-                        
+                                    Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        center: const Alignment(-0.35, -0.35),
+                        radius: 0.95,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.14),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _kpiBox(String label, String value, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: HellTheme.neonCard(),
+        child: Column(
+          children: [
+            Icon(icon, color: HellTheme.neonBlue, size: 20),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.w900, fontSize: 16)),
+            Text(label, style: const TextStyle(color: HellTheme.textMuted, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _planTile(String title, String price, String desc, bool unlocked) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: HellTheme.cardElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: unlocked ? HellTheme.neonGreen.withValues(alpha: 0.6) : HellTheme.neonBlue.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$title • $price', style: const TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(desc, style: const TextStyle(color: HellTheme.textMuted, fontSize: 11)),
+              ],
+            ),
+          ),
+          Icon(
+            unlocked ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
+            color: unlocked ? HellTheme.neonGreen : HellTheme.textMuted,
+            size: 20,
+          ),
+        ],
+      ),
+    );
+  }
+}
+      
