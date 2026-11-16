@@ -582,3 +582,142 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
                                   if (_subathonRunning) {
                                     _subathonTimer?.cancel();
                                     setState(() => _subathonRunning = false);
+                                  } else {
+                                    setState(() => _subathonRunning = true);
+                                    _subathonTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+                                      if (_subathonSec > 0 && mounted) setState(() => _subathonSec--);
+                                    });
+                                  }
+                                },
+                                child: Text(_subathonRunning ? 'Pausar' : 'Iniciar', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton(onPressed: () => setState(() => _subathonSec += 300), child: const Text('+5 Min')),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonCard(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('🏆 Pódio Configurável (Top 1–10)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                              DropdownButton<int>(
+                                value: _podiumLimit,
+                                dropdownColor: const Color(0xFF0B1636),
+                                items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => DropdownMenuItem(value: n, child: Text('Top $n'))).toList(),
+                                onChanged: (v) => setState(() => _podiumLimit = v ?? 3),
+                              ),
+                            ],
+                          ),
+                          ...List.generate(_podiumLimit, (i) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Text('#${i + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                            title: Text('Lugar #${i + 1} (Atualiza em direto)', style: const TextStyle(fontSize: 12.5)),
+                          )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 5. REGRAS "QUANDO X -> FAZ Y", PRIORIDADES, PERFIS & HISTÓRICO
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: _neonCard(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('⚡ Regras (Quando X ➔ Faz Y)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                              DropdownButton<String>(
+                                value: _ruleProfile,
+                                dropdownColor: const Color(0xFF0B1636),
+                                items: ['Live Padrão', 'Competitivo', 'Subathon'].map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 12)))).toList(),
+                                onChanged: (v) => setState(() => _ruleProfile = v ?? 'Live Padrão'),
+                              ),
+                            ],
+                          ),
+                          ..._automationRules.map((r) => SwitchListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('Quando: ${r['when']} (${r['priority']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                            subtitle: Text('Faz: ${r['then']}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8))),
+                            value: r['active'] == true,
+                            onChanged: (v) => setState(() => r['active'] = v),
+                          )),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: _neonCard(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('📜 Histórico de Execuções', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 6),
+                          ..._executionHistory.map((h) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text('• $h', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                          )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LabeledWheelPainter extends CustomPainter {
+  final List<String> options;
+  _LabeledWheelPainter(this.options);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (options.isEmpty) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final sweep = (2 * pi) / options.length;
+    final colors = [const Color(0xFF1E78FF), const Color(0xFF0E1D47), const Color(0xFF0284C7), const Color(0xFF1E3A8A)];
+
+    for (int i = 0; i < options.length; i++) {
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), i * sweep, sweep, true, Paint()..color = colors[i % colors.length]);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), i * sweep, sweep, true, Paint()..color = const Color(0xFF38BDF8)..style = PaintingStyle.stroke..strokeWidth = 1.4);
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(i * sweep + sweep / 2);
+      final tp = TextPainter(
+        text: TextSpan(text: options[i], style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold)),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: radius * 0.72);
+      tp.paint(canvas, Offset(radius * 0.22, -tp.height / 2));
+      canvas.restore();
+    }
+    canvas.drawCircle(center, 16, Paint()..color = const Color(0xFF38BDF8));
+  }
+
+  @override
+  bool shouldRepaint(covariant _LabeledWheelPainter oldDelegate) => true;
+}
