@@ -463,6 +463,4 @@ class _CommunityAndPlansViewState extends State<CommunityAndPlansView>
                       ),
                     ),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
+                        
