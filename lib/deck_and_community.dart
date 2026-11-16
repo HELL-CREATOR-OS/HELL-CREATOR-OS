@@ -423,6 +423,7 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     );
   }
 }
+}                        
 class CommunityGlobeScreen extends StatefulWidget {
   final String serverUrl;
   final bool isOwner;
@@ -431,8 +432,9 @@ class CommunityGlobeScreen extends StatefulWidget {
   @override
   State<CommunityGlobeScreen> createState() => _CommunityGlobeScreenState();
 }
-
+1. 
 class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with SingleTickerProviderStateMixin {
+
   late AnimationController _globeCtrl;
   double _manualDragOffset = 0.0;
   bool _requireFollowAppSocials = false;
