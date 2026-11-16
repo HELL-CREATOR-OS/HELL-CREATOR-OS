@@ -467,3 +467,282 @@ class _AccountSecurityGateState extends State<AccountSecurityGate> {
             const SizedBox(height: 8),
             Text(_errorMessage, style: const TextStyle(color: HellTheme.neonRed, fontSize: 12)),
           ],
+          TextButton(
+            onPressed: () => setState(() => _authMode = 'welcome'),
+            child: const Text('Voltar', style: TextStyle(color: HellTheme.textMuted)),
+          ),
+        ],
+      );
+    }
+
+    if (_authMode == 'register') {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Criar Conta HELL CREATOR OS',
+            style: TextStyle(color: HellTheme.textWhite, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _nameCtrl,
+            style: const TextStyle(color: HellTheme.textWhite),
+            decoration: const InputDecoration(
+              labelText: 'Nome de Criador / Canal',
+              labelStyle: TextStyle(color: HellTheme.textMuted),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: HellTheme.neonBlue)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(color: HellTheme.textWhite),
+            decoration: const InputDecoration(
+              labelText: 'Email Oficial',
+              labelStyle: TextStyle(color: HellTheme.textMuted),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: HellTheme.neonBlue)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: HellTheme.neonBlue,
+                foregroundColor: HellTheme.bgDark,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: () {
+                if (_nameCtrl.text.trim().isEmpty || !_emailCtrl.text.contains('@')) {
+                  setState(() => _errorMessage = 'Preenche um nome e um email válido.');
+                  return;
+                }
+                _tempName = _nameCtrl.text.trim();
+                _tempEmail = _emailCtrl.text.trim().toLowerCase();
+                _enteredPin = '';
+                setState(() {
+                  _errorMessage = '';
+                  _authMode = 'google_pin';
+                });
+              },
+              child: const Text('Continuar para PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          if (_errorMessage.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(_errorMessage, style: const TextStyle(color: HellTheme.neonRed, fontSize: 12)),
+          ],
+          TextButton(
+            onPressed: () => setState(() => _authMode = 'welcome'),
+            child: const Text('Voltar', style: TextStyle(color: HellTheme.textMuted)),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const HellBrandIcon(size: 64),
+        const SizedBox(height: 12),
+        const Text(
+          HellAppInfo.appName,
+          style: TextStyle(
+            color: HellTheme.textWhite,
+            fontSize: 21,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          HellAppInfo.slogan,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: HellTheme.neonBlue, fontSize: 11.5, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 22),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+            label: Text(
+              HellLocaleManager.t('login_google'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: HellTheme.textWhite,
+              foregroundColor: HellTheme.bgDark,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            onPressed: () => _showGoogleAccountPicker(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.sms_rounded, color: HellTheme.neonBlue),
+            label: Text(
+              HellLocaleManager.t('login_sms'),
+              style: const TextStyle(color: HellTheme.textWhite),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: HellTheme.neonBlue),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            onPressed: () => setState(() {
+              _errorMessage = '';
+              _authMode = 'sms';
+            }),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: () => setState(() {
+            _errorMessage = '';
+            _authMode = 'register';
+          }),
+          child: Text(
+            HellLocaleManager.t('create_account'),
+            style: const TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w600),
+          ),
+        ),
+        TextButton(
+          onPressed: () => setState(() => _languageSelected = false),
+          child: const Text('Alterar Idioma 🌐', style: TextStyle(color: HellTheme.textMuted, fontSize: 11)),
+        ),
+      ],
+    );
+  }
+  void _showGoogleAccountPicker() {
+    final customGoogleCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: HellTheme.cardElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: HellTheme.neonBlue),
+        ),
+        title: const Text('Escolher Conta Google', style: TextStyle(color: HellTheme.textWhite, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: HellTheme.neonBlue, child: Icon(Icons.verified, color: HellTheme.bgDark)),
+              title: const Text('HELL CREATOR OS (Dono)', style: TextStyle(color: HellTheme.textWhite, fontSize: 14)),
+              subtitle: const Text('hellcreatoros@gmail.com', style: TextStyle(color: HellTheme.neonGreen, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _handleGoogleOneClick('hellcreatoros@gmail.com', 'HELL CREATOR OS');
+              },
+            ),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: HellTheme.neonBlue, child: Icon(Icons.verified, color: HellTheme.bgDark)),
+              title: const Text('Helder MSF (Dono)', style: TextStyle(color: HellTheme.textWhite, fontSize: 14)),
+              subtitle: const Text('heldermsf_@hotmail.com', style: TextStyle(color: HellTheme.neonGreen, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _handleGoogleOneClick('heldermsf_@hotmail.com', 'Helder MSF');
+              },
+            ),
+            const Divider(color: HellTheme.textMuted),
+            TextField(
+              controller: customGoogleCtrl,
+              style: const TextStyle(color: HellTheme.textWhite, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Outra conta Google (ex: nome@gmail.com)',
+                hintStyle: TextStyle(color: HellTheme.textMuted, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: HellTheme.neonBlue, foregroundColor: HellTheme.bgDark),
+                onPressed: () {
+                  final mail = customGoogleCtrl.text.trim();
+                  if (mail.contains('@')) {
+                    Navigator.pop(ctx);
+                    _handleGoogleOneClick(mail, mail.split('@').first);
+                  }
+                },
+                child: const Text('Usar esta Conta Google'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(4, (index) {
+        final filled = index < _enteredPin.length;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? HellTheme.neonBlue : Colors.transparent,
+            border: Border.all(color: HellTheme.neonBlue, width: 2),
+            boxShadow: filled
+                ? [BoxShadow(color: HellTheme.neonBlue.withValues(alpha: 0.6), blurRadius: 8)]
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildNumericKeypad({required bool isCreating}) {
+    final keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: keys.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 1.8,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemBuilder: (context, index) {
+        final key = keys[index];
+        if (key.isEmpty) return const SizedBox.shrink();
+        return InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            if (key == '⌫') {
+              if (_enteredPin.isNotEmpty) {
+                setState(() => _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1));
+              }
+            } else {
+              _onPinDigit(key, isCreating: isCreating);
+            }
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: HellTheme.cardElevated,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.35)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              key,
+              style: const TextStyle(
+                color: HellTheme.textWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
