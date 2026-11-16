@@ -622,6 +622,18 @@ class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with Single
                 trailing: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
                   onPressed: () async {
+                                        final uri = Uri.tryParse(s['url']!);
+                    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                  child: const Text('Assistir', style: TextStyle(color: Colors.white, fontSize: 12)),
+                ),
+              ),
+            )),
+      ],
+    );
+  }
+}
+
 class MarketplaceState {
   static final List<Map<String, dynamic>> items = [
     {
