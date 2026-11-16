@@ -26,12 +26,10 @@ jobs:
           sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
           sed -i 's/android {/android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }/g' android/app/build.gradle.kts || true
-          sed -i 's/file_picker:.*/file_picker: ^10.1.2/g' pubspec.yaml || true
           sudo apt-get update && sudo apt-get install -y python3-pil
-          python3 -c "from PIL import Image, ImageDraw; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 20 and g < 20 and b < 30) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); bg = Image.new('RGBA', (1024, 1024), (5, 8, 17, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); draw = ImageDraw.Draw(glow); [draw.ellipse([512-r, 512-r, 512+r, 512+r], fill=(0, 229, 255, int(115*(1-r/430)))) for r in range(430, 0, -8)]; bg = Image.alpha_composite(bg, glow); fg = img.resize((660, 660)); bg.paste(fg, (182, 182), fg); bg.save('icon_tablet.png')"
-          sed -i 's/adaptive_icon_background: "#000000"/adaptive_icon_background: "#050811"/g' pubspec.yaml
-          sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_tablet.png"/g' pubspec.yaml
-          flutter pub upgrade file_picker
+          python3 -c "from PIL import Image, ImageDraw; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 22 and g < 22 and b < 32) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); bg = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); draw = ImageDraw.Draw(glow); [draw.ellipse([512-r, 512-r, 512+r, 512+r], fill=(56, 189, 248, int(110*(1-r/420)))) for r in range(420, 0, -8)]; bg = Image.alpha_composite(bg, glow); fg = img.resize((680, 680)); bg.paste(fg, (172, 172), fg); bg.save('icon_neon.png')"
+          sed -i 's/adaptive_icon_background: "#050B1E"/adaptive_icon_background: "#050B1E"/g' pubspec.yaml
+          sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons
           flutter build apk --release
