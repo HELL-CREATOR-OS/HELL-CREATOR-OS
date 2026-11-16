@@ -244,6 +244,21 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
             color: isCurrent ? const Color(0xFF122E73) : const Color(0xFF0B1636),
             child: ListTile(
               dense: true,
+                            leading: Icon(isCurrent ? Icons.equalizer : Icons.library_music, color: isCurrent ? Colors.greenAccent : const Color(0xFF38BDF8)),
+              title: Text(e.value['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Text(e.value['artist'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+              trailing: IconButton(
+                icon: Icon(isCurrent ? Icons.pause : Icons.play_arrow, color: Colors.greenAccent),
+                onPressed: () => _playIndex(e.key),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
 class CommunitySocialScreen extends StatefulWidget {
   final String serverUrl;
   final Map<String, dynamic> currentUser;
