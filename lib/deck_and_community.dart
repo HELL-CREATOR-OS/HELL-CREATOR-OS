@@ -543,7 +543,7 @@ class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with Single
                 ),
               ),
             )),
-      ],
+        
               const SizedBox(height: 14),
         const Text('🚀 Missões Coletivas da Comunidade', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
         const SizedBox(height: 8),
@@ -573,7 +573,7 @@ class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with Single
             ),
           );
         }),
-
+      ],
     );
   }
 }
