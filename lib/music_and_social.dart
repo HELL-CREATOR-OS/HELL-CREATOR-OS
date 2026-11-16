@@ -61,10 +61,13 @@ class _DonationHubScreenState extends State<DonationHubScreen> {
   }
 
   void _triggerDonationPreview() {
-    final minVal = _minAmountCtrl.text.trim().isEmpty ? '2.00' : _minAmountCtrl.text.trim();
+    final minVal = _minAmountCtrl.text.trim().isEmpty ? '1.50' : _minAmountCtrl.text.trim();
+    final numVal = double.tryParse(minVal.replaceAll(',', '.')) ?? 1.50;
+    final naturalEuroText = DefaultMediaLibrary.formatEuroSpeech(numVal);
     final spoken = _thankTemplateCtrl.text
         .replaceAll('{user}', 'Apoiante VIP')
-        .replaceAll('{amount}', minVal)
+        .replaceAll('{amount} euros', naturalEuroText)
+        .replaceAll('{amount}', naturalEuroText)
         .replaceAll('{message}', 'Continua com a excelente transmissão!');
 
     if (_selectedSound.isNotEmpty) {
@@ -230,9 +233,8 @@ class _DonationHubScreenState extends State<DonationHubScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final safeDonationLink = _paypalCtrl.text.trim().isNotEmpty
-        ? _paypalCtrl.text.trim()
-        : (_revolutCtrl.text.trim().isNotEmpty ? _revolutCtrl.text.trim() : 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay?widget=donate');
+        final safeDonationLink = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/donate?mbway=${Uri.encodeComponent(_mbwayCtrl.text.trim())}&paypal=${Uri.encodeComponent(_paypalCtrl.text.trim())}&revolut=${Uri.encodeComponent(_revolutCtrl.text.trim())}&pix=${Uri.encodeComponent(_pixCtrl.text.trim())}';
+
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -731,8 +733,10 @@ class AboutAndSupportScreen extends StatefulWidget {
 
 class _AboutAndSupportScreenState extends State<AboutAndSupportScreen> {
   final TextEditingController _aiInputCtrl = TextEditingController();
+  int _bottomTab = 0;
+
   final List<Map<String, String>> _aiChat = [
-    {'role': 'ai', 'text': 'Olá! Sou o Assistente IA da HELL Live. Pergunta-me como ligar o OBS, configurar alertas de presentes, usar o Stream Deck ou publicar no Market Place!'},
+    {'role': 'ai', 'text': 'Olá! Sou o Assistente IA da HELL Live. Pergunta-me sobre OBS, Natural Voice Alerts, Clonagem de Voz em 2 min, Roleta 3D ou Loja HELL!'},
   ];
 
   final List<Map<String, String>> _faqTopics = [
@@ -741,138 +745,171 @@ class _AboutAndSupportScreenState extends State<AboutAndSupportScreen> {
       'example': 'Vai a "Galeria de Overlays", copia o Link Principal Browser Source (ex: http://192.168.x.x:8765/overlay), abre o OBS Studio > Fontes > Adicionar Browser e cola o endereço com largura 1920 e altura 1080.',
     },
     {
-      'title': '2. Como ativar sons e voz nos Presentes e Alertas?',
-      'example': 'Entra em "Ações", toca no ícone de lápis junto a qualquer presente ou alerta, escolhe 1 único som da biblioteca (ou grava a tua própria voz) e toca no botão verde Play para pré-visualizar.',
+      'title': '2. Como funciona o Natural Voice Alerts enquanto jogo?',
+      'example': 'Em "Chat TTS & Vozes", ativa o Natural Voice Alerts e escolhe Modo Normal ou Modo Concentração (Gaming). A voz lê seguidores, rosas e doações em segundo plano sem sobrepor frases.',
     },
     {
-      'title': '3. Como transferir vozes masculinas e femininas para o Chat TTS?',
-      'example': 'No Menu Principal abre "Chat TTS & Vozes", filtra por Masculinas ou Femininas, toca no ícone de transferência para guardar a voz dentro da app e ativa o interruptor principal.',
+      'title': '3. Como clonar a minha própria voz em 2 minutos?',
+      'example': 'Abre "Chat TTS & Vozes > Estúdio de Clonagem de Voz", lê o guião de 2 minutos com o cronómetro ativo e guarda o teu perfil vocal para usar nos alertas e presentes.',
     },
     {
-      'title': '4. Como vender Overlays e Packs no Market Place?',
-      'example': 'Entra em "Estúdio Criador PRO", ativa a tua subscrição PRO, define o valor líquido que queres receber e publica o teu pack. O comprador vê o preço final já com a taxa da plataforma incluída.',
+      'title': '4. Como vender Overlays, Sons e Plugins na Loja HELL?',
+      'example': 'Entra no "Estúdio VIP", ativa o Teste Grátis de 3 dias (para publicações gratuitas) ou um plano VIP para vender com +30% de taxa de plataforma incluída.',
     },
   ];
 
   String _generateSmartAiReply(String question) {
     final q = question.toLowerCase();
     if (q.contains('obs') || q.contains('overlay') || q.contains('link')) {
-      return 'Para ligar ao OBS ou TikTok Live Studio, vai a "Galeria de Overlays", copia o URL Browser Source local e adiciona-o como Fonte de Navegador (Browser Source) no teu programa de transmissão.';
+      return 'Vai a "Galeria de Overlays", copia o URL Browser Source local e cola-o como Fonte de Navegador (Browser Source) no OBS ou TikTok Live Studio.';
     }
-    if (q.contains('voz') || q.contains('tts') || q.contains('som')) {
-      return 'Podes transferir vozes masculinas e femininas diretamente na secção "Chat TTS & Vozes" do Menu Principal, sem precisar de abrir as definições do telemóvel.';
+    if (q.contains('voz') || q.contains('tts') || q.contains('clon')) {
+      return 'Em "Chat TTS & Vozes" tens 3 vozes masculinas + 3 femininas do idioma da app, além do Estúdio de Clonagem de Voz em 2 minutos e do Natural Voice Alerts!';
     }
     if (q.contains('doar') || q.contains('donation') || q.contains('mbway') || q.contains('paypal')) {
-      return 'Na aba "Donation", preenche o teu MB WAY, PayPal.me ou Revolut, define o valor mínimo e copia o link seguro para colocares na bio da tua live.';
+      return 'Na aba "Donation", preenche os teus métodos (MB WAY, PayPal, Revolut, PIX) e partilha o Link Único /donate na tua bio.';
     }
-    if (q.contains('vender') || q.contains('pro') || q.contains('market')) {
-      return 'Com o "Estúdio Criador PRO", defines o valor líquido que desejas ganhar por cada venda e o Market Place calcula automaticamente o preço final (+30%) para os compradores.';
-    }
-    return 'Podes explorar os exemplos práticos acima ou contactar a nossa equipa oficial através do e-mail hellgamer2026@gmail.com!';
+    return 'Explora os separadores abaixo ou escreve-nos diretamente para o e-mail oficial helllive.app@gmail.com!';
   }
-
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
       children: [
-        Center(child: Image.asset('icon.png', height: 85, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 70, color: Color(0xFF38BDF8)))),
-        const SizedBox(height: 10),
-        const Center(child: Text('HELL Live', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 2))),
-        const Center(child: Text('A tua live, no teu comando. · LIVE · PLAY · CONNECT', style: TextStyle(fontSize: 11, letterSpacing: 1.4, color: Color(0xFF38BDF8)))),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF1E78FF)),
-          ),
-          child: const Text(
-            'O HELL Live foi criado para dar a todos os criadores — do telemóvel ao estúdio completo no PC — ferramentas profissionais de transmissão, alertas em tempo real, Stream Deck em vidro 3D e um Market Place justo.',
-            style: TextStyle(fontSize: 13.5, height: 1.5, color: Colors.white70),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF132E73), Color(0xFF08112B)]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Image.asset('icon.png', height: 48, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 42, color: Color(0xFF38BDF8))),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('HELL Live · Ecossistema Oficial', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                          Text('A tua live, no teu comando. · LIVE · PLAY · CONNECT', style: TextStyle(fontSize: 10.5, color: Color(0xFF38BDF8))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(color: Colors.white12, height: 18),
+                InkWell(
+                  onTap: () => launchUrl(Uri.parse('mailto:${DefaultMediaLibrary.brandOfficialEmail}')),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.verified, color: Colors.greenAccent, size: 18),
+                      const SizedBox(width: 6),
+                      Text('E-mail Oficial: ${DefaultMediaLibrary.brandOfficialEmail}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.cyanAccent)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 16),
-        const Text('📚 Tópicos Rápidos & Exemplos Práticos', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        const SizedBox(height: 8),
-        ..._faqTopics.map((f) => Card(
-              color: const Color(0xFF0B1636),
-              child: ExpansionTile(
-                title: Text(f['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                    child: Text(f['example']!, style: const TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.45)),
-                  ),
-                ],
-              ),
-            )),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1636),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF38BDF8)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.smart_toy, color: Color(0xFF38BDF8)),
-                  SizedBox(width: 8),
-                  Text('Assistente IA · Dúvidas & Suporte', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Color(0xFF38BDF8))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ..._aiChat.map((m) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: m['role'] == 'ai' ? const Color(0xFF122E73) : const Color(0xFF1E78FF).withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(10),
+        Expanded(
+          child: _bottomTab == 0
+              ? ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text(
+                      'O HELL Live une transmissão multiplataforma (TikTok, Twitch, YouTube, Kick), Natural Voice Alerts, Stream Deck Pro em vidro 3D, Overlays locais OBS e Loja de Criadores numa única aplicação.',
+                      style: TextStyle(fontSize: 13, height: 1.45, color: Colors.white70),
                     ),
-                    child: Text(m['text']!, style: const TextStyle(fontSize: 12.5)),
-                  )),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _aiInputCtrl,
-                      decoration: const InputDecoration(hintText: 'Escreve a tua dúvida aqui...', isDense: true, border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
-                    onPressed: () {
-                      final q = _aiInputCtrl.text.trim();
-                      if (q.isEmpty) return;
-                      setState(() {
-                        _aiChat.add({'role': 'user', 'text': q});
-                        _aiChat.add({'role': 'ai', 'text': _generateSmartAiReply(q)});
-                        _aiInputCtrl.clear();
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const Divider(color: Colors.white12, height: 22),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.email_outlined, color: Color(0xFF38BDF8)),
-                title: const Text('Contacto Oficial da Marca', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-                subtitle: const Text('hellgamer2026@gmail.com', style: TextStyle(color: Colors.cyanAccent)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  onPressed: () => launchUrl(Uri.parse('mailto:hellgamer2026@gmail.com')),
-                ),
-              ),
-            ],
-          ),
+                    const SizedBox(height: 14),
+                    ..._faqTopics.map((f) => Card(
+                          color: const Color(0xFF0B1636),
+                          child: ExpansionTile(
+                            title: Text(f['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                                child: Text(f['example']!, style: const TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.45)),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
+                )
+              : (_bottomTab == 1
+                  ? Column(
+                      children: [
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: _aiChat.map((m) => Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(11),
+                                  decoration: BoxDecoration(
+                                    color: m['role'] == 'ai' ? const Color(0xFF122E73) : const Color(0xFF1E78FF).withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(m['text']!, style: const TextStyle(fontSize: 12.5)),
+                                )).toList(),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Expanded(child: TextField(controller: _aiInputCtrl, decoration: const InputDecoration(hintText: 'Pergunta ao Assistente IA...', isDense: true, border: OutlineInputBorder()))),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                                onPressed: () {
+                                  final q = _aiInputCtrl.text.trim();
+                                  if (q.isEmpty) return;
+                                  setState(() {
+                                    _aiChat.add({'role': 'user', 'text': q});
+                                    _aiChat.add({'role': 'ai', 'text': _generateSmartAiReply(q)});
+                                    _aiInputCtrl.clear();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        ListTile(
+                          tileColor: const Color(0xFF0B1636),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          leading: const Icon(Icons.email, color: Color(0xFF38BDF8)),
+                          title: const Text('Suporte Oficial & Parcerias'),
+                          subtitle: const Text(DefaultMediaLibrary.brandOfficialEmail, style: TextStyle(color: Colors.cyanAccent)),
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                            onPressed: () => launchUrl(Uri.parse('mailto:${DefaultMediaLibrary.brandOfficialEmail}')),
+                            child: const Text('Enviar E-mail', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    )),
+        ),
+        BottomNavigationBar(
+          currentIndex: _bottomTab,
+          backgroundColor: const Color(0xFF070C1B),
+          selectedItemColor: const Color(0xFF38BDF8),
+          unselectedItemColor: Colors.white54,
+          onTap: (idx) => setState(() => _bottomTab = idx),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'FAQ & Sobre'),
+            BottomNavigationBarItem(icon: Icon(Icons.smart_toy), label: 'Assistente IA'),
+            BottomNavigationBarItem(icon: Icon(Icons.support_agent), label: 'Suporte'),
+          ],
         ),
       ],
     );
