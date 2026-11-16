@@ -465,7 +465,6 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
                   Text('${(_cloneSec ~/ 60).toString().padLeft(2, '0')}:${(_cloneSec % 60).toString().padLeft(2, '0')} / 02:00', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 ],
               ),
-              ),
               const SizedBox(height: 8),
               const Text(DefaultMediaLibrary.voiceCloneScript2Min, style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
               const SizedBox(height: 10),
