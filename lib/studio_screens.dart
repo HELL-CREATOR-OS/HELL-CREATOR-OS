@@ -386,6 +386,76 @@ class _StudioAndGrowthViewState extends State<StudioAndGrowthView>
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
+                decoration: BoxDecoration(
           color: HellTheme.cardElevated,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          children: [
+            Text(val, style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.w900, fontSize: 18)),
+            const SizedBox(height: 4),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: HellTheme.textMuted, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Wheel3DPainter extends CustomPainter {
+  final List<String> slices;
+  _Wheel3DPainter(this.slices);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final sweep = (2 * math.pi) / slices.length;
+
+    for (int i = 0; i < slices.length; i++) {
+      final paint = Paint()
+        ..color = i.isEven ? const Color(0xFF0B1A36) : const Color(0xFF102854)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        i * sweep,
+        sweep,
+        true,
+        paint,
+      );
+
+      final borderPaint = Paint()
+        ..color = HellTheme.neonBlue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        i * sweep,
+        sweep,
+        true,
+        borderPaint,
+      );
+
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(i * sweep + sweep / 2);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: slices[i],
+          style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: radius * 0.72);
+      tp.paint(canvas, Offset(radius * 0.22, -tp.height / 2));
+      canvas.restore();
+    }
+
+    canvas.drawCircle(center, 18, Paint()..color = HellTheme.neonBlue);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
