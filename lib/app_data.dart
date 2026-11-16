@@ -52,7 +52,9 @@ class AppTranslations {
 }
 
 class DefaultMediaLibrary {
-  static const String _cdn = 'https://jsdelivr.net';
+  static const String _cdnHost = 'https://cdn.jsdelivr.net';
+  static const String _cdn = '$_cdnHost/gh/twitter/twemoji@14.0.2/assets/72x72';
+
 
   static final List<Map<String, dynamic>> fullTikTokPngSelectableList = [
     {'name': 'Rosa', 'coins': 1, 'png': '$_cdn/1f339.png'},
@@ -105,24 +107,27 @@ class DefaultMediaLibrary {
     {'name': 'Sino de Alerta', 'url': '$_cdn/1f514.png'},
     {'name': 'Dinheiro / Apoio', 'url': '$_cdn/1f4b8.png'},
   ];
+  static const String _wikiHost = 'https://wikimedia.org';
+  static const String _wikiAudio = '$_wikiHost/wikipedia/commons';
+
   static final List<Map<String, String>> builtInSounds = [
-    {'name': 'Moeda & Brilho (Clássico)', 'url': 'https://pixabay.com'},
-    {'name': 'Notificação Cristalina', 'url': 'https://pixabay.com'},
-    {'name': 'Aplausos da Plateia', 'url': 'https://pixabay.com'},
-    {'name': 'Vitória Épica (Level Up)', 'url': 'https://pixabay.com'},
-    {'name': 'Sino de Caixa Registadora', 'url': 'https://pixabay.com'},
-    {'name': 'Buzina de Festa (Airhorn)', 'url': 'https://pixabay.com'},
+    {'name': 'Moeda & Brilho (Clássico)', 'url': '$_wikiAudio/0/05/Coin_drop.ogg'},
+    {'name': 'Notificação Cristalina', 'url': '$_wikiAudio/3/34/Sound_Effect_-_Door_Bell.ogg'},
+    {'name': 'Aplausos da Plateia', 'url': '$_wikiAudio/4/4e/Applause-clapping-church-01.ogg'},
+    {'name': 'Vitória Épica (Level Up)', 'url': '$_wikiAudio/2/22/Tada.ogg'},
+    {'name': 'Sino de Caixa Registadora', 'url': '$_wikiAudio/8/87/Cash_register.ogg'},
+    {'name': 'Buzina de Festa (Airhorn)', 'url': '$_wikiAudio/c/c4/Bicycle_horn.ogg'},
   ];
 
   static final List<Map<String, String>> onlineSoundsRepository = [
-    {'name': 'Moeda & Brilho (Clássico)', 'cat': 'Presentes', 'url': 'https://pixabay.com'},
-    {'name': 'Notificação Cristalina', 'cat': 'Alertas', 'url': 'https://pixabay.com'},
-    {'name': 'Aplausos da Plateia', 'cat': 'Festa', 'url': 'https://pixabay.com'},
-    {'name': 'Vitória Épica (Level Up)', 'cat': 'Metas', 'url': 'https://pixabay.com'},
-    {'name': 'Sino de Caixa Registadora', 'cat': 'Donation', 'url': 'https://pixabay.com'},
-    {'name': 'Buzina de Festa (Airhorn)', 'cat': 'Efeitos', 'url': 'https://pixabay.com'},
-    {'name': 'Explosão Cinemática', 'cat': 'Ação', 'url': 'https://pixabay.com'},
-    {'name': 'Tambor de Suspense (Drumroll)', 'cat': 'Roleta', 'url': 'https://pixabay.com'},
+    {'name': 'Moeda & Brilho (Clássico)', 'cat': 'Presentes', 'url': '$_wikiAudio/0/05/Coin_drop.ogg'},
+    {'name': 'Notificação Cristalina', 'cat': 'Alertas', 'url': '$_wikiAudio/3/34/Sound_Effect_-_Door_Bell.ogg'},
+    {'name': 'Aplausos da Plateia', 'cat': 'Festa', 'url': '$_wikiAudio/4/4e/Applause-clapping-church-01.ogg'},
+    {'name': 'Vitória Épica (Level Up)', 'cat': 'Metas', 'url': '$_wikiAudio/2/22/Tada.ogg'},
+    {'name': 'Sino de Caixa Registadora', 'cat': 'Donation', 'url': '$_wikiAudio/8/87/Cash_register.ogg'},
+    {'name': 'Buzina de Festa (Airhorn)', 'cat': 'Efeitos', 'url': '$_wikiAudio/c/c4/Bicycle_horn.ogg'},
+    {'name': 'Tambor de Suspense', 'cat': 'Roleta', 'url': '$_wikiAudio/e/e5/Snare_drum_roll.ogg'},
+    {'name': 'Sino de Boxe / Desafio', 'cat': 'Ação', 'url': '$_wikiAudio/6/60/Boxing_bell.ogg'},
   ];
 
   static final List<Map<String, String>> goalOverlaysCatalog = [
@@ -160,4 +165,18 @@ class DefaultMediaLibrary {
       ],
     },
   ];
+  static String formatEuroSpeech(double amount) {
+    final totalCents = (amount * 100).round();
+    final euros = totalCents ~/ 100;
+    final cents = totalCents % 100;
+    if (euros == 0 && cents > 0) return '$cents cêntimos';
+    if (euros == 1 && cents == 0) return '1 euro';
+    if (euros > 1 && cents == 0) return '$euros euros';
+    if (euros == 1 && cents == 50) return '1 euro e meio';
+    if (euros > 1 && cents == 50) return '$euros euros e meio';
+    final euroLabel = euros == 1 ? '1 euro' : '$euros euros';
+    return '$euroLabel e $cents cêntimos';
+  }
+
+  static const String brandOfficialEmail = 'helllive.app@gmail.com';
 }
