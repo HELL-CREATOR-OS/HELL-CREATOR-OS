@@ -513,3 +513,218 @@ class _HellCreatorHomeShellState extends State<HellCreatorHomeShell> {
                   children: [
                     const Text(
                       'AI STREAM DIRECTOR',
+                      style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 11),
+                    ),
+                    Text(
+                      activeCount > 0
+                          ? 'Sugestão: Interage com o chat agora e lança a !roleta para subir retenção.'
+                          : 'Dica: Podes usar este telemóvel como Segunda Tela ou em segundo plano sem distrações.',
+                      style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'UNIFIED CHAT & EVENT MONITOR',
+          style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.0),
+        ),
+        const SizedBox(height: 8),
+        ..._events.take(8).map((ev) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: HellTheme.neonCard(radius: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: HellTheme.neonBlue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      ev.platform,
+                      style: const TextStyle(color: HellTheme.neonBlue, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${ev.username}: ',
+                            style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          TextSpan(
+                            text: ev.message,
+                            style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+  Widget _buildHellVoiceTab() {
+    final profiles = ['Gaming', 'Relax', 'Full Live', 'Competitive', 'Custom'];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: HellTheme.neonCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'HELL VOICE • PORTUGUÊS DE PORTUGAL (PT-PT)',
+                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Voz sincronizada com o idioma da app. Funciona em segundo plano sem nada no ecrã.',
+                style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              if (_ptVoices.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: _selectedVoiceName,
+                  dropdownColor: HellTheme.cardElevated,
+                  decoration: const InputDecoration(
+                    labelText: 'Voz Selecionada',
+                    labelStyle: TextStyle(color: HellTheme.neonBlue),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: HellTheme.neonBlue)),
+                  ),
+                  items: _ptVoices
+                      .map((v) => DropdownMenuItem(
+                            value: v['name'],
+                            child: Text(
+                              '${v['name']} (${v['locale']})',
+                              style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      final chosen = _ptVoices.firstWhere((e) => e['name'] == val);
+                      setState(() => _selectedVoiceName = val);
+                      _tts.setVoice({'name': chosen['name']!, 'locale': chosen['locale']!});
+                      _enqueueSpeech('Voz selecionada com sucesso.');
+                    }
+                  },
+                )
+              else
+                const Text(
+                  'Motor Nativo PT-PT Ativo (Usa a voz portuguesa do dispositivo)',
+                  style: TextStyle(color: HellTheme.neonGreen, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: profiles.map((p) {
+                  final sel = _voiceProfile == p;
+                  return ChoiceChip(
+                    label: Text(p),
+                    selected: sel,
+                    selectedColor: HellTheme.neonBlue,
+                    backgroundColor: HellTheme.cardElevated,
+                    labelStyle: TextStyle(
+                      color: sel ? HellTheme.bgDark : HellTheme.textWhite,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                    onSelected: (_) => setState(() => _voiceProfile = p),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: HellTheme.neonCard(isActiveGreen: _hasClonedVoice),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'CLONAR A MINHA VOZ (2 MINUTOS)',
+                    style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
+                  ),
+                  Text(
+                    '${(_cloneSecondsElapsed ~/ 60).toString().padLeft(2, '0')}:${(_cloneSecondsElapsed % 60).toString().padLeft(2, '0')} / 02:00',
+                    style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Lê o texto abaixo ao microfone para clonar a tua voz com expressões típicas:',
+                style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 160,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: HellTheme.bgDark,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.4)),
+                ),
+                child: const SingleChildScrollView(
+                  child: Text(
+                    AppData.voiceCloningScript2Min,
+                    style: TextStyle(color: HellTheme.textWhite, fontSize: 12.5, height: 1.45),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isRecordingClone ? HellTheme.neonRed : HellTheme.neonBlue,
+                    foregroundColor: HellTheme.bgDark,
+                  ),
+                  onPressed: _toggleVoiceCloneRecording,
+                  icon: Icon(_isRecordingClone ? Icons.stop_rounded : Icons.mic_rounded),
+                  label: Text(
+                    _isRecordingClone
+                        ? 'Parar e Processar Voz Clonada'
+                        : _hasClonedVoice
+                            ? 'Voz Clonada Ativa • Gravar Novamente'
+                            : 'Iniciar Gravação (2 Minutos)',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 460,
+          child: ActionsAndAutomationsView(
+            eventHistory: _events,
+            onTriggerTestEvent: _handleNewEvent,
+            onRefreshLibrary: () {
+              _enqueueSpeech('Bibliotecas sonoras e eventos atualizados.');
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
