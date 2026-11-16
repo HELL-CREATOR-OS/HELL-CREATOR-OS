@@ -1,730 +1,570 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:audioplayers/audioplayers.dart';
+import 'package:record/record.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'app_data.dart';
-import 'account_security.dart';
-import 'platform_logos.dart';
-import 'live_connectors.dart';
-import 'actions_studio.dart';
-import 'deck_and_community.dart';
 import 'studio_screens.dart';
+import 'deck_and_community.dart';
+import 'platform_logos.dart';
+import 'account_security.dart';
 import 'music_and_social.dart';
+import 'actions_studio.dart';
+import 'live_connectors.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  WakelockPlus.enable();
+  LocalObsServer.start();
   runApp(const HellCreatorOsApp());
 }
 
-class HellCreatorOsApp extends StatelessWidget {
+class HellCreatorOsApp extends StatefulWidget {
   const HellCreatorOsApp({super.key});
+  @override
+  State<HellCreatorOsApp> createState() => _HellCreatorOsAppState();
+}
+
+class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
+  String _themeMode = 'azul';
+  void _changeTheme(String mode) => setState(() => _themeMode = mode);
+
+  ThemeData _buildTheme() {
+    if (_themeMode == 'claro') {
+      return ThemeData.light().copyWith(
+        primaryColor: const Color(0xFF1D6CE0),
+        colorScheme: const ColorScheme.light(primary: Color(0xFF1D6CE0), secondary: Color(0xFF38BDF8)),
+      );
+    } else if (_themeMode == 'escuro') {
+      return ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF07090E),
+        cardColor: const Color(0xFF10131C),
+        primaryColor: const Color(0xFF2563EB),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF07090E), elevation: 0),
+      );
+    }
+    return ThemeData.dark().copyWith(
+      scaffoldBackgroundColor: const Color(0xFF050B1E),
+      cardColor: const Color(0xFF0B1636),
+      primaryColor: const Color(0xFF1E78FF),
+      appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF050B1E), elevation: 0),
+      colorScheme: const ColorScheme.dark(primary: Color(0xFF1E78FF), secondary: Color(0xFF38BDF8)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: HellAppInfo.appName,
+      title: 'HELL CREATOR OS',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: HellTheme.bgDark,
-        primaryColor: HellTheme.neonBlue,
-        colorScheme: const ColorScheme.dark(
-          primary: HellTheme.neonBlue,
-          secondary: HellTheme.neonGreen,
-          surface: HellTheme.cardDark,
-        ),
-      ),
-      home: const _StartupConnectivityGate(),
+      theme: _buildTheme(),
+      home: SplashScreen(currentTheme: _themeMode, onThemeChanged: _changeTheme),
     );
   }
 }
 
-class _StartupConnectivityGate extends StatefulWidget {
-  const _StartupConnectivityGate();
-
+class SplashScreen extends StatefulWidget {
+  final String currentTheme;
+  final Function(String) onThemeChanged;
+  const SplashScreen({super.key, required this.currentTheme, required this.onThemeChanged});
   @override
-  State<_StartupConnectivityGate> createState() => _StartupConnectivityGateState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _StartupConnectivityGateState extends State<_StartupConnectivityGate>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseCtrl;
-  bool _ready = false;
-  String _statusText = 'A inicializar HELL CREATOR OS...';
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    )..repeat(reverse: true);
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..forward();
 
-    _runBootSequence();
-  }
-
-  Future<void> _runBootSequence() async {
-    await Future.delayed(const Duration(milliseconds: 420));
-    if (mounted) setState(() => _statusText = 'A sincronizar nódulos multiplataforma...');
-    await Future.delayed(const Duration(milliseconds: 420));
-    if (mounted) setState(() => _statusText = 'HELL VOICE PT-PT pronto.');
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (mounted) setState(() => _ready = true);
+    Timer(const Duration(milliseconds: 1800), () async {
+      if (!mounted) return;
+      final savedUser = await UserAccountManager.getSavedUser();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 350),
+          pageBuilder: (_, __, ___) => AuthGateScreen(
+            initialUser: savedUser,
+            currentTheme: widget.currentTheme,
+            onThemeChanged: widget.onThemeChanged,
+          ),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+        ),
+      );
+    });
   }
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_ready) {
-      return AccountSecurityGate(
-        onAuthenticated: (_) {},
-        child: const HellCreatorHomeShell(),
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(center: Alignment(0, -0.15), radius: 1.0, colors: [Color(0xFF132E73), Color(0xFF07112E), Color(0xFF040817)]),
+        ),
+        child: FadeTransition(
+          opacity: _controller,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('icon.png', height: 120, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 95, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 18),
+              const Text('HELL', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, letterSpacing: 5, color: Colors.white, height: 1.0)),
+              const Text('CREATOR OS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 4, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 14),
+              const Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 11, letterSpacing: 1.2, color: Color(0xFF7DD3FC))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AuthGateScreen extends StatefulWidget {
+  final Map<String, dynamic>? initialUser;
+  final String currentTheme;
+  final Function(String) onThemeChanged;
+
+  const AuthGateScreen({super.key, required this.initialUser, required this.currentTheme, required this.onThemeChanged});
+
+  @override
+  State<AuthGateScreen> createState() => _AuthGateScreenState();
+}
+
+class _AuthGateScreenState extends State<AuthGateScreen> {
+  Map<String, dynamic>? _user;
+  bool _unlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.initialUser;
+    final methods = _user?['securityMethods'];
+    if (_user != null && (methods == null || (methods is List && methods.isEmpty))) {
+      _unlocked = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_user == null) {
+      return AuthScreen(
+        onAuthenticated: (u) => setState(() {
+          _user = u;
+          _unlocked = true;
+        }),
       );
     }
 
-    return Scaffold(
-      backgroundColor: HellTheme.bgDark,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _pulseCtrl,
-              builder: (context, _) {
-                return Transform.scale(
-                  scale: 0.96 + (_pulseCtrl.value * 0.08),
-                  child: const HellBrandIcon(size: 86),
-                );
+    if (!_unlocked) {
+      return AppLockScreen(
+        user: _user!,
+        onUnlocked: () => setState(() => _unlocked = true),
+        onLogout: () async {
+          await UserAccountManager.logout();
+          setState(() {
+            _user = null;
+            _unlocked = false;
+          });
+        },
+      );
+    }
+
+    return MainShell(
+      user: _user!,
+      onUserUpdated: (updated) => setState(() => _user = updated),
+      onLogout: () async {
+        await UserAccountManager.logout();
+        setState(() {
+          _user = null;
+          _unlocked = false;
+        });
+      },
+      currentTheme: widget.currentTheme,
+      onThemeChanged: widget.onThemeChanged,
+    );
+  }
+}
+class MainShell extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final Function(Map<String, dynamic>) onUserUpdated;
+  final VoidCallback onLogout;
+  final String currentTheme;
+  final Function(String) onThemeChanged;
+
+  const MainShell({
+    super.key,
+    required this.user,
+    required this.onUserUpdated,
+    required this.onLogout,
+    required this.currentTheme,
+    required this.onThemeChanged,
+  });
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _selectedIndex = 0;
+  String _appLang = 'pt';
+  late IO.Socket socket;
+  late LivePlatformConnector _liveConnector;
+
+  final FlutterTts flutterTts = FlutterTts();
+  final AudioPlayer sfxAudioPlayer = AudioPlayer();
+  final AudioPlayer bgMusicPlayer = AudioPlayer();
+  final AudioRecorder _voiceRecorder = AudioRecorder();
+
+  final TextEditingController _channelCtrl = TextEditingController();
+  final TextEditingController _streamKeyCtrl = TextEditingController();
+  final Map<String, bool> _activePlatforms = {
+    'tiktok': false,
+    'twitch': false,
+    'youtube': false,
+    'kick': false,
+  };
+  String _selectedPlatform = 'tiktok';
+  String _selectedEncoder = 'Direto no Telemóvel / Tablet';
+  bool _isMuted = false;
+
+  bool _ttsEnabled = true;
+  double _speechRate = 0.50;
+  double _voicePitch = 0.85;
+  double _voiceVolume = 1.0;
+
+  bool _allGiftsEnabled = true;
+  late String _syncCode;
+  bool _isSecondScreenPaired = false;
+  int _sponsorIndex = 0;
+  Timer? _sponsorTimer;
+
+  final List<Map<String, dynamic>> _alertsList = [
+    {'id': 'a1', 'trigger': 'follow', 'name': 'Novo Seguidor', 'enabled': true, 'ttsThank': true, 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs[0]['url']!, 'sound': ''},
+    {'id': 'a2', 'trigger': 'like500', 'name': 'Meta de Gostos da Live', 'enabled': true, 'ttsThank': true, 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs[1]['url']!, 'sound': ''},
+    {'id': 'a3', 'trigger': 'sub', 'name': 'Novo Subscritor', 'enabled': true, 'ttsThank': true, 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs[2]['url']!, 'sound': ''},
+    {'id': 'a4', 'trigger': 'share', 'name': 'Partilha da Live', 'enabled': true, 'ttsThank': true, 'customVoicePath': null, 'media': DefaultMediaLibrary.builtInGifsAndPngs[3]['url']!, 'sound': ''},
+  ];
+
+  final List<Map<String, dynamic>> _goalsList = [
+    {'id': 'm1', 'title': 'Meta de Gostos da Live', 'target': 5000, 'current': 1250, 'overlayType': 'tiktok_heart'},
+    {'id': 'm2', 'title': 'Novos Seguidores Hoje', 'target': 100, 'current': 42, 'overlayType': 'tikfinity_neon'},
+  ];
+
+  final List<Map<String, String>> _chatFeed = [];
+  List<Map<String, String>> _sounds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _syncCode = 'HELL-${100000 + Random().nextInt(900000)}';
+    _sounds = List<Map<String, String>>.from(DefaultMediaLibrary.builtInSounds);
+    MusicDeckController.sharedPlayer = bgMusicPlayer;
+    _loadSettings();
+    _initConnectors();
+    _sponsorTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+      if (mounted && SponsorBannerManager.activeSponsors.isNotEmpty) {
+        setState(() => _sponsorIndex = (_sponsorIndex + 1) % SponsorBannerManager.activeSponsors.length);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sponsorTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _channelCtrl.text = prefs.getString('channel_user') ?? '';
+      _appLang = prefs.getString('app_lang') ?? 'pt';
+      _ttsEnabled = prefs.getBool('tts_enabled') ?? true;
+      _speechRate = prefs.getDouble('tts_rate') ?? 0.50;
+      _voicePitch = prefs.getDouble('tts_pitch') ?? 0.85;
+      _voiceVolume = prefs.getDouble('tts_volume') ?? 1.0;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('channel_user', _channelCtrl.text.trim());
+    await prefs.setString('app_lang', _appLang);
+    await prefs.setBool('tts_enabled', _ttsEnabled);
+    await prefs.setDouble('tts_rate', _speechRate);
+    await prefs.setDouble('tts_pitch', _voicePitch);
+    await prefs.setDouble('tts_volume', _voiceVolume);
+  }
+
+  Future<void> _speakRealVoice(String text) async {
+    if (_isMuted || text.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final activeId = prefs.getString('hell_active_voice_id') ?? 'pt_m1';
+    final isFemale = activeId.startsWith('pt_f');
+    final pitchVal = activeId == 'pt_m3'
+        ? 0.55
+        : (activeId == 'pt_m2' ? 0.72 : (isFemale ? 1.22 : 0.85));
+
+    try {
+      await flutterTts.stop();
+      if (Platform.isAndroid) await flutterTts.setEngine('com.google.android.tts');
+      await flutterTts.setLanguage(_appLang == 'en' ? 'en-US' : (_appLang == 'es' ? 'es-ES' : 'pt-PT'));
+      await flutterTts.setPitch(pitchVal);
+      await flutterTts.setSpeechRate(_speechRate);
+      await flutterTts.setVolume(_voiceVolume);
+      await flutterTts.speak(text);
+    } catch (_) {}
+  }
+
+  void _initConnectors() {
+    socket = IO.io('http://${LocalObsServer.localIp}:${LocalObsServer.port}', IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build());
+    _liveConnector = LivePlatformConnector(
+      onStatusChanged: (connected, statusMsg) {
+        if (!mounted) return;
+        setState(() => _activePlatforms[_selectedPlatform] = connected);
+        _showSnack(statusMsg);
+      },
+      onLiveEvent: (event) {
+        if (!mounted) return;
+        final user = (event['user'] ?? 'Espectador').toString();
+        final msg = (event['message'] ?? '').toString();
+        setState(() {
+          _chatFeed.insert(0, {'user': user, 'msg': msg, 'type': (event['type'] ?? 'chat').toString()});
+          if (_chatFeed.length > 50) _chatFeed.removeLast();
+        });
+        if (!_isMuted && _ttsEnabled && msg.isNotEmpty) {
+          _speakRealVoice('$user diz: $msg');
+        }
+      },
+    );
+  }
+
+  Future<void> _toggleMuteState() async {
+    setState(() => _isMuted = !_isMuted);
+    if (_isMuted) {
+      await sfxAudioPlayer.stop();
+      await bgMusicPlayer.pause();
+      await flutterTts.stop();
+      _showSnack('Todos os sons e alertas foram silenciados.');
+    } else {
+      _showSnack('Sons e alertas ativos.');
+    }
+  }
+
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
+  }
+  void _handlePlatformTap(String platformId, String platformName) {
+    setState(() => _selectedPlatform = platformId);
+    final isCurrentlyOn = _activePlatforms[platformId] == true;
+
+    if (isCurrentlyOn) {
+      setState(() => _activePlatforms[platformId] = false);
+      _liveConnector.disconnect();
+      _showSnack('$platformName desligado (OFF).');
+      return;
+    }
+
+    if (_channelCtrl.text.trim().isNotEmpty) {
+      setState(() => _activePlatforms[platformId] = true);
+      _liveConnector.connect(platformId, _channelCtrl.text.trim());
+      return;
+    }
+
+    _openPlatformSetupDialog(platformId, platformName);
+  }
+
+  void _openPlatformSetupDialog(String platformId, String platformName) {
+    final isTikTok = platformId == 'tiktok';
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5)),
+          title: Row(
+            children: [
+              PlatformBrandLogo(platform: platformId, size: 28),
+              const SizedBox(width: 12),
+              Text('Configurar $platformName', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _channelCtrl,
+                  decoration: InputDecoration(labelText: 'Utilizador / Canal ($platformName)', prefixIcon: const Icon(Icons.alternate_email), border: const OutlineInputBorder()),
+                ),
+                if (!isTikTok) ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: _selectedEncoder,
+                    dropdownColor: const Color(0xFF0B1636),
+                    decoration: const InputDecoration(labelText: 'Modo de Transmissão', isDense: true, border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'Direto no Telemóvel / Tablet', child: Text('Direto no Telemóvel / Tablet (RTMP)')),
+                      DropdownMenuItem(value: 'OBS Studio / PC', child: Text('OBS Studio / PC')),
+                    ],
+                    onChanged: (v) => setDialogState(() => _selectedEncoder = v ?? 'Direto no Telemóvel / Tablet'),
+                  ),
+                  if (_selectedEncoder == 'Direto no Telemóvel / Tablet') ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _streamKeyCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Stream Key (Chave RTMP)', isDense: true, border: OutlineInputBorder()),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              onPressed: () async {
+                await _saveSettings();
+                final user = _channelCtrl.text.trim();
+                if (user.isNotEmpty) {
+                  setState(() => _activePlatforms[platformId] = true);
+                  await _liveConnector.connect(platformId, user);
+                }
+                if (mounted) Navigator.pop(ctx);
               },
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              HellAppInfo.appName,
-              style: TextStyle(
-                color: HellTheme.textWhite,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              HellAppInfo.slogan,
-              style: TextStyle(color: HellTheme.neonBlue, fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _statusText,
-              style: const TextStyle(color: HellTheme.textMuted, fontSize: 12),
+              child: const Text('Ligar Agora (ON)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class HellCreatorHomeShell extends StatefulWidget {
-  const HellCreatorHomeShell({super.key});
+  BoxDecoration _neonCard() => BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
+      );
 
-  @override
-  State<HellCreatorHomeShell> createState() => _HellCreatorHomeShellState();
-}
-
-class _HellCreatorHomeShellState extends State<HellCreatorHomeShell> {
-  int _currentTab = 0;
-  bool _gamingModeInvisible = false;
-  bool _voiceMuted = false;
-  bool _lowResourceMode = false;
-
-  final FlutterTts _tts = FlutterTts();
-  final HellLiveConnectorsManager _connectors = HellLiveConnectorsManager();
-  List<Map<String, String>> _ptVoices = [];
-  String? _selectedVoiceName;
-  String _voiceProfile = 'Gaming';
-  final List<String> _voiceQueue = [];
-  bool _isSpeaking = false;
-
-  bool _isRecordingClone = false;
-  int _cloneSecondsElapsed = 0;
-  Timer? _cloneTimer;
-  bool _hasClonedVoice = false;
-
-  HellUserSession _user = const HellUserSession(
-    name: 'Criador HELL',
-    email: 'hellcreatoros@gmail.com',
-    role: 'OWNER',
-    pin: '0000',
-  );
-
-  final List<PlatformAccountConfig> _platforms = [
-    PlatformAccountConfig(id: 'tiktok', name: 'TikTok', brandColor: const Color(0xFF00F2FE), emblemIcon: Icons.music_note),
-    PlatformAccountConfig(id: 'twitch', name: 'Twitch', brandColor: const Color(0xFF9146FF), emblemIcon: Icons.videogame_asset),
-    PlatformAccountConfig(id: 'youtube', name: 'YouTube', brandColor: const Color(0xFFFF0000), emblemIcon: Icons.play_arrow),
-    PlatformAccountConfig(id: 'kick', name: 'Kick', brandColor: const Color(0xFF53FC18), emblemIcon: Icons.bolt),
-  ];
-
-  final List<HellLiveEvent> _events = [
-    HellLiveEvent(
-      id: 'init_1',
-      platform: 'TikTok',
-      type: 'chat',
-      username: 'Ana_Gamer',
-      message: 'Bora para a live! Boa sorte na partida!',
-    ),
-    HellLiveEvent(
-      id: 'init_2',
-      platform: 'YouTube',
-      type: 'follow',
-      username: 'Miguel_PT',
-      message: 'O Miguel começou a seguir-te!',
-    ),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSavedData();
-    _initPortugueseTts();
-  }
-
-  Future<void> _loadSavedData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('hell_user_email') ?? 'hellcreatoros@gmail.com';
-    final name = prefs.getString('hell_user_name') ?? 'Criador HELL';
-    final role = prefs.getString('hell_user_role') ?? 'OWNER';
-    final pin = prefs.getString('hell_user_pin') ?? '0000';
-
-    setState(() {
-      _user = HellUserSession(name: name, email: email, role: role, pin: pin);
-      for (final p in _platforms) {
-        final savedUser = prefs.getString('hell_plat_${p.id}_user') ?? '';
-        p.usernameOrKey = savedUser;
-      }
-    });
-  }
-
-  Future<void> _initPortugueseTts() async {
-    final targetLocale = HellLocaleManager.activeTtsLocale;
-    await _tts.setLanguage(targetLocale);
-    await _tts.setSpeechRate(0.52);
-    await _tts.setPitch(1.0);
-
-    _tts.setCompletionHandler(() {
-      _isSpeaking = false;
-      _processNextInVoiceQueue();
-    });
-
-    try {
-      final rawVoices = await _tts.getVoices;
-      if (rawVoices is List) {
-        final filtered = <Map<String, String>>[];
-        final langPrefix = targetLocale.split('-').first.toLowerCase();
-        for (final v in rawVoices) {
-          if (v is Map) {
-            final locale = (v['locale'] ?? '').toString().toLowerCase();
-            final name = (v['name'] ?? '').toString();
-            if (locale.startsWith(langPrefix)) {
-              filtered.add({'name': name, 'locale': locale});
-            }
-          }
-        }
-        if (mounted) {
-          setState(() {
-            _ptVoices = filtered;
-            if (_ptVoices.isNotEmpty) {
-              final exact = _ptVoices.firstWhere(
-                (v) => v['locale'] == targetLocale.toLowerCase(),
-                orElse: () => _ptVoices.first,
-              );
-              _selectedVoiceName = exact['name'];
-              _tts.setVoice({'name': exact['name']!, 'locale': exact['locale']!});
-            }
-          });
-        }
-      }
-    } catch (_) {}
-  }
-  void _enqueueSpeech(String text) {
-    if (_voiceMuted || text.trim().isEmpty) return;
-    _voiceQueue.add(text);
-    if (!_isSpeaking) {
-      _processNextInVoiceQueue();
-    }
-  }
-
-  Future<void> _processNextInVoiceQueue() async {
-    if (_voiceQueue.isEmpty || _voiceMuted) return;
-    _isSpeaking = true;
-    final nextText = _voiceQueue.removeAt(0);
-    await _tts.setLanguage(HellLocaleManager.activeTtsLocale);
-    await _tts.speak(nextText);
-  }
-
-  void _handleNewEvent(HellLiveEvent event) {
-    _connectors.dispatchExternalEvent(
-      event: event,
-      onAcceptedEvent: (accepted) {
-        setState(() {
-          _events.insert(0, accepted);
-        });
-        _enqueueSpeech(accepted.message);
-      },
-    );
-  }
-
-  void _toggleVoiceCloneRecording() {
-    if (_isRecordingClone) {
-      _cloneTimer?.cancel();
-      setState(() {
-        _isRecordingClone = false;
-        if (_cloneSecondsElapsed >= 15) {
-          _hasClonedVoice = true;
-          _enqueueSpeech('Amostra de voz clonada com sucesso em português de Portugal!');
-        }
-      });
-    } else {
-      setState(() {
-        _isRecordingClone = true;
-        _cloneSecondsElapsed = 0;
-      });
-      _cloneTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        setState(() {
-          _cloneSecondsElapsed++;
-          if (_cloneSecondsElapsed >= 120) {
-            _isRecordingClone = false;
-            _hasClonedVoice = true;
-            timer.cancel();
-            _enqueueSpeech('Gravação de dois minutos concluída! A tua voz pessoal está pronta.');
-          }
-        });
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _cloneTimer?.cancel();
-    _connectors.disposeAll();
-    _tts.stop();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isStreamDeckTab = _currentTab == 2;
-
-    return Scaffold(
-      backgroundColor: HellTheme.bgDark,
-      appBar: isStreamDeckTab
-          ? AppBar(
-              backgroundColor: HellTheme.bgDark,
-              elevation: 0,
-              toolbarHeight: 42,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: HellTheme.neonBlue),
-                onPressed: () => setState(() => _currentTab = 0),
-              ),
-              title: const Text(
-                'Voltar ao Centro de Comando',
-                style: TextStyle(color: HellTheme.textWhite, fontSize: 13),
-              ),
-            )
-          : AppBar(
-              backgroundColor: HellTheme.bgDark,
-              elevation: 0,
-              leading: const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: HellBrandIcon(size: 36),
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    HellAppInfo.appName,
-                    style: TextStyle(
-                      color: HellTheme.textWhite,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  Text(
-                    _gamingModeInvisible
-                        ? HellLocaleManager.t('gaming_active')
-                        : HellAppInfo.slogan,
-                    style: TextStyle(
-                      color: _gamingModeInvisible ? HellTheme.neonGreen : HellTheme.neonBlue,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  tooltip: _voiceMuted ? 'Ativar HELL VOICE' : 'Silenciar HELL VOICE',
-                  icon: Icon(
-                    _voiceMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                    color: _voiceMuted ? HellTheme.neonRed : HellTheme.neonBlue,
-                  ),
-                  onPressed: () {
-                    setState(() => _voiceMuted = !_voiceMuted);
-                    if (_voiceMuted) _tts.stop();
-                  },
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: ActionChip(
-                    avatar: Icon(
-                      _gamingModeInvisible ? Icons.visibility_off_rounded : Icons.sports_esports_rounded,
-                      color: _gamingModeInvisible ? HellTheme.bgDark : HellTheme.neonBlue,
-                      size: 16,
-                    ),
-                    label: Text(
-                      _gamingModeInvisible ? 'JOGO ON' : 'Gaming',
-                      style: TextStyle(
-                        color: _gamingModeInvisible ? HellTheme.bgDark : HellTheme.textWhite,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                    backgroundColor: _gamingModeInvisible ? HellTheme.neonGreen : HellTheme.cardElevated,
-                    onPressed: () {
-                      setState(() => _gamingModeInvisible = !_gamingModeInvisible);
-                      if (_gamingModeInvisible) {
-                        _enqueueSpeech('Modo jogo ativado. Ecrã limpo, apenas voz e alertas sonoros.');
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-      body: IndexedStack(
-        index: _currentTab,
-        children: [
-          _buildCommandCenterTab(),
-          _buildHellVoiceTab(),
-          StreamDeckScreen(
-            onDeckActionTriggered: (id, label) {
-              _connectors.switchObsScene(label);
-              _enqueueSpeech('Ação $label ativada na live.');
-            },
-          ),
-          StudioAndGrowthView(onSpeakAlert: _enqueueSpeech),
-          CommunityAndPlansView(currentUser: _user),
-          MusicBusinessAndHelpView(onSpeakAlert: _enqueueSpeech),
-        ],
-      ),
-      bottomNavigationBar: isStreamDeckTab
-          ? null
-          : BottomNavigationBar(
-              currentIndex: _currentTab,
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: HellTheme.cardDark,
-              selectedItemColor: HellTheme.neonBlue,
-              unselectedItemColor: HellTheme.textMuted,
-              selectedFontSize: 10,
-              unselectedFontSize: 10,
-              onTap: (idx) => setState(() => _currentTab = idx),
-              items: [
-                BottomNavigationBarItem(icon: const Icon(Icons.dashboard_rounded), label: HellLocaleManager.t('tab_command')),
-                BottomNavigationBarItem(icon: const Icon(Icons.record_voice_over_rounded), label: HellLocaleManager.t('tab_voice')),
-                BottomNavigationBarItem(icon: const Icon(Icons.grid_view_rounded), label: HellLocaleManager.t('tab_deck')),
-                BottomNavigationBarItem(icon: const Icon(Icons.auto_awesome_rounded), label: HellLocaleManager.t('tab_studio')),
-                BottomNavigationBarItem(icon: const Icon(Icons.public_rounded), label: HellLocaleManager.t('tab_community')),
-                BottomNavigationBarItem(icon: const Icon(Icons.more_horiz_rounded), label: HellLocaleManager.t('tab_more')),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildCommandCenterTab() {
-    final activeCount = _platforms.where((p) => p.isConnected).length;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        PlatformLogosGrid(
-          platforms: _platforms,
-          onPlatformToggled: (plat) {
-            setState(() {});
-            _connectors.syncPlatformConnection(
-              platform: plat,
-              onEventReceived: _handleNewEvent,
-            );
-            _enqueueSpeech(
-              plat.isConnected
-                  ? '${plat.name} ligado e em direto!'
-                  : '${plat.name} desligado.',
-            );
-          },
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: HellTheme.neonCard(isActiveGreen: activeCount > 0),
-          child: Row(
-            children: [
-              Icon(
-                activeCount > 0 ? Icons.sensors_rounded : Icons.sensors_off_rounded,
-                color: activeCount > 0 ? HellTheme.neonGreen : HellTheme.neonBlue,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  activeCount > 0
-                      ? '$activeCount plataforma(s) em direto • Segundo plano pronto'
-                      : 'Toca num quadrado acima para iniciar (ON)',
-                  style: const TextStyle(color: HellTheme.textWhite, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Modo Leve (Poupar Bateria/RAM)',
-                icon: Icon(
-                  Icons.speed_rounded,
-                  color: _lowResourceMode ? HellTheme.neonGreen : HellTheme.textMuted,
-                ),
-                onPressed: () => setState(() => _lowResourceMode = !_lowResourceMode),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: HellTheme.neonCard(),
-          child: Row(
-            children: [
-              const Icon(Icons.psychology_rounded, color: HellTheme.neonBlue, size: 24),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'AI STREAM DIRECTOR',
-                      style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 11),
-                    ),
-                    Text(
-                      activeCount > 0
-                          ? 'Sugestão: Interage com o chat agora e lança a !roleta para subir retenção.'
-                          : 'Dica: Podes usar este telemóvel como Segunda Tela ou em segundo plano sem distrações.',
-                      style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'UNIFIED CHAT & EVENT MONITOR',
-          style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.0),
-        ),
-        const SizedBox(height: 8),
-        ..._events.take(8).map((ev) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: HellTheme.neonCard(radius: 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: HellTheme.neonBlue.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      ev.platform,
-                      style: const TextStyle(color: HellTheme.neonBlue, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${ev.username}: ',
-                            style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                          TextSpan(
-                            text: ev.message,
-                            style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )),
-      ],
-    );
-  }
-  Widget _buildHellVoiceTab() {
-    final profiles = ['Gaming', 'Relax', 'Full Live', 'Competitive', 'Custom'];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'HELL VOICE • PORTUGUÊS DE PORTUGAL (PT-PT)',
-                style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Voz sincronizada com o idioma da app. Funciona em segundo plano sem nada no ecrã.',
-                style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
-              ),
-              const SizedBox(height: 12),
-              if (_ptVoices.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: _selectedVoiceName,
-                  dropdownColor: HellTheme.cardElevated,
-                  decoration: const InputDecoration(
-                    labelText: 'Voz Selecionada',
-                    labelStyle: TextStyle(color: HellTheme.neonBlue),
-                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: HellTheme.neonBlue)),
-                  ),
-                  items: _ptVoices
-                      .map((v) => DropdownMenuItem(
-                            value: v['name'],
-                            child: Text(
-                              '${v['name']} (${v['locale']})',
-                              style: const TextStyle(color: HellTheme.textWhite, fontSize: 12),
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      final chosen = _ptVoices.firstWhere((e) => e['name'] == val);
-                      setState(() => _selectedVoiceName = val);
-                      _tts.setVoice({'name': chosen['name']!, 'locale': chosen['locale']!});
-                      _enqueueSpeech('Voz selecionada com sucesso.');
-                    }
-                  },
-                )
-              else
-                const Text(
-                  'Motor Nativo PT-PT Ativo (Usa a voz portuguesa do dispositivo)',
-                  style: TextStyle(color: HellTheme.neonGreen, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: profiles.map((p) {
-                  final sel = _voiceProfile == p;
-                  return ChoiceChip(
-                    label: Text(p),
-                    selected: sel,
-                    selectedColor: HellTheme.neonBlue,
-                    backgroundColor: HellTheme.cardElevated,
-                    labelStyle: TextStyle(
-                      color: sel ? HellTheme.bgDark : HellTheme.textWhite,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                    onSelected: (_) => setState(() => _voiceProfile = p),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: HellTheme.neonCard(isActiveGreen: _hasClonedVoice),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'CLONAR A MINHA VOZ (2 MINUTOS)',
-                    style: TextStyle(color: HellTheme.neonBlue, fontWeight: FontWeight.w900, fontSize: 12),
-                  ),
-                  Text(
-                    '${(_cloneSecondsElapsed ~/ 60).toString().padLeft(2, '0')}:${(_cloneSecondsElapsed % 60).toString().padLeft(2, '0')} / 02:00',
-                    style: const TextStyle(color: HellTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Lê o texto abaixo ao microfone para clonar a tua voz com expressões típicas:',
-                style: TextStyle(color: HellTheme.textMuted, fontSize: 11),
-              ),
-              const SizedBox(height: 8),
+  Widget _menuTile(IconData icon, String title, VoidCallback onTap, {String? badge}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: _neonCard(),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF38BDF8), size: 22),
+            const SizedBox(width: 14),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600))),
+            if (badge != null)
               Container(
-                height: 160,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: HellTheme.bgDark,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.4)),
-                ),
-                child: const SingleChildScrollView(
-                  child: Text(
-                    AppData.voiceCloningScript2Min,
-                    style: TextStyle(color: HellTheme.textWhite, fontSize: 12.5, height: 1.45),
-                  ),
-                ),
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFF1E78FF), borderRadius: BorderRadius.circular(8)),
+                child: Text(badge, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRecordingClone ? HellTheme.neonRed : HellTheme.neonBlue,
-                    foregroundColor: HellTheme.bgDark,
-                  ),
-                  onPressed: _toggleVoiceCloneRecording,
-                  icon: Icon(_isRecordingClone ? Icons.stop_rounded : Icons.mic_rounded),
-                  label: Text(
-                    _isRecordingClone
-                        ? 'Parar e Processar Voz Clonada'
-                        : _hasClonedVoice
-                            ? 'Voz Clonada Ativa • Gravar Novamente'
-                            : 'Iniciar Gravação (2 Minutos)',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            const Icon(Icons.chevron_right, color: Colors.white54),
+          ],
         ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 460,
-          child: ActionsAndAutomationsView(
-            eventHistory: _events,
-            onTriggerTestEvent: _handleNewEvent,
-            onRefreshLibrary: () {
-              _enqueueSpeech('Bibliotecas sonoras e eventos atualizados.');
-            },
-          ),
+      ),
+    );
+  }
+
+  Widget _buildHomeTab() {
+    final platforms = [
+      {'id': 'tiktok', 'name': 'TikTok'},
+      {'id': 'twitch', 'name': 'Twitch'},
+      {'id': 'youtube', 'name': 'YouTube'},
+      {'id': 'kick', 'name': 'Kick'},
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 4,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 0.86,
+          children: platforms.map((p) {
+            final id = p['id']!;
+            final name = p['name']!;
+            return PlatformGlassTile(
+              platform: id,
+              label: name,
+              isActive: _activePlatforms[id] == true,
+              onTap: () => _handlePlatformTap(id, name),
+              onLongPress: () => _openPlatformSetupDialog(id, name),
+            );
+          }).toList(),
         ),
+        const SizedBox(height: 16),
+        _menuTile(Icons.bolt_outlined, '1. ${AppTranslations.t(_appLang, 'automations')}', () => setState(() => _selectedIndex = 1), badge: 'AÇÕES & REGRAS'),
+        _menuTile(Icons.dashboard_customize_outlined, '2. ${AppTranslations.t(_appLang, 'control_center')}', () => setState(() => _selectedIndex = 2), badge: 'LIVE & PERFIL'),
+        _menuTile(Icons.record_voice_over_outlined, '3. ${AppTranslations.t(_appLang, 'hell_voice')}', () => setState(() => _selectedIndex = 3), badge: '6 VOZES PT'),
+        _menuTile(Icons.sports_esports_outlined, '4. ${AppTranslations.t(_appLang, 'game_mode')}', () => setState(() => _selectedIndex = 4), badge: 'AUTO'),
+        _menuTile(Icons.grid_view_rounded, '5. ${AppTranslations.t(_appLang, 'second_screen')}', () => setState(() => _selectedIndex = 5), badge: _isSecondScreenPaired ? 'SYNC ON' : 'QR SYNC'),
+        _menuTile(Icons.music_note_outlined, '6. ${AppTranslations.t(_appLang, 'music')}', () => setState(() => _selectedIndex = 6), badge: 'PLAYER'),
+        _menuTile(Icons.psychology_outlined, '7. ${AppTranslations.t(_appLang, 'smart_brain')}', () => setState(() => _selectedIndex = 7), badge: 'DIRECTOR IA'),
+        _menuTile(Icons.movie_filter_outlined, '8. ${AppTranslations.t(_appLang, 'content_factory')}', () => setState(() => _selectedIndex = 8), badge: 'CLIPS 9:16'),
+        _menuTile(Icons.public, '9. ${AppTranslations.t(_appLang, 'community')}', () => setState(() => _selectedIndex = 9), badge: 'GLOBO 3D'),
+        _menuTile(Icons.trending_up_rounded, '10. ${AppTranslations.t(_appLang, 'growth')}', () => setState(() => _selectedIndex = 10), badge: 'GRÁFICOS'),
+        _menuTile(Icons.business_center_outlined, '11. ${AppTranslations.t(_appLang, 'business')}', () => setState(() => _selectedIndex = 11), badge: 'FINANÇAS & ADS'),
+        _menuTile(Icons.extension_outlined, '12. ${AppTranslations.t(_appLang, 'plugins_market')}', () => setState(() => _selectedIndex = 12), badge: 'LOJA & PLANOS'),
+        _menuTile(Icons.info_outline, '13. ${AppTranslations.t(_appLang, 'info_hub')}', () => setState(() => _selectedIndex = 13), badge: 'ROBÔ H & FAQ'),
+        _menuTile(Icons.settings_outlined, '14. ${AppTranslations.t(_appLang, 'settings')}', () => setState(() => _selectedIndex = 14)),
       ],
     );
   }
-}
+
+  Widget _buildGameModeScreen() {
+    final isSingleDevice = !_isSecondScreenPaired;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🎮 HELL Modo de Jogo (Deteção Automática)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 8),
+              Text(
+                isSingleDevice
+                    ? '• Equipamento detetado: Aparelho Único.\n• Ao minimizar a app para jogar, o Modo Invisível entra automaticamente sem janelas no ecrã — apenas voz HELL VOICE e alertas nos auriculares.'
+                    : '• Equipamento detetado: 2 Aparelhos Sincronizados.\n• Este ecrã permanece limpo para o jogo enquanto o 2.º aparelho controla o Stream Deck Pro.',
+                style: const TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('Volume Independente da Voz:', style: TextStyle(fontSize: 12.5)),
+                  Expanded(
+                    child: Slider(
