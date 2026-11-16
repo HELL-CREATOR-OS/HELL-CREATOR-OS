@@ -466,4 +466,135 @@ class _MusicBusinessAndHelpViewState extends State<MusicBusinessAndHelpView> {
                     borderRadius: BorderRadius.circular(14),
                     border: isBot ? Border.all(color: HellTheme.neonBlue.withValues(alpha: 0.5)) : null,
                   ),
-                  child: Text(
+                                    child: Text(
+                    msg['text']!,
+                    style: TextStyle(
+                      color: isBot ? HellTheme.textWhite : HellTheme.bgDark,
+                      fontSize: 12.5,
+                      fontWeight: isBot ? FontWeight.normal : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _aiInputCtrl,
+                  style: const TextStyle(color: HellTheme.textWhite, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Pergunta algo ao Robô HELL AI...',
+                    hintStyle: const TextStyle(color: HellTheme.textMuted, fontSize: 12),
+                    filled: true,
+                    fillColor: HellTheme.cardElevated,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: HellTheme.neonBlue),
+                    ),
+                  ),
+                  onSubmitted: _sendAiMessage,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: HellTheme.neonBlue,
+                  foregroundColor: HellTheme.bgDark,
+                ),
+                icon: const Icon(Icons.send_rounded),
+                onPressed: () => _sendAiMessage(_aiInputCtrl.text),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHellNeonRobotAvatar() {
+    return Container(
+      width: 64,
+      height: 70,
+      decoration: BoxDecoration(
+        color: HellTheme.bgDark,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HellTheme.neonBlue, width: 1.5),
+        boxShadow: [
+          BoxShadow(color: HellTheme.neonBlue.withValues(alpha: 0.35), blurRadius: 10),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 34,
+            height: 22,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Container(
+                width: 24,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: HellTheme.bgDark,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    CircleAvatar(radius: 2.3, backgroundColor: HellTheme.neonBlue),
+                    CircleAvatar(radius: 2.3, backgroundColor: HellTheme.neonBlue),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Container(
+            width: 40,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Center(
+              child: HellBrandIcon(size: 22, showGlow: false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportTicketView() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: HellTheme.neonCard(),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Suporte Técnico Oficial', style: TextStyle(color: HellTheme.textWhite, fontWeight: FontWeight.bold, fontSize: 15)),
+            SizedBox(height: 8),
+            Text(
+              'Precisas de ajuda com a ligação ao OBS, configuração de áudio em segundo plano ou planos de agência?\n\n'
+              'Envia mensagem direta para: ${HellAppInfo.supportEmail}',
+              style: TextStyle(color: HellTheme.textMuted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
