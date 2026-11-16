@@ -668,3 +668,71 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
                           ...SponsorBannerManager.activeSponsors.asMap().entries.map((e) => ListTile(
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
+                                title: Text(e.value['title']!, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                                trailing: widget.isOwner
+                                    ? IconButton(
+                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                                        onPressed: () => setState(() => SponsorBannerManager.activeSponsors.removeAt(e.key)),
+                                      )
+                                    : IconButton(
+                                        icon: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF38BDF8)),
+                                        onPressed: () => launchUrl(Uri.parse(e.value['url']!), mode: LaunchMode.externalApplication),
+                                      ),
+                              )),
+                          if (widget.isOwner) ...[
+                            const Divider(color: Colors.white12),
+                            const Text('👑 Painel Dono: Adicionar Publicidade no Rodapé', style: TextStyle(fontSize: 12, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 6),
+                            TextField(controller: _sponsorTitleCtrl, decoration: const InputDecoration(hintText: 'Texto da campanha / patrocinador...', isDense: true)),
+                            const SizedBox(height: 6),
+                            TextField(controller: _sponsorUrlCtrl, decoration: const InputDecoration(hintText: 'Link da campanha (https://...)', isDense: true)),
+                            const SizedBox(height: 8),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                              onPressed: () {
+                                if (_sponsorTitleCtrl.text.trim().isNotEmpty) {
+                                  setState(() {
+                                    SponsorBannerManager.activeSponsors.insert(0, {
+                                      'title': _sponsorTitleCtrl.text.trim(),
+                                      'url': _sponsorUrlCtrl.text.trim().isEmpty ? 'mailto:hellcreatoros@gmail.com' : _sponsorUrlCtrl.text.trim(),
+                                    });
+                                    _sponsorTitleCtrl.clear();
+                                    _sponsorUrlCtrl.clear();
+                                  });
+                                }
+                              },
+                              child: const Text('Publicar no Rodapé da App', style: TextStyle(color: Colors.white, fontSize: 12)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 11.5 - 11.7 TEAM MANAGEMENT, SPONSOR MATCH AI & AGENCY DASHBOARD
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('🏢 Agency Dashboard & Sponsor Match AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+                          SizedBox(height: 8),
+                          Text('• Gestão de vários criadores, permissões de equipa e relatórios globais.\n• Sponsor Match AI: Setores recomendados para o teu perfil — Gaming Peripherals, Energia & Software.\n• Contacto Comercial Oficial: hellcreatoros@gmail.com', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
