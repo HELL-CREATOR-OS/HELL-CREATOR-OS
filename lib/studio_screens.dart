@@ -326,6 +326,8 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                         label: const Text('👑 Gerar Nova Chave VIP (Dono)', style: TextStyle(color: Colors.white)),
                       ),
                     ],
+                                const AutofillPrivacySettingsCard(),
+    
                     const SizedBox(height: 10),
                     TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
                   ],
