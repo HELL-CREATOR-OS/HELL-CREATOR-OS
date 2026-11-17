@@ -454,6 +454,143 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
     );
     widget.onAuthenticated(user);
+      }
+
+  Future<void> _googleAuth() async {
+    setState(() => _busy = true);
+    try {
+      const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com';
+      if (Platform.isWindows) {
+        GoogleSignInDart.register(clientId: windowsClientId);
+      }
+      final googleSignIn = GoogleSignIn(
+        clientId: Platform.isWindows ? windowsClientId : null,
+        scopes: ['email', 'profile'],
+      );
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
+      final account = await googleSignIn.signIn();
+      if (account != null) {
+        final photo = (account.photoUrl ?? '').trim();
+        final existing = await UserAccountManager.findRegisteredAccount(account.email);
+        if (existing != null && existing['registrationCompleted'] == true) {
+          if (photo.isNotEmpty) existing['photoUrl'] = photo;
+          await UserAccountManager.saveUser(existing);
+          widget.onAuthenticated(existing);
+          return;
+        }
+        final parts = (account.displayName ?? 'Criador HELL').trim().split(' ');
+        setState(() {
+          _isRegister = true;
+          _firstNameCtrl.text = parts.first;
+          _lastNameCtrl.text = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+          _nickCtrl.text = account.email.split('@').first;
+          _emailCtrl.text = account.email;
+          _googlePhotoUrl = photo;
+          _emailVerified = true;
+        });
+        _msg('Conta Google (${account.email}) e foto sincronizadas! Preenche a data de nascimento, palavra-passe e aceita os Termos.');
+      }
+    } catch (e) {
+      _msg('Erro Google: ${e.toString().split('\n').first}');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _submitForm() async {
+    final identifier = _emailCtrl.text.trim();
+    final pass = _passCtrl.text.trim();
+
+    if (!_isRegister) {
+      if (identifier.isEmpty || pass.length < 6) {
+        _msg('Introduz o teu E-mail ou Nickname registado e a palavra-passe.');
+        return;
+      }
+      final existing = await UserAccountManager.findRegisteredAccount(identifier);
+      if (existing != null && existing['passwordSecret'] == pass) {
+        await UserAccountManager.saveUser(existing);
+        await _askToSaveCredentialsAndEnter(existing, identifier, pass);
+      } else {
+        _msg('Conta não encontrada ou palavra-passe incorreta. Verifica os dados ou cria o teu registo.');
+      }
+      return;
+    }
+
+    final email = identifier.toLowerCase();
+    final firstName = _firstNameCtrl.text.trim();
+    final lastName = _lastNameCtrl.text.trim();
+    final nick = _nickCtrl.text.trim();
+    final passConfirm = _passConfirmCtrl.text.trim();
+
+    if (firstName.isEmpty || lastName.isEmpty || nick.isEmpty) {
+      _msg('Preenche o Nome Próprio, Apelido e Nickname.');
+      return;
+    }
+    if (_birthDate == null) {
+      _msg('Introduz a tua Data de Nascimento completa (Dia, Mês e Ano).');
+      return;
+    }
+    if (_calculateAge(_birthDate!) < 16) {
+      _msg('Registo bloqueado: a idade mínima legal é de 16 anos.');
+      return;
+    }
+    if (!email.contains('@') || !email.contains('.')) {
+      _msg('Introduz um endereço de e-mail válido.');
+      return;
+    }
+    if (!_emailVerified) {
+      _msg('Valida o teu e-mail (via link enviado para a tua caixa de entrada ou com Conta Google) antes de concluir.');
+      return;
+    }
+    if (pass.length < 6) {
+      _msg('A palavra-passe deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (pass != passConfirm) {
+      _msg('As duas palavras-passe não coincidem.');
+      return;
+    }
+    if (!_acceptedTerms) {
+      _msg('É obrigatório ler e aceitar os Termos de Utilização, Privacidade e Isenção de Responsabilidade.');
+      return;
+    }
+
+    final nowUtc = DateTime.now().toUtc().toIso8601String();
+    final consentId = 'CONSENT-${DateTime.now().millisecondsSinceEpoch}-${1000 + Random().nextInt(9000)}';
+
+    final user = <String, dynamic>{
+      'registrationCompleted': true,
+      'firstName': firstName,
+      'lastName': lastName,
+      'nickname': nick,
+      'birthDate': _birthDate!.toIso8601String(),
+      'age': _calculateAge(_birthDate!),
+      'country': _selectedCountry,
+      'email': email,
+      'photoUrl': _googlePhotoUrl,
+      'passwordSecret': pass,
+      'securityMethods': <String>[],
+      'legalAuditLog': {
+        'consentId': consentId,
+        'acceptedAtUtc': nowUtc,
+        'termsVersion': UserAccountManager.termsVersion,
+        'fullName': '$firstName $lastName',
+        'email': email,
+        'country': _selectedCountry,
+      },
+    };
+
+    await UserAccountManager.saveUser(user);
+    await _askToSaveCredentialsAndEnter(user, email, pass);
+  }
+
+  void _msg(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
+  }
+
       @override
   Widget build(BuildContext context) {
     return Scaffold(
