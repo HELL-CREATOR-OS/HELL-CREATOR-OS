@@ -706,6 +706,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 }
+}
 
 class AutofillPrivacySettingsCard extends StatefulWidget {
   const AutofillPrivacySettingsCard({super.key});
