@@ -78,27 +78,51 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _logoController;
+  late AnimationController _pulseController;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideTitleAnim;
+  late Animation<double> _progressAnim;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..forward();
+    _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
 
-    Timer(const Duration(milliseconds: 1800), () async {
+    _scaleAnim = Tween<double>(begin: 0.65, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: const Interval(0.0, 0.55, curve: Curves.easeOutBack)),
+    );
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: const Interval(0.0, 0.45, curve: Curves.easeIn)),
+    );
+    _slideTitleAnim = Tween<Offset>(begin: const Offset(0, 0.35), end: Offset.zero).animate(
+      CurvedAnimation(parent: _logoController, curve: const Interval(0.25, 0.70, curve: Curves.easeOutCubic)),
+    );
+    _progressAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: const Interval(0.20, 1.0, curve: Curves.easeInOut)),
+    );
+
+    _logoController.forward();
+
+    Timer(const Duration(milliseconds: 2700), () async {
       if (!mounted) return;
       final savedUser = await UserAccountManager.getSavedUser();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 350),
+          transitionDuration: const Duration(milliseconds: 550),
           pageBuilder: (_, __, ___) => AuthGateScreen(
             initialUser: savedUser,
             currentTheme: widget.currentTheme,
             onThemeChanged: widget.onThemeChanged,
           ),
-          transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+          transitionsBuilder: (_, anim, __, child) {
+            final slide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(anim);
+            return FadeTransition(opacity: anim, child: SlideTransition(position: slide, child: child));
+          },
         ),
       );
     });
@@ -106,7 +130,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
-    _controller.dispose();
+    _logoController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -116,19 +141,71 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
-          gradient: RadialGradient(center: Alignment(0, -0.15), radius: 1.0, colors: [Color(0xFF132E73), Color(0xFF07112E), Color(0xFF040817)]),
+          gradient: RadialGradient(
+            center: Alignment(0, -0.15),
+            radius: 1.05,
+            colors: [Color(0xFF132E73), Color(0xFF07112E), Color(0xFF040817)],
+          ),
         ),
         child: FadeTransition(
-          opacity: _controller,
+          opacity: _fadeAnim,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('icon.png', height: 120, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 95, color: Color(0xFF38BDF8))),
+              ScaleTransition(
+                scale: _scaleAnim,
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (_, child) => Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF38BDF8).withOpacity(0.22 + (_pulseController.value * 0.28)),
+                          blurRadius: 28 + (_pulseController.value * 16),
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: child,
+                  ),
+                  child: Image.asset(
+                    'icon.png',
+                    height: 128,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 100, color: Color(0xFF38BDF8)),
+                  ),
+                ),
+              ),
               const SizedBox(height: 18),
-              const Text('HELL', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, letterSpacing: 5, color: Colors.white, height: 1.0)),
-              const Text('CREATOR OS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 4, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 14),
-              const Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 11, letterSpacing: 1.2, color: Color(0xFF7DD3FC))),
+              SlideTransition(
+                position: _slideTitleAnim,
+                child: const Column(
+                  children: [
+                    Text('HELL', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 6, color: Colors.white, height: 1.0)),
+                    SizedBox(height: 4),
+                    Text('CREATOR OS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 4.5, color: Color(0xFF38BDF8))),
+                    SizedBox(height: 14),
+                    Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 10.5, letterSpacing: 1.3, color: Color(0xFF7DD3FC))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: 190,
+                child: AnimatedBuilder(
+                  animation: _progressAnim,
+                  builder: (_, __) => ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: _progressAnim.value,
+                      minHeight: 4,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -136,6 +213,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
   }
 }
+
 
 class AuthGateScreen extends StatefulWidget {
   final Map<String, dynamic>? initialUser;
