@@ -32,8 +32,8 @@ jobs:
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
           sed -i 's/android {/android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }/g' android/app/build.gradle.kts || true
           sudo apt-get update && sudo apt-get install -y python3-pil
-          python3 -c "from PIL import Image; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 28 and g < 28 and b < 42) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); img.save('icon_neon.png')"
-          sed -i 's/adaptive_icon_background: .*/adaptive_icon_background: "#FFFFFF"/g' pubspec.yaml
+          python3 -c "from PIL import Image, ImageDraw, ImageFilter; base = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); d = ImageDraw.Draw(glow); d.ellipse([140, 140, 884, 884], fill=(30, 120, 255, 150)); d.ellipse([230, 230, 794, 794], fill=(56, 189, 248, 190)); glow = glow.filter(ImageFilter.GaussianBlur(85)); base = Image.alpha_composite(base, glow); ring = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); dr = ImageDraw.Draw(ring); dr.ellipse([95, 95, 929, 929], outline=(56, 189, 248, 220), width=18); ring = ring.filter(ImageFilter.GaussianBlur(10)); base = Image.alpha_composite(base, ring); logo = Image.open('icon.png').convert('RGBA').resize((880, 880), Image.Resampling.LANCZOS); base.paste(logo, (72, 72), logo); base.save('icon_neon.png')"
+          sed -i 's/adaptive_icon_background: .*/adaptive_icon_background: "#050B1E"/g' pubspec.yaml
           sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons
