@@ -21,7 +21,7 @@ dependencies:
   fl_chart: ^0.69.0
   qr_flutter: ^4.1.0
   google_sign_in: ^6.2.1
-  google_sign_in_dartio: ^0.2.8
+  google_sign_in_dartio: ^0.3.0
   local_auth: ^2.3.0
   path_provider: ^2.1.4
   http: ^1.2.2
