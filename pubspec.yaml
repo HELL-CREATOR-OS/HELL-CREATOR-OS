@@ -1,29 +1,29 @@
 name: hell_creator_os
-description: HELL CREATOR OS - One Creator. Every Platform. Total Control.
+description: HELL CREATOR OS - Um Criador, Várias Plataformas, Controlo Total.
 publish_to: 'none'
-version: 2.0.0+1
+version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  shared_preferences: ^2.3.3
-  flutter_tts: ^4.2.0
+  socket_io_client: ^2.0.3+1
+  flutter_tts: ^4.0.2
+  shared_preferences: ^2.3.2
   audioplayers: ^6.1.0
   record: ^6.0.0
-  file_picker: ^10.1.2
-  http: ^1.2.2
-  url_launcher: ^6.3.1
-  path_provider: ^2.1.5
-  socket_io_client: ^3.0.2
-  local_auth: ^2.3.0
-  google_sign_in: ^6.2.2
+  url_launcher: ^6.3.0
   wakelock_plus: ^1.2.8
-  fl_chart: ^0.69.2
+  file_picker: ^8.1.2
+  fl_chart: ^0.69.0
   qr_flutter: ^4.1.0
+  google_sign_in: ^6.2.1
+  local_auth: ^2.3.0
+  path_provider: ^2.1.4
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
@@ -33,13 +33,16 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "icon.png"
   adaptive_icon_background: "#050B1E"
   adaptive_icon_foreground: "icon.png"
+  adaptive_icon_foreground_inset: 8
+  min_sdk_android: 21
   windows:
     generate: true
     image_path: "icon.png"
+    icon_size: 256
 
 flutter:
   uses-material-design: true
