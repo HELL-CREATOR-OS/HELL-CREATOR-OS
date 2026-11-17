@@ -8,7 +8,8 @@ import 'package:local_auth/local_auth.dart';
 import 'platform_logos.dart';
 
 class UserAccountManager {
-  static const String _userKey = 'hell_user_account_v2';
+  static const String _activeSessionKey = 'hell_active_session_v2';
+  static const String _accountsDbKey = 'hell_registered_accounts_v2';
   static const String _vipKeysKey = 'hell_vip_keys_v2';
   static const String termsVersion = 'v1.0-EU-GLOBAL';
 
@@ -23,7 +24,7 @@ class UserAccountManager {
 
   static Future<Map<String, dynamic>?> getSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_userKey);
+    final raw = prefs.getString(_activeSessionKey);
     if (raw == null || raw.isEmpty) return null;
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
@@ -34,23 +35,40 @@ class UserAccountManager {
     }
   }
 
+  static Future<Map<String, dynamic>?> findRegisteredAccount(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_accountsDbKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final db = jsonDecode(raw) as Map<String, dynamic>;
+      final account = db[email.trim().toLowerCase()];
+      if (account is Map<String, dynamic>) return account;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> saveUser(Map<String, dynamic> user) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, jsonEncode(user));
+    final email = (user['email'] ?? '').toString().trim().toLowerCase();
+    await prefs.setString(_activeSessionKey, jsonEncode(user));
+    if (email.isNotEmpty) {
+      Map<String, dynamic> db = {};
+      final rawDb = prefs.getString(_accountsDbKey);
+      if (rawDb != null && rawDb.isNotEmpty) {
+        try {
+          db = jsonDecode(rawDb) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+      db[email] = user;
+      await prefs.setString(_accountsDbKey, jsonEncode(db));
+    }
   }
 
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_userKey);
-  }
-
-  static Future<String> generateVipKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_vipKeysKey) ?? [];
-    final key = 'HELL-VIP-${100000 + Random().nextInt(900000)}';
-    list.add(key);
-    await prefs.setStringList(_vipKeysKey, list);
-    return key;
+    await prefs.remove(_activeSessionKey);
   }
 
   static Widget buildUserAvatar(Map<String, dynamic> user, {double radius = 20}) {
@@ -239,7 +257,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _submitForm() async {
+    Future<void> _submitForm() async {
     final email = _emailCtrl.text.trim().toLowerCase();
     final pass = _passCtrl.text.trim();
 
@@ -248,11 +266,12 @@ class _AuthScreenState extends State<AuthScreen> {
         _msg('Para entrar, introduz o teu e-mail registado e palavra-passe (mín. 6 caracteres).');
         return;
       }
-      final existing = await UserAccountManager.getSavedUser();
-      if (existing != null && existing['email'] == email && existing['passwordSecret'] == pass) {
+      final existing = await UserAccountManager.findRegisteredAccount(email);
+      if (existing != null && existing['passwordSecret'] == pass) {
+        await UserAccountManager.saveUser(existing);
         widget.onAuthenticated(existing);
       } else {
-        _msg('Conta não encontrada ou palavra-passe incorreta. Se é a primeira vez, cria o teu registo.');
+        _msg('Conta não encontrada ou palavra-passe incorreta. Verifica os dados ou cria o teu registo.');
       }
       return;
     }
