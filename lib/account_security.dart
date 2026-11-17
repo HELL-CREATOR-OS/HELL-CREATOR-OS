@@ -70,6 +70,14 @@ class UserAccountManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_activeSessionKey);
   }
+  static Future<String> generateVipKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_vipKeysKey) ?? [];
+    final key = 'HELL-VIP-${100000 + Random().nextInt(900000)}';
+    list.add(key);
+    await prefs.setStringList(_vipKeysKey, list);
+    return key;
+  }
 
   static Widget buildUserAvatar(Map<String, dynamic> user, {double radius = 20}) {
     final localPath = (user['avatarPath'] ?? '').toString();
