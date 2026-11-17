@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_sign_in_dartio/google_sign_in_dartio.dart';
@@ -15,6 +16,8 @@ class UserAccountManager {
   static const String _autofillEnabledKey = 'hell_autofill_enabled_v1';
   static const String _vipKeysKey = 'hell_vip_keys_v2';
   static const String termsVersion = 'v1.0-EU-GLOBAL';
+
+  static const String _firebaseWebApiKey = 'AIzaSyDhgax_z0sqrD_-swYKAZQiT9eS1DpOBwo';
 
   static const List<String> ownerEmails = [
     'hellcreatoros@gmail.com',
@@ -142,18 +145,76 @@ class UserAccountManager {
 
   static Widget buildUserAvatar(Map<String, dynamic> user, {double radius = 20}) {
     final localPath = (user['avatarPath'] ?? '').toString();
-    final photoUrl = (user['photoUrl'] ?? '').toString();
+    final photoUrl = (user['photoUrl'] ?? '').toString().trim();
     if (localPath.isNotEmpty && File(localPath).existsSync()) {
       return CircleAvatar(radius: radius, backgroundImage: FileImage(File(localPath)));
     }
     if (photoUrl.startsWith('http')) {
-      return CircleAvatar(radius: radius, backgroundImage: NetworkImage(photoUrl));
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: const Color(0xFF1E78FF),
+        backgroundImage: NetworkImage(photoUrl),
+        onBackgroundImageError: (_, __) {},
+      );
     }
     return CircleAvatar(
       radius: radius,
       backgroundColor: const Color(0xFF1E78FF),
       child: Icon(Icons.person, size: radius * 1.1, color: Colors.white),
     );
+  }
+
+  static Future<String?> sendRealFirebaseVerificationEmail(String email, String tempPassword) async {
+    try {
+      final signUpRes = await http.post(
+        Uri.parse('https://googleapis.com'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': tempPassword, 'returnSecureToken': true}),
+      );
+      Map<String, dynamic> data = jsonDecode(signUpRes.body);
+      String? idToken = data['idToken'];
+
+      if (idToken == null && (data['error']?['message'] == 'EMAIL_EXISTS')) {
+        final signInRes = await http.post(
+          Uri.parse('https://googleapis.com'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'password': tempPassword, 'returnSecureToken': true}),
+        );
+        data = jsonDecode(signInRes.body);
+        idToken = data['idToken'];
+      }
+
+      if (idToken == null) return null;
+
+      final oobRes = await http.post(
+        Uri.parse('https://googleapis.com'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'requestType': 'VERIFY_EMAIL', 'idToken': idToken}),
+      );
+      if (oobRes.statusCode == 200) return idToken;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<bool> checkFirebaseEmailVerified(String idToken) async {
+    try {
+      final res = await http.post(
+        Uri.parse('https://googleapis.com'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idToken': idToken}),
+      );
+      if (res.statusCode != 200) return false;
+      final data = jsonDecode(res.body);
+      final users = data['users'] as List<dynamic>?;
+      if (users != null && users.isNotEmpty) {
+        return users.first['emailVerified'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 }
 class LegalTermsModal {
@@ -224,14 +285,20 @@ class _AuthScreenState extends State<AuthScreen> {
   final _lastNameCtrl = TextEditingController();
   final _nickCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _emailCodeCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _passConfirmCtrl = TextEditingController();
+
+  final _dayCtrl = TextEditingController();
+  final _monthCtrl = TextEditingController();
+  final _yearCtrl = TextEditingController();
+  final _monthFocus = FocusNode();
+  final _yearFocus = FocusNode();
 
   DateTime? _birthDate;
   String _selectedCountry = 'Portugal';
   String _googlePhotoUrl = '';
-  String? _expectedEmailCode;
+  String? _firebaseVerifyToken;
+  bool _emailVerified = false;
 
   final List<String> _countries = [
     'Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha',
@@ -265,42 +332,83 @@ class _AuthScreenState extends State<AuthScreen> {
     return age;
   }
 
+  void _syncBirthDateFromInputs() {
+    final d = int.tryParse(_dayCtrl.text.trim());
+    final m = int.tryParse(_monthCtrl.text.trim());
+    final y = int.tryParse(_yearCtrl.text.trim());
+    if (d != null && m != null && y != null && _yearCtrl.text.trim().length == 4 && d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1920 && y <= DateTime.now().year) {
+      final candidate = DateTime(y, m, d);
+      if (candidate.year == y && candidate.month == m && candidate.day == d) {
+        setState(() => _birthDate = candidate);
+        return;
+      }
+    }
+    if (_birthDate != null) setState(() => _birthDate = null);
+  }
+
   Future<void> _pickBirthDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000, 1, 1),
+      locale: const Locale('pt', 'PT'),
+      initialDate: _birthDate ?? DateTime(2000, 1, 1),
       firstDate: DateTime(1930),
       lastDate: DateTime.now(),
+      helpText: 'Selecionar Data de Nascimento',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
     );
-    if (picked != null) setState(() => _birthDate = picked);
+    if (picked != null) {
+      setState(() {
+        _birthDate = picked;
+        _dayCtrl.text = picked.day.toString().padLeft(2, '0');
+        _monthCtrl.text = picked.month.toString().padLeft(2, '0');
+        _yearCtrl.text = picked.year.toString();
+      });
+    }
   }
 
-  void _sendEmailVerificationCode() {
-    final email = _emailCtrl.text.trim();
+  Future<void> _sendRealVerificationEmail() async {
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final pass = _passCtrl.text.trim();
     if (!email.contains('@') || !email.contains('.')) {
-      _msg('Introduz um e-mail válido antes de pedir o código.');
+      _msg('Introduz primeiro um e-mail pessoal válido.');
       return;
     }
-    final code = (100000 + Random().nextInt(900000)).toString();
-    setState(() => _expectedEmailCode = code);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        title: const Text('📧 Código de Verificação', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
-        content: Text('Código enviado para $email:\n\n$code\n\nIntroduz este código de 6 dígitos no formulário.', style: const TextStyle(fontSize: 13.5)),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-            onPressed: () {
-              _emailCodeCtrl.text = code;
-              Navigator.pop(ctx);
-            },
-            child: const Text('Preencher Automaticamente', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+    if (pass.length < 6) {
+      _msg('Define primeiro uma palavra-passe (mínimo 6 caracteres) para validar o e-mail.');
+      return;
+    }
+    setState(() => _busy = true);
+    final token = await UserAccountManager.sendRealFirebaseVerificationEmail(email, pass);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _firebaseVerifyToken = token;
+    });
+    if (token != null) {
+      _msg('E-mail real enviado para $email! Abre a tua caixa de entrada (ou Spam), clica no link e depois carrega em "Confirmar E-mail".');
+    } else {
+      _msg('Não foi possível enviar o e-mail agora. Verifica a ligação à internet ou usa "Preencher com Conta Google".');
+    }
+  }
+
+  Future<void> _verifyEmailClicked() async {
+    if (_firebaseVerifyToken == null) {
+      _msg('Clica primeiro em "Enviar E-mail" para receberes o link na tua caixa de entrada.');
+      return;
+    }
+    setState(() => _busy = true);
+    final ok = await UserAccountManager.checkFirebaseEmailVerified(_firebaseVerifyToken!);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _emailVerified = ok;
+    });
+    if (ok) {
+      _msg('E-mail verificado com sucesso! Já podes concluir o registo.');
+    } else {
+      _msg('Ainda não detetámos o clique no link enviado para ${_emailCtrl.text.trim()}. Abre o e-mail, clica no link e tenta novamente.');
+    }
   }
 
   Future<void> _askToSaveCredentialsAndEnter(Map<String, dynamic> user, String identifier, String password) async {
@@ -346,197 +454,8 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
     );
     widget.onAuthenticated(user);
-  }
-
-  Future<void> _googleAuth() async {
-    setState(() => _busy = true);
-    try {
-      const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com';
-      if (Platform.isWindows) {
-        GoogleSignInDart.register(clientId: windowsClientId);
-      }
-      final googleSignIn = GoogleSignIn(
-        clientId: Platform.isWindows ? windowsClientId : null,
-        scopes: ['email', 'profile'],
-      );
-      try {
-        await googleSignIn.signOut();
-      } catch (_) {}
-      final account = await googleSignIn.signIn();
-      if (account != null) {
-        final existing = await UserAccountManager.findRegisteredAccount(account.email);
-        if (existing != null && existing['registrationCompleted'] == true) {
-          if ((account.photoUrl ?? '').isNotEmpty) existing['photoUrl'] = account.photoUrl;
-          await UserAccountManager.saveUser(existing);
-          widget.onAuthenticated(existing);
-          return;
-        }
-        final parts = (account.displayName ?? 'Criador HELL').trim().split(' ');
-        setState(() {
-          _isRegister = true;
-          _firstNameCtrl.text = parts.first;
-          _lastNameCtrl.text = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-          _nickCtrl.text = account.email.split('@').first;
-          _emailCtrl.text = account.email;
-          _googlePhotoUrl = account.photoUrl ?? '';
-          _expectedEmailCode = 'GOOGLE_VERIFIED';
-          _emailCodeCtrl.text = 'GOOGLE_VERIFIED';
-        });
-        _msg('Conta Google (${account.email}) importada! Completa a data de nascimento, palavra-passe e aceita os Termos.');
-        return;
-      }
-    } catch (e) {
-      if (!mounted) return;
-      final quickGoogleCtrl = TextEditingController(text: _emailCtrl.text);
-      final quickNameCtrl = TextEditingController();
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF0B1636),
-          title: const Text('Conta Google — Preenchimento Rápido', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15.5)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Detalhe técnico: ${e.toString().split('\n').first}\n\nIntroduz o teu e-mail Google abaixo para importar ou entrar:', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-              const SizedBox(height: 10),
-              TextField(controller: quickNameCtrl, decoration: const InputDecoration(labelText: 'Nome Completo', isDense: true)),
-              const SizedBox(height: 8),
-              TextField(controller: quickGoogleCtrl, decoration: const InputDecoration(labelText: 'E-mail Google (@gmail.com)', isDense: true)),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-              onPressed: () async {
-                final gEmail = quickGoogleCtrl.text.trim().toLowerCase();
-                if (!gEmail.contains('@')) return;
-                Navigator.pop(ctx);
-                final existing = await UserAccountManager.findRegisteredAccount(gEmail);
-                if (existing != null && existing['registrationCompleted'] == true) {
-                  await UserAccountManager.saveUser(existing);
-                  widget.onAuthenticated(existing);
-                  return;
-                }
-                final parts = (quickNameCtrl.text.trim().isEmpty ? gEmail.split('@').first : quickNameCtrl.text.trim()).split(' ');
-                setState(() {
-                  _isRegister = true;
-                  _firstNameCtrl.text = parts.first;
-                  _lastNameCtrl.text = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-                  _nickCtrl.text = gEmail.split('@').first;
-                  _emailCtrl.text = gEmail;
-                  _expectedEmailCode = 'GOOGLE_VERIFIED';
-                  _emailCodeCtrl.text = 'GOOGLE_VERIFIED';
-                });
-                _msg('Dados Google preenchidos! Completa a data de nascimento, palavra-passe e aceita os Termos.');
-              },
-              child: const Text('Continuar', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _submitForm() async {
-    final identifier = _emailCtrl.text.trim();
-    final pass = _passCtrl.text.trim();
-
-    if (!_isRegister) {
-      if (identifier.isEmpty || pass.length < 6) {
-        _msg('Introduz o teu E-mail ou Nickname registado e a palavra-passe.');
-        return;
-      }
-      final existing = await UserAccountManager.findRegisteredAccount(identifier);
-      if (existing != null && existing['passwordSecret'] == pass) {
-        await UserAccountManager.saveUser(existing);
-        await _askToSaveCredentialsAndEnter(existing, identifier, pass);
-      } else {
-        _msg('Conta não encontrada ou palavra-passe incorreta. Verifica os dados ou cria o teu registo.');
-      }
-      return;
-    }
-
-    final email = identifier.toLowerCase();
-    final firstName = _firstNameCtrl.text.trim();
-    final lastName = _lastNameCtrl.text.trim();
-    final nick = _nickCtrl.text.trim();
-    final passConfirm = _passConfirmCtrl.text.trim();
-
-    if (firstName.isEmpty || lastName.isEmpty || nick.isEmpty) {
-      _msg('Preenche o Nome Próprio, Apelido e Nickname.');
-      return;
-    }
-    if (_birthDate == null) {
-      _msg('Seleciona a tua Data de Nascimento.');
-      return;
-    }
-    if (_calculateAge(_birthDate!) < 16) {
-      _msg('Registo bloqueado: a idade mínima legal é de 16 anos.');
-      return;
-    }
-    if (!email.contains('@') || !email.contains('.')) {
-      _msg('Introduz um endereço de e-mail válido.');
-      return;
-    }
-    if (_expectedEmailCode == null || _emailCodeCtrl.text.trim() != _expectedEmailCode) {
-      _msg('Valida o teu e-mail com o código de 6 dígitos antes de continuar.');
-      return;
-    }
-    if (pass.length < 6) {
-      _msg('A palavra-passe deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    if (pass != passConfirm) {
-      _msg('As duas palavras-passe não coincidem.');
-      return;
-    }
-    if (!_acceptedTerms) {
-      _msg('É obrigatório ler e aceitar os Termos de Utilização, Privacidade e Isenção de Responsabilidade.');
-      return;
-    }
-
-    final nowUtc = DateTime.now().toUtc().toIso8601String();
-    final consentId = 'CONSENT-${DateTime.now().millisecondsSinceEpoch}-${1000 + Random().nextInt(9000)}';
-
-    final user = <String, dynamic>{
-      'registrationCompleted': true,
-      'firstName': firstName,
-      'lastName': lastName,
-      'nickname': nick,
-      'birthDate': _birthDate!.toIso8601String(),
-      'age': _calculateAge(_birthDate!),
-      'country': _selectedCountry,
-      'email': email,
-      'photoUrl': _googlePhotoUrl,
-      'passwordSecret': pass,
-      'securityMethods': <String>[],
-      'legalAuditLog': {
-        'consentId': consentId,
-        'acceptedAtUtc': nowUtc,
-        'termsVersion': UserAccountManager.termsVersion,
-        'fullName': '$firstName $lastName',
-        'email': email,
-        'country': _selectedCountry,
-      },
-    };
-
-    await UserAccountManager.saveUser(user);
-    await _askToSaveCredentialsAndEnter(user, email, pass);
-  }
-
-  void _msg(String text) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
-  }
-  @override
+      @override
   Widget build(BuildContext context) {
-    final birthLabel = _birthDate == null
-        ? 'Selecionar Data de Nascimento (Mín. 16 anos)'
-        : '${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.year} (${_calculateAge(_birthDate!)} anos)';
-
     return Scaffold(
       backgroundColor: const Color(0xFF050B1E),
       body: Center(
@@ -614,19 +533,70 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 10),
                     TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Nome de Criador', isDense: true)),
                     const SizedBox(height: 10),
-                    InkWell(
-                      onTap: _pickBirthDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Data de Nascimento', isDense: true, border: OutlineInputBorder()),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(birthLabel, style: const TextStyle(fontSize: 12.5)),
-                            const Icon(Icons.calendar_today, size: 16, color: Color(0xFF38BDF8)),
-                          ],
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: _dayCtrl,
+                            keyboardType: TextInputType.number,
+                            maxLength: 2,
+                            textAlign: TextAlign.center,
+                            decoration: const InputDecoration(labelText: 'Dia (DD)', counterText: '', isDense: true),
+                            onChanged: (v) {
+                              _syncBirthDateFromInputs();
+                              if (v.length == 2) _monthFocus.requestFocus();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: _monthCtrl,
+                            focusNode: _monthFocus,
+                            keyboardType: TextInputType.number,
+                            maxLength: 2,
+                            textAlign: TextAlign.center,
+                            decoration: const InputDecoration(labelText: 'Mês (MM)', counterText: '', isDense: true),
+                            onChanged: (v) {
+                              _syncBirthDateFromInputs();
+                              if (v.length == 2) _yearFocus.requestFocus();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: _yearCtrl,
+                            focusNode: _yearFocus,
+                            keyboardType: TextInputType.number,
+                            maxLength: 4,
+                            textAlign: TextAlign.center,
+                            decoration: const InputDecoration(labelText: 'Ano (AAAA)', counterText: '', isDense: true),
+                            onChanged: (_) => _syncBirthDateFromInputs(),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: 'Abrir Calendário em Português',
+                          onPressed: _pickBirthDate,
+                          icon: const Icon(Icons.calendar_month_rounded, color: Color(0xFF38BDF8)),
+                        ),
+                      ],
+                    ),
+                    if (_birthDate != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Idade calculada: ${_calculateAge(_birthDate!)} anos',
+                            style: TextStyle(fontSize: 11.5, color: _calculateAge(_birthDate!) >= 16 ? Colors.greenAccent : Colors.redAccent),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       value: _selectedCountry,
@@ -637,39 +607,21 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _emailCtrl,
-                          autofillHints: const [AutofillHints.username, AutofillHints.email],
-                          decoration: InputDecoration(
-                            labelText: _isRegister ? 'E-mail Oficial' : 'E-mail ou Nickname',
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      if (_isRegister) ...[
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                          onPressed: _sendEmailVerificationCode,
-                          child: const Text('Enviar Código', style: TextStyle(color: Colors.white, fontSize: 11.5)),
-                        ),
-                      ],
-                    ],
+                  TextField(
+                    controller: _emailCtrl,
+                    autofillHints: const [AutofillHints.username, AutofillHints.email],
+                    decoration: InputDecoration(
+                      labelText: _isRegister ? 'E-mail Oficial' : 'E-mail ou Nickname',
+                      isDense: true,
+                    ),
                   ),
-                  if (_isRegister) ...[
-                    const SizedBox(height: 10),
-                    TextField(controller: _emailCodeCtrl, decoration: const InputDecoration(labelText: 'Código de Verificação (6 Dígitos)', isDense: true)),
-                  ],
                   const SizedBox(height: 10),
                   TextField(
                     controller: _passCtrl,
                     obscureText: _obscure,
                     autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(
-                      labelText: 'Palavra-passe',
+                      labelText: 'Palavra-passe (mín. 6 caracteres)',
                       isDense: true,
                       suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
                     ),
@@ -682,6 +634,41 @@ class _AuthScreenState extends State<AuthScreen> {
                       decoration: const InputDecoration(labelText: 'Repetir Palavra-passe', isDense: true),
                     ),
                     const SizedBox(height: 10),
+                    if (_emailVerified)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.greenAccent)),
+                        child: const Row(
+                          children: [
+                                                        Icon(Icons.verified, color: Colors.greenAccent, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('E-mail verificado com sucesso!', style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold))),
+                          ],
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                              onPressed: _busy ? null : _sendRealVerificationEmail,
+                              icon: const Icon(Icons.mark_email_unread_outlined, size: 16, color: Colors.white),
+                              label: const Text('Enviar E-mail', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF38BDF8), side: const BorderSide(color: Color(0xFF38BDF8))),
+                              onPressed: _busy ? null : _verifyEmailClicked,
+                              icon: const Icon(Icons.check_circle_outline, size: 16),
+                              label: const Text('Confirmar E-mail', style: TextStyle(fontSize: 11.5)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
@@ -706,7 +693,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
-                      onPressed: _submitForm,
+                      onPressed: _busy ? null : _submitForm,
                       child: Text(_isRegister ? 'Concluir Registo e Entrar' : 'Entrar na Conta', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -817,24 +804,29 @@ class _AppLockScreenState extends State<AppLockScreen> {
   @override
   void initState() {
     super.initState();
-    if (_methods.contains('biometric')) _tryBio();
+    if (_methods.contains('biometric') || _methods.contains('device')) {
+      _tryDeviceUnlock();
+    }
   }
 
-  Future<void> _tryBio() async {
+  Future<void> _tryDeviceUnlock() async {
     try {
-      final ok = await _localAuth.authenticate(localizedReason: 'Desbloqueia o HELL CREATOR OS');
+      final ok = await _localAuth.authenticate(
+        localizedReason: 'Desbloqueia o HELL CREATOR OS com a segurança do aparelho (Impressão Digital, Face ID, PIN, Senha ou Padrão)',
+        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+      );
       if (ok) widget.onUnlocked();
     } catch (_) {
-      setState(() => _error = 'Falha na biometria. Utiliza a palavra-passe abaixo.');
+      setState(() => _error = 'Utiliza a palavra-passe da conta abaixo para entrar.');
     }
   }
 
   void _check() {
     final val = _ctrl.text.trim();
-    if (val == (widget.user['pinSecret'] ?? '') || val == (widget.user['passwordSecret'] ?? '')) {
+    if (val == (widget.user['passwordSecret'] ?? '')) {
       widget.onUnlocked();
     } else {
-      setState(() => _error = 'PIN ou palavra-passe incorretos.');
+      setState(() => _error = 'Palavra-passe incorreta.');
     }
   }
 
@@ -854,28 +846,31 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 const SizedBox(height: 12),
                 Text('Olá, ${widget.user['nickname'] ?? 'Criador'}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
-                if (_methods.contains('biometric'))
-                  ElevatedButton.icon(onPressed: _tryBio, icon: const Icon(Icons.fingerprint), label: const Text('Desbloquear com Biometria')),
-                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), foregroundColor: Colors.white),
+                  onPressed: _tryDeviceUnlock,
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Desbloquear com Aparelho (Biometria / PIN / Padrão)'),
+                ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _ctrl,
                   obscureText: true,
                   onChanged: (v) {
                     final clean = v.trim();
-                    final pin = (widget.user['pinSecret'] ?? '').toString();
                     final pass = (widget.user['passwordSecret'] ?? '').toString();
-                    if ((pin.isNotEmpty && clean == pin) || (pass.isNotEmpty && clean == pass)) {
+                    if (pass.isNotEmpty && clean == pass) {
                       widget.onUnlocked();
                     }
                   },
-                  decoration: const InputDecoration(labelText: 'PIN ou Palavra-passe', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Ou introduz a Palavra-passe da Conta', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)), onPressed: _check, child: const Text('Entrar', style: TextStyle(color: Colors.white))),
                 ),
-                if (_error.isNotEmpty) ...[const SizedBox(height: 8), Text(_error, style: const TextStyle(color: Colors.redAccent))],
+                                if (_error.isNotEmpty) ...[const SizedBox(height: 8), Text(_error, style: const TextStyle(color: Colors.redAccent))],
                 TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.white54))),
               ],
             ),
@@ -885,3 +880,4 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
   }
 }
+  
