@@ -11,6 +11,8 @@ import 'platform_logos.dart';
 class UserAccountManager {
   static const String _activeSessionKey = 'hell_active_session_v2';
   static const String _accountsDbKey = 'hell_registered_accounts_v2';
+  static const String _savedCredentialsKey = 'hell_saved_autofill_creds_v1';
+  static const String _autofillEnabledKey = 'hell_autofill_enabled_v1';
   static const String _vipKeysKey = 'hell_vip_keys_v2';
   static const String termsVersion = 'v1.0-EU-GLOBAL';
 
@@ -21,6 +23,51 @@ class UserAccountManager {
   static bool isOwnerEmail(String? email) {
     if (email == null) return false;
     return ownerEmails.contains(email.trim().toLowerCase());
+  }
+
+  static Future<bool> isAutofillEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_autofillEnabledKey) ?? true;
+  }
+
+  static Future<void> setAutofillEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autofillEnabledKey, enabled);
+    if (!enabled) {
+      await clearSavedCredentials();
+    }
+  }
+
+  static Future<Map<String, String>?> getSavedCredentials() async {
+    final enabled = await isAutofillEnabled();
+    if (!enabled) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_savedCredentialsKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return {
+        'identifier': (decoded['identifier'] ?? '').toString(),
+        'password': (decoded['password'] ?? '').toString(),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveCredentials(String identifier, String password) async {
+    final enabled = await isAutofillEnabled();
+    if (!enabled) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _savedCredentialsKey,
+      jsonEncode({'identifier': identifier.trim(), 'password': password}),
+    );
+  }
+
+  static Future<void> clearSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_savedCredentialsKey);
   }
 
   static Future<Map<String, dynamic>?> getSavedUser() async {
@@ -36,14 +83,26 @@ class UserAccountManager {
     }
   }
 
-  static Future<Map<String, dynamic>?> findRegisteredAccount(String email) async {
+  static Future<Map<String, dynamic>?> findRegisteredAccount(String identifier) async {
+    final clean = identifier.trim().toLowerCase();
+    if (clean.isEmpty) return null;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_accountsDbKey);
     if (raw == null || raw.isEmpty) return null;
     try {
       final db = jsonDecode(raw) as Map<String, dynamic>;
-      final account = db[email.trim().toLowerCase()];
-      if (account is Map<String, dynamic>) return account;
+      if (db[clean] is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(db[clean]);
+      }
+      for (final entry in db.values) {
+        if (entry is Map<String, dynamic>) {
+          final email = (entry['email'] ?? '').toString().trim().toLowerCase();
+          final nick = (entry['nickname'] ?? '').toString().trim().toLowerCase();
+          if (email == clean || nick == clean || '@$nick' == clean) {
+            return Map<String, dynamic>.from(entry);
+          }
+        }
+      }
       return null;
     } catch (_) {
       return null;
@@ -71,6 +130,7 @@ class UserAccountManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_activeSessionKey);
   }
+
   static Future<String> generateVipKey() async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList(_vipKeysKey) ?? [];
@@ -96,7 +156,6 @@ class UserAccountManager {
     );
   }
 }
-
 class LegalTermsModal {
   static const String fullLegalText = '''
 TERMOS DE UTILIZAÇÃO, ISENÇÃO DE RESPONSABILIDADE E POLÍTICA DE PRIVACIDADE (RGPD UNIÃO EUROPEIA & LEIS INTERNACIONAIS) — VERSÃO v1.0-EU-GLOBAL
@@ -146,6 +205,7 @@ Os dados fornecidos no registo destinam-se exclusivamente à gestão da conta, s
     );
   }
 }
+
 class AuthScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onAuthenticated;
   const AuthScreen({super.key, required this.onAuthenticated});
@@ -155,7 +215,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  bool _isRegister = true;
+  bool _isRegister = false;
   bool _obscure = true;
   bool _busy = false;
   bool _acceptedTerms = false;
@@ -174,27 +234,34 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _expectedEmailCode;
 
   final List<String> _countries = [
-    'Portugal',
-    'Brasil',
-    'Espanha',
-    'França',
-    'Reino Unido',
-    'Alemanha',
-    'Suíça',
-    'Luxemburgo',
-    'Angola',
-    'Moçambique',
-    'Cabo Verde',
-    'Estados Unidos',
-    'Outro País',
+    'Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha',
+    'Suíça', 'Luxemburgo', 'Angola', 'Moçambique', 'Cabo Verde', 'Estados Unidos', 'Outro País',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutofillAndDefaultTab();
+  }
+
+  Future<void> _loadAutofillAndDefaultTab() async {
+    final savedCreds = await UserAccountManager.getSavedCredentials();
+    if (!mounted) return;
+    if (savedCreds != null && (savedCreds['identifier'] ?? '').isNotEmpty) {
+      setState(() {
+        _isRegister = false;
+        _emailCtrl.text = savedCreds['identifier'] ?? '';
+        _passCtrl.text = savedCreds['password'] ?? '';
+      });
+    } else {
+      setState(() => _isRegister = true);
+    }
+  }
 
   int _calculateAge(DateTime birth) {
     final now = DateTime.now();
     int age = now.year - birth.year;
-    if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) {
-      age--;
-    }
+    if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) age--;
     return age;
   }
 
@@ -205,9 +272,7 @@ class _AuthScreenState extends State<AuthScreen> {
       firstDate: DateTime(1930),
       lastDate: DateTime.now(),
     );
-    if (picked != null) {
-      setState(() => _birthDate = picked);
-    }
+    if (picked != null) setState(() => _birthDate = picked);
   }
 
   void _sendEmailVerificationCode() {
@@ -223,10 +288,7 @@ class _AuthScreenState extends State<AuthScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0B1636),
         title: const Text('📧 Código de Verificação', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
-        content: Text(
-          'Código de confirmação enviado para $email:\n\n$code\n\nIntroduz este código de 6 dígitos no formulário para validar o teu e-mail.',
-          style: const TextStyle(fontSize: 13.5),
-        ),
+        content: Text('Código enviado para $email:\n\n$code\n\nIntroduz este código de 6 dígitos no formulário.', style: const TextStyle(fontSize: 13.5)),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
@@ -241,22 +303,74 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  Future<void> _askToSaveCredentialsAndEnter(Map<String, dynamic> user, String identifier, String password) async {
+    final autofillEnabled = await UserAccountManager.isAutofillEnabled();
+    final currentSaved = await UserAccountManager.getSavedCredentials();
+    final alreadySaved = currentSaved != null &&
+        currentSaved['identifier'] == identifier.trim() &&
+        currentSaved['password'] == password;
+
+    if (!autofillEnabled || alreadySaved || !mounted) {
+      widget.onAuthenticated(user);
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1636),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.3),
+        ),
+        title: const Text('🔐 Guardar Dados de Acesso?', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 16)),
+        content: const Text(
+          'Queres guardar o teu E-mail / Nickname e Palavra-passe para preenchimento automático na próxima vez que entrares na app?\n\n(Podes ativar, desativar ou apagar estes dados a qualquer momento nas Definições de Privacidade.)',
+          style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Agora Não', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+            onPressed: () async {
+              await UserAccountManager.saveCredentials(identifier, password);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Guardar Dados', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    widget.onAuthenticated(user);
+  }
+
   Future<void> _googleAuth() async {
     setState(() => _busy = true);
     try {
       const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com';
-      const webClientId = '251620021978-' + 'uclsrrtd0l77ctn15tivh0u2vii4sj0d.apps.googleusercontent.com';
       if (Platform.isWindows) {
         GoogleSignInDart.register(clientId: windowsClientId);
       }
       final googleSignIn = GoogleSignIn(
         clientId: Platform.isWindows ? windowsClientId : null,
-        serverClientId: Platform.isAndroid ? webClientId : null,
         scopes: ['email', 'profile'],
       );
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
       final account = await googleSignIn.signIn();
-
       if (account != null) {
+        final existing = await UserAccountManager.findRegisteredAccount(account.email);
+        if (existing != null && existing['registrationCompleted'] == true) {
+          if ((account.photoUrl ?? '').isNotEmpty) existing['photoUrl'] = account.photoUrl;
+          await UserAccountManager.saveUser(existing);
+          widget.onAuthenticated(existing);
+          return;
+        }
         final parts = (account.displayName ?? 'Criador HELL').trim().split(' ');
         setState(() {
           _isRegister = true;
@@ -268,34 +382,84 @@ class _AuthScreenState extends State<AuthScreen> {
           _expectedEmailCode = 'GOOGLE_VERIFIED';
           _emailCodeCtrl.text = 'GOOGLE_VERIFIED';
         });
-        _msg('Conta Google ligada! Completa os restantes dados e aceita os Termos para concluir o registo.');
+        _msg('Conta Google (${account.email}) importada! Completa a data de nascimento, palavra-passe e aceita os Termos.');
+        return;
       }
-    } catch (_) {
-      _msg('Não foi possível abrir o Google neste momento. Preenche o registo manualmente abaixo.');
+    } catch (e) {
+      if (!mounted) return;
+      final quickGoogleCtrl = TextEditingController(text: _emailCtrl.text);
+      final quickNameCtrl = TextEditingController();
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0B1636),
+          title: const Text('Conta Google — Preenchimento Rápido', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15.5)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Detalhe técnico: ${e.toString().split('\n').first}\n\nIntroduz o teu e-mail Google abaixo para importar ou entrar:', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+              const SizedBox(height: 10),
+              TextField(controller: quickNameCtrl, decoration: const InputDecoration(labelText: 'Nome Completo', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: quickGoogleCtrl, decoration: const InputDecoration(labelText: 'E-mail Google (@gmail.com)', isDense: true)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              onPressed: () async {
+                final gEmail = quickGoogleCtrl.text.trim().toLowerCase();
+                if (!gEmail.contains('@')) return;
+                Navigator.pop(ctx);
+                final existing = await UserAccountManager.findRegisteredAccount(gEmail);
+                if (existing != null && existing['registrationCompleted'] == true) {
+                  await UserAccountManager.saveUser(existing);
+                  widget.onAuthenticated(existing);
+                  return;
+                }
+                final parts = (quickNameCtrl.text.trim().isEmpty ? gEmail.split('@').first : quickNameCtrl.text.trim()).split(' ');
+                setState(() {
+                  _isRegister = true;
+                  _firstNameCtrl.text = parts.first;
+                  _lastNameCtrl.text = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+                  _nickCtrl.text = gEmail.split('@').first;
+                  _emailCtrl.text = gEmail;
+                  _expectedEmailCode = 'GOOGLE_VERIFIED';
+                  _emailCodeCtrl.text = 'GOOGLE_VERIFIED';
+                });
+                _msg('Dados Google preenchidos! Completa a data de nascimento, palavra-passe e aceita os Termos.');
+              },
+              child: const Text('Continuar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-    Future<void> _submitForm() async {
-    final email = _emailCtrl.text.trim().toLowerCase();
+  Future<void> _submitForm() async {
+    final identifier = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
     if (!_isRegister) {
-      if (email.isEmpty || pass.length < 6) {
-        _msg('Para entrar, introduz o teu e-mail registado e palavra-passe (mín. 6 caracteres).');
+      if (identifier.isEmpty || pass.length < 6) {
+        _msg('Introduz o teu E-mail ou Nickname registado e a palavra-passe.');
         return;
       }
-      final existing = await UserAccountManager.findRegisteredAccount(email);
+      final existing = await UserAccountManager.findRegisteredAccount(identifier);
       if (existing != null && existing['passwordSecret'] == pass) {
         await UserAccountManager.saveUser(existing);
-        widget.onAuthenticated(existing);
+        await _askToSaveCredentialsAndEnter(existing, identifier, pass);
       } else {
         _msg('Conta não encontrada ou palavra-passe incorreta. Verifica os dados ou cria o teu registo.');
       }
       return;
     }
 
+    final email = identifier.toLowerCase();
     final firstName = _firstNameCtrl.text.trim();
     final lastName = _lastNameCtrl.text.trim();
     final nick = _nickCtrl.text.trim();
@@ -310,7 +474,7 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     if (_calculateAge(_birthDate!) < 16) {
-      _msg('Registo bloqueado: a idade mínima legal para utilizar esta aplicação é de 16 anos.');
+      _msg('Registo bloqueado: a idade mínima legal é de 16 anos.');
       return;
     }
     if (!email.contains('@') || !email.contains('.')) {
@@ -360,7 +524,7 @@ class _AuthScreenState extends State<AuthScreen> {
     };
 
     await UserAccountManager.saveUser(user);
-    widget.onAuthenticated(user);
+    await _askToSaveCredentialsAndEnter(user, email, pass);
   }
 
   void _msg(String text) {
@@ -386,156 +550,248 @@ class _AuthScreenState extends State<AuthScreen> {
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset('icon.png', height: 68, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 60, color: Color(0xFF38BDF8))),
-                const SizedBox(height: 8),
-                const Text('HELL', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0)),
-                const Text('CREATOR OS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 3, color: Color(0xFF38BDF8))),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: _isRegister ? const Color(0xFF1E78FF) : Colors.white10),
-                        onPressed: () => setState(() => _isRegister = true),
-                        child: const Text('Criar Registo', style: TextStyle(color: Colors.white)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: !_isRegister ? const Color(0xFF1E78FF) : Colors.white10),
-                        onPressed: () => setState(() => _isRegister = false),
-                        child: const Text('Já Tenho Conta', style: TextStyle(color: Colors.white)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _busy ? null : _googleAuth,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GoogleOfficialLogo(size: 20),
-                        SizedBox(width: 10),
-                        Text('Preencher com Conta Google', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.black87)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (_isRegister) ...[
+            child: AutofillGroup(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('icon.png', height: 68, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 60, color: Color(0xFF38BDF8))),
+                  const SizedBox(height: 8),
+                  const Text('HELL', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0)),
+                  const Text('CREATOR OS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 3, color: Color(0xFF38BDF8))),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
-                      Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true))),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: _isRegister ? const Color(0xFF1E78FF) : Colors.white10),
+                          onPressed: () => setState(() => _isRegister = true),
+                          child: const Text('Criar Registo', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: TextField(controller: _lastNameCtrl, decoration: const InputDecoration(labelText: 'Apelido', isDense: true))),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: !_isRegister ? const Color(0xFF1E78FF) : Colors.white10),
+                          onPressed: () => setState(() => _isRegister = false),
+                          child: const Text('Já Tenho Conta', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Nome de Criador', isDense: true)),
-                  const SizedBox(height: 10),
-                  InkWell(
-                    onTap: _pickBirthDate,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Data de Nascimento', isDense: true, border: OutlineInputBorder()),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _busy ? null : _googleAuth,
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(birthLabel, style: const TextStyle(fontSize: 12.5)),
-                          const Icon(Icons.calendar_today, size: 16, color: Color(0xFF38BDF8)),
+                          const GoogleOfficialLogo(size: 20),
+                          const SizedBox(width: 10),
+                          Text(
+                            _isRegister ? 'Preencher com Conta Google' : 'Entrar com Conta Google',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.black87),
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: _selectedCountry,
-                    dropdownColor: const Color(0xFF0B1636),
-                    decoration: const InputDecoration(labelText: 'País / Região', isDense: true),
-                    items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                    onChanged: (v) => setState(() => _selectedCountry = v ?? 'Portugal'),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'E-mail Oficial', isDense: true))),
-                    if (_isRegister) ...[
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                        onPressed: _sendEmailVerificationCode,
-                        child: const Text('Enviar Código', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                  const SizedBox(height: 14),
+                  if (_isRegister) ...[
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: _lastNameCtrl, decoration: const InputDecoration(labelText: 'Apelido', isDense: true))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(controller: _nickCtrl, decoration: const InputDecoration(labelText: 'Nickname / Nome de Criador', isDense: true)),
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: _pickBirthDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(labelText: 'Data de Nascimento', isDense: true, border: OutlineInputBorder()),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(birthLabel, style: const TextStyle(fontSize: 12.5)),
+                            const Icon(Icons.calendar_today, size: 16, color: Color(0xFF38BDF8)),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: _selectedCountry,
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'País / Região', isDense: true),
+                      items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                      onChanged: (v) => setState(() => _selectedCountry = v ?? 'Portugal'),
+                    ),
+                    const SizedBox(height: 10),
                   ],
-                ),
-                if (_isRegister) ...[
-                  const SizedBox(height: 10),
-                  TextField(controller: _emailCodeCtrl, decoration: const InputDecoration(labelText: 'Código de Verificação (6 Dígitos)', isDense: true)),
-                ],
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _passCtrl,
-                  obscureText: _obscure,
-                  decoration: InputDecoration(
-                    labelText: 'Palavra-passe',
-                    isDense: true,
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _emailCtrl,
+                          autofillHints: const [AutofillHints.username, AutofillHints.email],
+                          decoration: InputDecoration(
+                            labelText: _isRegister ? 'E-mail Oficial' : 'E-mail ou Nickname',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      if (_isRegister) ...[
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                          onPressed: _sendEmailVerificationCode,
+                          child: const Text('Enviar Código', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-                if (_isRegister) ...[
+                  if (_isRegister) ...[
+                    const SizedBox(height: 10),
+                    TextField(controller: _emailCodeCtrl, decoration: const InputDecoration(labelText: 'Código de Verificação (6 Dígitos)', isDense: true)),
+                  ],
                   const SizedBox(height: 10),
                   TextField(
-                    controller: _passConfirmCtrl,
+                    controller: _passCtrl,
                     obscureText: _obscure,
-                    decoration: const InputDecoration(labelText: 'Repetir Palavra-passe', isDense: true),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => LegalTermsModal.show(context),
-                      icon: const Icon(Icons.gavel_rounded, size: 17, color: Color(0xFF38BDF8)),
-                      label: const Text('Ler Termos Legais, RGPD & Isenção de Responsabilidade', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, decoration: TextDecoration.underline)),
+                    autofillHints: const [AutofillHints.password],
+                    decoration: InputDecoration(
+                      labelText: 'Palavra-passe',
+                      isDense: true,
+                      suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
                     ),
                   ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: const Color(0xFF38BDF8),
-                    value: _acceptedTerms,
-                    onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
-                    title: const Text(
-                      'Li e aceito os Termos de Utilização, Política de Privacidade (RGPD) e assumo total responsabilidade pelos meus conteúdos e transmissões.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.white70),
+                  if (_isRegister) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _passConfirmCtrl,
+                      obscureText: _obscure,
+                      decoration: const InputDecoration(labelText: 'Repetir Palavra-passe', isDense: true),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => LegalTermsModal.show(context),
+                        icon: const Icon(Icons.gavel_rounded, size: 17, color: Color(0xFF38BDF8)),
+                        label: const Text('Ler Termos Legais, RGPD & Isenção de Responsabilidade', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, decoration: TextDecoration.underline)),
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: const Color(0xFF38BDF8),
+                      value: _acceptedTerms,
+                      onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+                      title: const Text(
+                        'Li e aceito os Termos de Utilização, Política de Privacidade (RGPD) e assumo total responsabilidade pelos meus conteúdos e transmissões.',
+                        style: TextStyle(fontSize: 11.5, color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
+                      onPressed: _submitForm,
+                      child: Text(_isRegister ? 'Concluir Registo e Entrar' : 'Entrar na Conta', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
-                    onPressed: _submitForm,
-                    child: Text(_isRegister ? 'Concluir Registo e Entrar' : 'Entrar na Conta', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class AutofillPrivacySettingsCard extends StatefulWidget {
+  const AutofillPrivacySettingsCard({super.key});
+
+  @override
+  State<AutofillPrivacySettingsCard> createState() => _AutofillPrivacySettingsCardState();
+}
+
+class _AutofillPrivacySettingsCardState extends State<AutofillPrivacySettingsCard> {
+  bool _enabled = true;
+  bool _hasSaved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final en = await UserAccountManager.isAutofillEnabled();
+    final creds = await UserAccountManager.getSavedCredentials();
+    if (!mounted) return;
+    setState(() {
+      _enabled = en;
+      _hasSaved = creds != null && (creds['identifier'] ?? '').isNotEmpty;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1636),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            activeColor: const Color(0xFF38BDF8),
+            title: const Text('Guardar Credenciais & Preenchimento Automático', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+            subtitle: const Text('Perguntar se pretendes guardar o e-mail/nickname e palavra-passe para entrar automaticamente.', style: TextStyle(fontSize: 11.5, color: Colors.white60)),
+            value: _enabled,
+            onChanged: (v) async {
+              await UserAccountManager.setAutofillEnabled(v);
+              await _refresh();
+            },
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent, side: const BorderSide(color: Colors.redAccent)),
+              onPressed: _hasSaved
+                  ? () async {
+                      await UserAccountManager.clearSavedCredentials();
+                      await _refresh();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Dados de preenchimento automático e palavra-passe guardada apagados.')),
+                        );
+                      }
+                    }
+                  : null,
+              icon: const Icon(Icons.delete_forever, size: 18),
+              label: Text(_hasSaved ? 'Apagar Palavra-passe e Dados Guardados' : 'Sem Credenciais Guardadas'),
+            ),
+          ),
+        ],
       ),
     );
   }
