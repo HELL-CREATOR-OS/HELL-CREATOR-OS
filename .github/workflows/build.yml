@@ -23,7 +23,8 @@ jobs:
           sed -i 's/android:label="hell_creator_os"/android:label="HELL CREATOR OS"/g' android/app/src/main/AndroidManifest.xml
           echo "flutter.compileSdkVersion=36" >> android/local.properties
           echo "flutter.minSdkVersion=23" >> android/local.properties
-          sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
+          sed -i 's/compileSdk = .*/compileSdk = 36/g' android/app/build.gradle.kts || true
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 36/g' android/app/build.gradle || true
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
           sed -i 's/android {/android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }/g' android/app/build.gradle.kts || true
           sudo apt-get update && sudo apt-get install -y python3-pil
