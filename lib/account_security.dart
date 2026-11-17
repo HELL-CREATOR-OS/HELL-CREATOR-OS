@@ -244,7 +244,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _googleAuth() async {
     setState(() => _busy = true);
     try {
-          const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com'
+      const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com';
       const webClientId = '251620021978-' + 'uclsrrtd0l77ctn15tivh0u2vii4sj0d.apps.googleusercontent.com';
       if (Platform.isWindows) {
         GoogleSignInDart.register(clientId: windowsClientId);
