@@ -34,6 +34,9 @@ jobs:
           sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons
+          keytool -genkey -v -keystore android/app/hell_release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias hell_key -storepass hell2026os -keypass hell2026os -dname "CN=HELL CREATOR OS, OU=Studio, O=HELL, L=Lisbon, ST=Lisbon, C=PT"
+          keytool -list -v -keystore android/app/hell_release.jks -alias hell_key -storepass hell2026os | grep "SHA1:"
+          printf "storePassword=hell2026os\nkeyPassword=hell2026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
           flutter build apk --release
       - name: Guardar APK para Download
         uses: actions/upload-artifact@v4
