@@ -29,8 +29,8 @@ jobs:
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
           sed -i 's/android {/android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }/g' android/app/build.gradle.kts || true
           sudo apt-get update && sudo apt-get install -y python3-pil
-          python3 -c "from PIL import Image, ImageDraw; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 22 and g < 22 and b < 32) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); bg = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); draw = ImageDraw.Draw(glow); [draw.ellipse([512-r, 512-r, 512+r, 512+r], fill=(56, 189, 248, int(110*(1-r/420)))) for r in range(420, 0, -8)]; bg = Image.alpha_composite(bg, glow); fg = img.resize((680, 680)); bg.paste(fg, (172, 172), fg); bg.save('icon_neon.png')"
-          sed -i 's/adaptive_icon_background: "#050B1E"/adaptive_icon_background: "#050B1E"/g' pubspec.yaml
+          python3 -c "from PIL import Image; img = Image.open('icon.png').convert('RGBA'); px = [(r, g, b, 0) if (r < 28 and g < 28 and b < 42) else (r, g, b, a) for r, g, b, a in img.getdata()]; img.putdata(px); img.save('icon_neon.png')"
+          sed -i 's/adaptive_icon_background: .*/adaptive_icon_background: "#FFFFFF"/g' pubspec.yaml
           sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons
