@@ -9,6 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   socket_io_client: ^2.0.3+1
   flutter_tts: ^4.0.2
