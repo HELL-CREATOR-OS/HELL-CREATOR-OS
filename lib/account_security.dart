@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_dartio/google_sign_in_dartio.dart';
 import 'package:local_auth/local_auth.dart';
 import 'platform_logos.dart';
 
@@ -243,7 +244,18 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _googleAuth() async {
     setState(() => _busy = true);
     try {
-      final account = await GoogleSignIn(scopes: ['email', 'profile']).signIn();
+          const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com'
+      const webClientId = '251620021978-' + 'uclsrrtd0l77ctn15tivh0u2vii4sj0d.apps.googleusercontent.com';
+      if (Platform.isWindows) {
+        GoogleSignInDart.register(clientId: windowsClientId);
+      }
+      final googleSignIn = GoogleSignIn(
+        clientId: Platform.isWindows ? windowsClientId : null,
+        serverClientId: Platform.isAndroid ? webClientId : null,
+        scopes: ['email', 'profile'],
+      );
+      final account = await googleSignIn.signIn();
+
       if (account != null) {
         final parts = (account.displayName ?? 'Criador HELL').trim().split(' ');
         setState(() {
