@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_tts/flutter_tts.dart';
@@ -63,6 +64,17 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HELL CREATOR OS',
+            locale: const Locale('pt', 'PT'),
+      supportedLocales: const [
+        Locale('pt', 'PT'),
+        Locale('en', 'US'),
+        Locale('es', 'ES'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: SplashScreen(currentTheme: _themeMode, onThemeChanged: _changeTheme),
