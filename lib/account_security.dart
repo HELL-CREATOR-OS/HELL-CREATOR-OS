@@ -829,7 +829,52 @@ class _AppLockScreenState extends State<AppLockScreen> {
       setState(() => _error = 'Palavra-passe incorreta.');
     }
   }
+class AppLockScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final VoidCallback onUnlocked;
+  final VoidCallback onLogout;
+  const AppLockScreen({super.key, required this.user, required this.onUnlocked, required this.onLogout});
 
+  @override
+  State<AppLockScreen> createState() => _AppLockScreenState();
+}
+
+class _AppLockScreenState extends State<AppLockScreen> {
+  final _localAuth = LocalAuthentication();
+  final _ctrl = TextEditingController();
+  String _error = '';
+
+  List<String> get _methods => List<String>.from(widget.user['securityMethods'] ?? []);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_methods.contains('biometric') || _methods.contains('device')) {
+      _tryDeviceUnlock();
+    }
+  }
+
+  Future<void> _tryDeviceUnlock() async {
+    try {
+      final ok = await _localAuth.authenticate(
+        localizedReason: 'Desbloqueia o HELL CREATOR OS com a segurança do aparelho (Impressão Digital, Face ID, PIN, Senha ou Padrão)',
+        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+      );
+      if (ok) widget.onUnlocked();
+    } catch (_) {
+      setState(() => _error = 'Utiliza a palavra-passe da conta abaixo para entrar.');
+    }
+  }
+
+  void _check() {
+    final val = _ctrl.text.trim();
+    if (val == (widget.user['passwordSecret'] ?? '')) {
+      widget.onUnlocked();
+    } else {
+      setState(() => _error = 'Palavra-passe incorreta.');
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
