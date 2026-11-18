@@ -326,7 +326,7 @@ class _AuthScreenState extends State<AuthScreen> {
   String _selectedCountry = 'Portugal';
   String? _firebaseVerifyToken;
   bool _emailVerified = false;
-  bool _emailSentPulse = false;<
+  bool _emailSentPulse = false;
 
   final List<String> _countries = [
     'Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha',
