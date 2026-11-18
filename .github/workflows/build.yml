@@ -57,11 +57,13 @@ jobs:
         with:
           channel: 'stable'
       - name: Preparar Windows e Compilar EXE
+        shell: pwsh
         run: |
           flutter create --platforms=windows --project-name hell_creator_os .
+          Add-Content -Path "windows/CMakeLists.txt" -Value "`nadd_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)"
           flutter pub get
-          dart run flutter_launcher_icons
           flutter build windows --release
+
       - name: Guardar Windows EXE para Download
         uses: actions/upload-artifact@v4
         with:
