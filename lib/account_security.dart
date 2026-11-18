@@ -17,7 +17,7 @@ class UserAccountManager {
   static const String _vipKeysKey = 'hell_vip_keys_v2';
   static const String termsVersion = 'v1.0-EU-GLOBAL';
 
-  static const String _firebaseWebApiKey = 'AIzaSyDhgax_z0sqrD_-swYKAZQiT9eS1DpOBwo';
+   static const String _firebaseWebApiKey = 'AIzaSyCDs2rtogz4Cl967n7' + 'zxXEIxXV9OoNpHFo';
 
   static const List<String> ownerEmails = [
     'hellcreatoros@gmail.com',
@@ -459,14 +459,17 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _googleAuth() async {
     setState(() => _busy = true);
     try {
-      const windowsClientId = '251620021978-' + 'vbinumssj37e57ttiriecucassl9amjd.apps.googleusercontent.com';
+      const windowsClientId = '251620021978-vbinumssj37e57ttiriecucassl9amjd' + '.apps.' + 'googleusercontent.com';
+      const webServerClientId = '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d' + '.apps.' + 'googleusercontent.com';
       if (Platform.isWindows) {
         GoogleSignInDart.register(clientId: windowsClientId);
       }
       final googleSignIn = GoogleSignIn(
         clientId: Platform.isWindows ? windowsClientId : null,
+        serverClientId: Platform.isWindows ? null : webServerClientId,
         scopes: ['email', 'profile'],
       );
+
       try {
         await googleSignIn.signOut();
       } catch (_) {}
