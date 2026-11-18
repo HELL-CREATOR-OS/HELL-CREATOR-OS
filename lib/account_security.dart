@@ -485,53 +485,101 @@ class _AuthScreenState extends State<AuthScreen> {
     widget.onAuthenticated(user);
   }
 
-    Future<void> _googleLoginExistingOnly() async {
+      Future<void> _googleLoginExistingOnly() async {
     setState(() => _busy = true);
+    HttpServer? server;
     try {
-      final windowsClientId = [
-        '251620021978-vbinumssj37e57ttiriecucassl9amjd',
-        '.apps.',
-        'googleusercontent.com',
-      ].join();
-      final webServerClientId = [
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final redirectUri = 'http://127.0.0.1:${server.port}';
+      final webClientId = [
         '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d',
         '.apps.',
         'googleusercontent.com',
       ].join();
-      if (Platform.isWindows) {
-        GoogleSignInDart.register(clientId: windowsClientId);
+
+      final authUri = Uri.https('://google.com', '/o/oauth2/v2/auth', {
+        'client_id': webClientId,
+        'redirect_uri': redirectUri,
+        'response_type': 'token',
+        'scope': 'email profile',
+        'prompt': 'select_account',
+      });
+
+      final launched = await launchUrl(authUri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        throw Exception('Não foi possível abrir o navegador.');
       }
-      final googleSignIn = GoogleSignIn(
-        clientId: Platform.isWindows ? windowsClientId : null,
-        serverClientId: Platform.isWindows ? null : webServerClientId,
-        scopes: ['email', 'profile'],
-      );
-      try {
-        await googleSignIn.signOut();
-      } catch (_) {}
-      final account = await googleSignIn.signIn();
-      if (account != null) {
-        final photo = (account.photoUrl ?? '').trim();
-        final existing = await UserAccountManager.findRegisteredAccount(account.email);
-        if (existing != null && existing['registrationCompleted'] == true) {
-          if (photo.isNotEmpty) existing['photoUrl'] = photo;
-          await UserAccountManager.saveUser(existing);
-          widget.onAuthenticated(existing);
+
+      String? accessToken;
+      await for (final request in server.timeout(const Duration(minutes: 2))) {
+        final uri = request.uri;
+        if (uri.queryParameters.containsKey('access_token')) {
+          accessToken = uri.queryParameters['access_token'];
+          request.response
+            ..statusCode = 200
+            ..headers.contentType = ContentType.html
+            ..write('<html><body style="background:#050B1E;color:#38BDF8;font-family:sans-serif;text-align:center;padding-top:60px;"><h2>Conta Google Autenticada!</h2><p style="color:white;">Podes fechar esta aba e voltar ao HELL CREATOR OS.</p><script>window.close();</script></body></html>');
+          await request.response.close();
+          break;
         } else {
-          setState(() {
-            _isRegister = true;
-            _emailCtrl.text = account.email;
-          });
-          _msg('Ainda não tens conta registada com ${account.email}. Conclui primeiro o registo abaixo.');
+          request.response
+            ..statusCode = 200
+            ..headers.contentType = ContentType.html
+            ..write('''
+<html><body style="background:#050B1E;color:white;font-family:sans-serif;text-align:center;padding-top:60px;">
+<p>A validar sessão Google...</p>
+<script>
+const hash = window.location.hash.substring(1);
+if (hash) {
+  window.location.replace("$redirectUri/callback?" + hash);
+} else {
+  document.body.innerHTML = "<h3 style='color:#f87171'>Autenticação cancelada. Podes voltar à app.</h3>";
+}
+</script>
+</body></html>''');
+          await request.response.close();
         }
       }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Sessão Google não concluída.');
+      }
+
+      final userInfoUrl = ['https://', 'www.google', '://apis.com'].join();
+      final userInfoRes = await http.get(
+        Uri.parse(userInfoUrl),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+      if (userInfoRes.statusCode != 200) {
+        throw Exception('Falha ao obter perfil Google.');
+      }
+      final profile = jsonDecode(userInfoRes.body) as Map<String, dynamic>;
+      final email = (profile['email'] ?? '').toString().trim().toLowerCase();
+      final photo = (profile['picture'] ?? '').toString().trim();
+
+      if (email.isEmpty) {
+        throw Exception('E-mail Google não devolvido.');
+      }
+
+      final existing = await UserAccountManager.findRegisteredAccount(email);
+      if (existing != null && existing['registrationCompleted'] == true) {
+        if (photo.isNotEmpty) existing['photoUrl'] = photo;
+        await UserAccountManager.saveUser(existing);
+        widget.onAuthenticated(existing);
+      } else {
+        setState(() {
+          _isRegister = true;
+          _emailCtrl.text = email;
+        });
+        _msg('Ainda não tens conta registada com $email. Conclui primeiro o registo abaixo.');
+      }
     } catch (e) {
-      _msg('Detalhe Google: ${e.toString().split('\n').first}');
+      _msg('Aviso Google: ${e.toString().replaceAll('Exception: ', '')}');
     } finally {
+      await server?.close(force: true);
       if (mounted) setState(() => _busy = false);
     }
   }
-
 
   Future<void> _submitForm() async {
     final identifier = _emailCtrl.text.trim();
