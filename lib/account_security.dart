@@ -71,6 +71,8 @@ class UserAccountManager {
     }
   }
 
+   static const String _savedAccountsListKey = 'hell_saved_autofill_list_v1';
+
   static Future<void> saveCredentials(String identifier, String password) async {
     final enabled = await isAutofillEnabled();
     if (!enabled) return;
@@ -79,12 +81,49 @@ class UserAccountManager {
       _savedCredentialsKey,
       jsonEncode({'identifier': identifier.trim(), 'password': password}),
     );
+    final map = await getSavedPasswordsMap();
+    map[identifier.trim().toLowerCase()] = password;
+    await prefs.setString(_savedAccountsListKey, jsonEncode(map));
   }
 
   static Future<void> clearSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_savedCredentialsKey);
+    await prefs.remove(_savedAccountsListKey);
   }
+
+  static Future<List<Map<String, dynamic>>> getRegisteredAccountsList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_accountsDbKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final db = jsonDecode(raw) as Map<String, dynamic>;
+      final list = <Map<String, dynamic>>[];
+      for (final entry in db.values) {
+        if (entry is Map<String, dynamic> && entry['registrationCompleted'] == true) {
+          list.add(Map<String, dynamic>.from(entry));
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, String>> getSavedPasswordsMap() async {
+    final enabled = await isAutofillEnabled();
+    if (!enabled) return {};
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_savedAccountsListKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map((k, v) => MapEntry(k, v.toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
 
   static Future<Map<String, dynamic>?> getSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
@@ -332,6 +371,8 @@ class _AuthScreenState extends State<AuthScreen> {
     'Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha',
     'Suíça', 'Luxemburgo', 'Angola', 'Moçambique', 'Cabo Verde', 'Estados Unidos', 'Outro País',
   ];
+  List<Map<String, dynamic>> _localAccounts = [];
+  Map<String, String> _savedPasswordsByEmail = {};
 
   @override
   void initState() {
@@ -339,18 +380,24 @@ class _AuthScreenState extends State<AuthScreen> {
     _loadAutofillAndDefaultTab();
   }
 
-  Future<void> _loadAutofillAndDefaultTab() async {
+    Future<void> _loadAutofillAndDefaultTab() async {
     final savedCreds = await UserAccountManager.getSavedCredentials();
+    final accounts = await UserAccountManager.getRegisteredAccountsList();
+    final passMap = await UserAccountManager.getSavedPasswordsMap();
     if (!mounted) return;
-    if (savedCreds != null && (savedCreds['identifier'] ?? '').isNotEmpty) {
-      setState(() {
+    setState(() {
+      _localAccounts = accounts;
+      _savedPasswordsByEmail = passMap;
+      if (savedCreds != null && (savedCreds['identifier'] ?? '').isNotEmpty) {
         _isRegister = false;
         _emailCtrl.text = savedCreds['identifier'] ?? '';
         _passCtrl.text = savedCreds['password'] ?? '';
-      });
-    } else {
-      setState(() => _isRegister = true);
-    }
+      } else if (accounts.isNotEmpty) {
+        _isRegister = false;
+      } else {
+        _isRegister = true;
+      }
+    });
   }
 
   int _calculateAge(DateTime birth) {
@@ -617,10 +664,11 @@ if (hash) {
     final nick = _nickCtrl.text.trim();
     final passConfirm = _passConfirmCtrl.text.trim();
 
-    if (firstName.isEmpty || lastName.isEmpty || nick.isEmpty) {
-      _msg('Preenche o Nome Próprio, Apelido e Nickname.');
+       if (firstName.isEmpty || nick.isEmpty) {
+      _msg('Preenche o Nome Próprio e o Nickname.');
       return;
     }
+
     if (_selectedCountry == null || _selectedCountry!.isEmpty) {
       _msg('Seleciona o teu País / Região.');
       return;
@@ -690,7 +738,7 @@ if (hash) {
         'consentId': consentId,
         'acceptedAtUtc': nowUtc,
         'termsVersion': UserAccountManager.termsVersion,
-        'fullName': '$firstName $lastName',
+        'fullName': lastName.isEmpty ? firstName : '$firstName $lastName',
         'email': email,
         'country': _selectedCountry,
       },
@@ -778,7 +826,7 @@ if (hash) {
                       children: [
                         Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true))),
                         const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: _lastNameCtrl, decoration: const InputDecoration(labelText: 'Apelido', isDense: true))),
+                        Expanded(child: TextField(controller: _lastNameCtrl, decoration: const InputDecoration(labelText: 'Apelido (Opcional)', isDense: true))),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -859,14 +907,52 @@ if (hash) {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  TextField(
+                                    TextField(
                     controller: _emailCtrl,
                     autofillHints: const [AutofillHints.username, AutofillHints.email],
                     decoration: InputDecoration(
                       labelText: _isRegister ? 'E-mail Oficial' : 'E-mail ou Nickname',
                       isDense: true,
+                      suffixIcon: (!_isRegister && _localAccounts.isNotEmpty)
+                          ? PopupMenuButton<Map<String, dynamic>>(
+                              tooltip: 'Escolher Conta Registada',
+                              color: const Color(0xFF0B1636),
+                              icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Color(0xFF38BDF8)),
+                              onSelected: (acc) {
+                                final accEmail = (acc['email'] ?? '').toString().trim().toLowerCase();
+                                setState(() {
+                                  _emailCtrl.text = accEmail;
+                                  _passCtrl.text = _savedPasswordsByEmail[accEmail] ?? '';
+                                });
+                              },
+                              itemBuilder: (ctx) => _localAccounts.map((acc) {
+                                final accEmail = (acc['email'] ?? '').toString();
+                                final accNick = (acc['nickname'] ?? 'Criador').toString();
+                                return PopupMenuItem<Map<String, dynamic>>(
+                                  value: acc,
+                                  child: Row(
+                                    children: [
+                                      UserAccountManager.buildUserAvatar(acc, radius: 15),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(accNick, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                            Text(accEmail, style: const TextStyle(color: Colors.white60, fontSize: 11), overflow: TextOverflow.ellipsis),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            )
+                          : null,
                     ),
                   ),
+
                   const SizedBox(height: 10),
                   TextField(
                     controller: _passCtrl,
