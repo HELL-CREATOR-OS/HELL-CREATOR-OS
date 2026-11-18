@@ -164,10 +164,11 @@ class UserAccountManager {
     );
   }
 
-  static Future<String?> sendRealFirebaseVerificationEmail(String email, String tempPassword) async {
+  static Future<Map<String, String?>> sendRealFirebaseVerificationEmail(String email, String tempPassword) async {
     try {
+              final base = 'https://' + 'identitytoolkit.' + 'google' + 'apis.' + 'com/v1/accounts:';
       final signUpRes = await http.post(
-        Uri.parse('https://googleapis.com'),
+        Uri.parse('${base}signUp?key=$_firebaseWebApiKey'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': tempPassword, 'returnSecureToken': true}),
       );
@@ -176,7 +177,7 @@ class UserAccountManager {
 
       if (idToken == null && (data['error']?['message'] == 'EMAIL_EXISTS')) {
         final signInRes = await http.post(
-          Uri.parse('https://googleapis.com'),
+          Uri.parse('${base}signInWithPassword?key=$_firebaseWebApiKey'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'password': tempPassword, 'returnSecureToken': true}),
         );
@@ -184,24 +185,30 @@ class UserAccountManager {
         idToken = data['idToken'];
       }
 
-      if (idToken == null) return null;
+      if (idToken == null) {
+        final errCode = data['error']?['message']?.toString() ?? 'Erro desconhecido';
+        return {'token': null, 'error': errCode};
+      }
 
       final oobRes = await http.post(
-        Uri.parse('https://googleapis.com'),
+        Uri.parse('${base}sendOobCode?key=$_firebaseWebApiKey'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'requestType': 'VERIFY_EMAIL', 'idToken': idToken}),
       );
-      if (oobRes.statusCode == 200) return idToken;
-      return null;
-    } catch (_) {
-      return null;
+      if (oobRes.statusCode == 200) return {'token': idToken, 'error': null};
+      final oobErr = jsonDecode(oobRes.body)['error']?['message']?.toString() ?? 'Falha ao enviar';
+      return {'token': null, 'error': oobErr};
+    } catch (e) {
+      return {'token': null, 'error': e.toString()};
     }
   }
 
   static Future<bool> checkFirebaseEmailVerified(String idToken) async {
     try {
+          final base = 'https://' + 'identitytoolkit.' + 'google' + 'apis.' + 'com/v1/accounts:';
+
       final res = await http.post(
-        Uri.parse('https://googleapis.com'),
+        Uri.parse('${base}lookup?key=$_firebaseWebApiKey'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'idToken': idToken}),
       );
@@ -379,16 +386,16 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     setState(() => _busy = true);
-    final token = await UserAccountManager.sendRealFirebaseVerificationEmail(email, pass);
+    final res = await UserAccountManager.sendRealFirebaseVerificationEmail(email, pass);
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _firebaseVerifyToken = token;
+      _firebaseVerifyToken = res['token'];
     });
-    if (token != null) {
-      _msg('E-mail real enviado para $email! Abre a tua caixa de entrada (ou Spam), clica no link e depois carrega em "Confirmar E-mail".');
+    if (res['token'] != null) {
+      _msg('E-mail real enviado para $email! Abre a caixa de entrada (ou Spam), clica no link e carrega em "Confirmar E-mail".');
     } else {
-      _msg('Não foi possível enviar o e-mail agora. Verifica a ligação à internet ou usa "Preencher com Conta Google".');
+      _msg('Falha no envio (${res['error']}). Se já tentaste este e-mail antes, usa a mesma palavra-passe ou entra com Conta Google.');
     }
   }
 
@@ -459,14 +466,12 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _googleAuth() async {
     setState(() => _busy = true);
     try {
-      const windowsClientId = '251620021978-vbinumssj37e57ttiriecucassl9amjd' + '.apps.' + 'googleusercontent.com';
-      const webServerClientId = '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d' + '.apps.' + 'googleusercontent.com';
+           const windowsClientId = '251620021978-vbinumssj37e57ttiriecucassl9amjd' + '.apps.' + 'googleusercontent.com';
       if (Platform.isWindows) {
         GoogleSignInDart.register(clientId: windowsClientId);
       }
       final googleSignIn = GoogleSignIn(
         clientId: Platform.isWindows ? windowsClientId : null,
-        serverClientId: Platform.isWindows ? null : webServerClientId,
         scopes: ['email', 'profile'],
       );
 
