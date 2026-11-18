@@ -17,7 +17,8 @@ class UserAccountManager {
   static const String _vipKeysKey = 'hell_vip_keys_v2';
   static const String termsVersion = 'v1.0-EU-GLOBAL';
 
-   static const String _firebaseWebApiKey = 'AIzaSyCDs2rtogz4Cl967n7' + 'zxXEIxXV9OoNpHFo';
+   static const String _firebaseWebApiKey = 'AIzaSyCDs2rtogz4Cl967n7' 'zxXEIxXV9OoNpHFo';
+
 
   static const List<String> ownerEmails = [
     'hellcreatoros@gmail.com',
