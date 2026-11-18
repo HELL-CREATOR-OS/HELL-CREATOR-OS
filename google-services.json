@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "251620021978-a05d205g8cjsll86qpuo796hnl3ar7ad.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.hell_creator_os",
+            "certificate_hash": "c5017fa837c977c4a4c00e25ef5670e741373965"
+          }
+        },
+        {
           "client_id": "251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d.apps.googleusercontent.com",
           "client_type": 3
         }
