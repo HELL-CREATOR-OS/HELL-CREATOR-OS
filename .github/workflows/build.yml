@@ -60,9 +60,12 @@ jobs:
         shell: pwsh
         run: |
           flutter create --platforms=windows --project-name hell_creator_os .
-          Add-Content -Path "windows/CMakeLists.txt" -Value "`nadd_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)"
+          $cmake = Get-Content "windows/CMakeLists.txt" -Raw
+          $cmake = $cmake -replace "project\(", "add_definitions(/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`nproject("
+          Set-Content "windows/CMakeLists.txt" $cmake
           flutter pub get
           flutter build windows --release
+
 
       - name: Guardar Windows EXE para Download
         uses: actions/upload-artifact@v4
