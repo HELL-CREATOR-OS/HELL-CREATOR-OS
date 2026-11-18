@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:google_sign_in_dartio/google_sign_in_dartio.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'platform_logos.dart';
@@ -20,7 +18,7 @@ class UserAccountManager {
   static const String termsVersion = 'v1.0-EU-GLOBAL';
 
   static String get _firebaseAuthEndpoint =>
-      ['https://', 'identitytoolkit.', 'google', 'apis.', 'com/v1/accounts:'].join();
+      ['https:', '//', 'identitytoolkit.', 'google', 'apis.', 'com/v1/accounts:'].join();
 
   static Future<String> _getOfficialFirebaseApiKey() async {
     try {
@@ -251,7 +249,7 @@ TERMOS DE UTILIZAÇÃO, ISENÇÃO DE RESPONSABILIDADE E POLÍTICA DE PRIVACIDADE
 
 1. NATUREZA DA PLATAFORMA E ISENÇÃO TOTAL DE RESPONSABILIDADE
 O HELL CREATOR OS é uma ferramenta técnica neutra de apoio à produção e gestão de transmissões em direto. O proprietário e criador do HELL CREATOR OS não controla, edita, supervisiona nem aprova previamente os conteúdos transmitidos, publicados, falados ou partilhados pelos utilizadores.
- em direto. O proprietário e criador do HELL CREATOR OS não controla, edita, supervisiona nem aprova previamente os conteúdos transmitidos, publicados, falados ou partilhados pelos utilizadores.
+Cada utilizador declara e aceita que atua de livre e espontânea vontade e assume a responsabilidade civil, criminal, administrativa e de direitos de autor integral e exclusiva por tudo o que fizer através da aplicação ou nas plataformas externas ligadas (TikTok, Twitch, YouTube, Kick ou outras), isentando totalmente o proprietário da aplicação de qualquer reclamação, coima ou litígio.
 Cada utilizador declara e aceita que atua de livre e espontânea vontade e assume a responsabilidade civil, criminal, administrativa e de direitos de autor integral e exclusiva por tudo o que fizer através da aplicação ou nas plataformas externas ligadas (TikTok, Twitch, YouTube, Kick ou outras), isentando totalmente o proprietário da aplicação de qualquer reclamação, coima ou litígio.
 
 2. REGRAS DE CONDUTA E TOLERÂNCIA ZERO
@@ -274,7 +272,7 @@ Os dados fornecidos no registo destinam-se exclusivamente à gestão da conta, s
           side: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
         ),
         title: const Text(
-          '⚖️ Termos Legais & Isenção de Responsabilidade',
+          'Termos Legais & Isenção de Responsabilidade',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
         ),
         content: const SizedBox(
@@ -415,7 +413,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _busy = false;
       _firebaseVerifyToken = res['token'];
     });
-       if (res['token'] != null) {
+    if (res['token'] != null) {
       setState(() => _emailSentPulse = true);
       _msg('E-mail enviado para $email! Abre a caixa de entrada (ou Spam), clica no link e carrega abaixo em "Concluir Registo e Entrar".');
     } else {
@@ -423,24 +421,6 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _verifyEmailClicked() async {
-    if (_firebaseVerifyToken == null) {
-      _msg('Clica primeiro em "Enviar E-mail" para receberes o link na tua caixa de entrada.');
-      return;
-    }
-    setState(() => _busy = true);
-    final ok = await UserAccountManager.checkFirebaseEmailVerified(_firebaseVerifyToken!);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _emailVerified = ok;
-    });
-    if (ok) {
-      _msg('E-mail verificado com sucesso! Já podes concluir o registo.');
-    } else {
-      _msg('Ainda não detetámos o clique no link enviado para ${_emailCtrl.text.trim()}. Abre o e-mail, clica no link e tenta novamente.');
-    }
-  }
   Future<void> _askToSaveCredentialsAndEnter(Map<String, dynamic> user, String identifier, String password) async {
     final autofillEnabled = await UserAccountManager.isAutofillEnabled();
     final currentSaved = await UserAccountManager.getSavedCredentials();
@@ -462,7 +442,7 @@ class _AuthScreenState extends State<AuthScreen> {
           borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: Color(0xFF38BDF8), width: 1.3),
         ),
-        title: const Text('🔐 Guardar Dados de Acesso?', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text('Guardar Dados de Acesso?', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 16)),
         content: const Text(
           'Queres guardar o teu E-mail / Nickname e Palavra-passe para preenchimento automático na próxima vez que entrares na app?\n\n(Podes ativar, desativar ou apagar estes dados a qualquer momento nas Definições de Privacidade.)',
           style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
@@ -485,20 +465,21 @@ class _AuthScreenState extends State<AuthScreen> {
     );
     widget.onAuthenticated(user);
   }
-
-      Future<void> _googleLoginExistingOnly() async {
+  Future<void> _googleLoginExistingOnly() async {
     setState(() => _busy = true);
     HttpServer? server;
     try {
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      final redirectUri = 'http://127.0.0.1:${server.port}';
+      final localScheme = ['http:', '//', '127.0.0.1:'].join();
+      final redirectUri = '$localScheme${server.port}';
       final webClientId = [
         '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d',
         '.apps.',
         'googleusercontent.com',
       ].join();
 
-      final authUri = Uri.https('://google.com', '/o/oauth2/v2/auth', {
+      final authHost = ['accounts.', 'google', '.com'].join();
+      final authUri = Uri.https(authHost, '/o/oauth2/v2/auth', {
         'client_id': webClientId,
         'redirect_uri': redirectUri,
         'response_type': 'token',
@@ -546,7 +527,7 @@ if (hash) {
         throw Exception('Sessão Google não concluída.');
       }
 
-      final userInfoUrl = [['https://', 'www.', 'google', 'apis.', 'com/oauth2/v2/userinfo'].join();
+      final userInfoUrl = ['https:', '//', 'www.', 'google', 'apis.', 'com/oauth2/v2/userinfo'].join();
       final userInfoRes = await http.get(
         Uri.parse(userInfoUrl),
         headers: {'Authorization': 'Bearer $accessToken'},
@@ -554,7 +535,8 @@ if (hash) {
       if (userInfoRes.statusCode != 200) {
         throw Exception('Falha ao obter perfil Google.');
       }
-           final profile = jsonDecode(userInfoRes.body) as Map<String, dynamic>;
+
+      final profile = jsonDecode(userInfoRes.body) as Map<String, dynamic>;
       final email = (profile['email'] ?? '').toString().trim().toLowerCase();
       final photo = (profile['picture'] ?? '').toString().trim();
       final givenName = (profile['given_name'] ?? '').toString().trim();
@@ -563,13 +545,21 @@ if (hash) {
       final locale = (profile['locale'] ?? '').toString().toLowerCase();
 
       String? detectedCountry;
-      if (locale.contains('pt-pt') || locale == 'pt') detectedCountry = 'Portugal';
-      else if (locale.contains('pt-br')) detectedCountry = 'Brasil';
-      else if (locale.startsWith('es')) detectedCountry = 'Espanha';
-      else if (locale.startsWith('fr')) detectedCountry = 'França';
-      else if (locale.contains('en-gb')) detectedCountry = 'Reino Unido';
-      else if (locale.startsWith('de')) detectedCountry = 'Alemanha';
-      else if (locale.contains('en-us')) detectedCountry = 'Estados Unidos';
+      if (locale.contains('pt-pt') || locale == 'pt') {
+        detectedCountry = 'Portugal';
+      } else if (locale.contains('pt-br')) {
+        detectedCountry = 'Brasil';
+      } else if (locale.startsWith('es')) {
+        detectedCountry = 'Espanha';
+      } else if (locale.startsWith('fr')) {
+        detectedCountry = 'França';
+      } else if (locale.contains('en-gb')) {
+        detectedCountry = 'Reino Unido';
+      } else if (locale.startsWith('de')) {
+        detectedCountry = 'Alemanha';
+      } else if (locale.contains('en-us')) {
+        detectedCountry = 'Estados Unidos';
+      }
 
       if (email.isEmpty) {
         throw Exception('E-mail Google não devolvido.');
@@ -594,7 +584,6 @@ if (hash) {
         });
         _msg('Conta Google ($email) e foto sincronizadas! Preenche apenas a Data de Nascimento, Palavra-passe e aceita os Termos.');
       }
-
     } catch (e) {
       _msg('Aviso Google: ${e.toString().replaceAll('Exception: ', '')}');
     } finally {
@@ -632,6 +621,10 @@ if (hash) {
       _msg('Preenche o Nome Próprio, Apelido e Nickname.');
       return;
     }
+    if (_selectedCountry == null || _selectedCountry!.isEmpty) {
+      _msg('Seleciona o teu País / Região.');
+      return;
+    }
     if (_birthDate == null) {
       _msg('Introduz a tua Data de Nascimento completa (Dia, Mês e Ano).');
       return;
@@ -644,7 +637,19 @@ if (hash) {
       _msg('Introduz um endereço de e-mail válido.');
       return;
     }
-       if (!_emailVerified) {
+    if (pass.length < 6) {
+      _msg('A palavra-passe deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (pass != passConfirm) {
+      _msg('As duas palavras-passe não coincidem.');
+      return;
+    }
+    if (!_acceptedTerms) {
+      _msg('É obrigatório ler e aceitar os Termos de Utilização, Privacidade e Isenção de Responsabilidade.');
+      return;
+    }
+    if (!_emailVerified) {
       if (_firebaseVerifyToken == null) {
         _msg('Clica primeiro em "Enviar E-mail de Verificação" para receberes o link na tua caixa de entrada.');
         return;
@@ -666,19 +671,6 @@ if (hash) {
       setState(() => _busy = false);
     }
 
-    if (pass.length < 6) {
-      _msg('A palavra-passe deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    if (pass != passConfirm) {
-      _msg('As duas palavras-passe não coincidem.');
-      return;
-    }
-    if (!_acceptedTerms) {
-      _msg('É obrigatório ler e aceitar os Termos de Utilização, Privacidade e Isenção de Responsabilidade.');
-      return;
-    }
-
     final nowUtc = DateTime.now().toUtc().toIso8601String();
     final consentId = 'CONSENT-${DateTime.now().millisecondsSinceEpoch}-${1000 + Random().nextInt(9000)}';
 
@@ -691,7 +683,7 @@ if (hash) {
       'age': _calculateAge(_birthDate!),
       'country': _selectedCountry,
       'email': email,
-      'photoUrl': _googlePhotoUrl
+      'photoUrl': _googlePhotoUrl,
       'passwordSecret': pass,
       'securityMethods': <String>[],
       'legalAuditLog': {
@@ -757,24 +749,22 @@ if (hash) {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  if (!_isRegister) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: _busy ? null : _googleLoginExistingOnly,
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            GoogleOfficialLogo(size: 20),
-                            const SizedBox(width: 10),
-                            const Text(
-                                                     Text(
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _busy ? null : _googleLoginExistingOnly,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const GoogleOfficialLogo(size: 20),
+                          const SizedBox(width: 10),
+                          Text(
                             _isRegister ? 'Continuar com Conta Google' : 'Entrar com Conta Google',
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.black87),
                           ),
@@ -783,7 +773,7 @@ if (hash) {
                     ),
                   ),
                   const SizedBox(height: 14),
-
+                  if (_isRegister) ...[
                     Row(
                       children: [
                         Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true))),
@@ -862,9 +852,10 @@ if (hash) {
                     DropdownButtonFormField<String>(
                       value: _selectedCountry,
                       dropdownColor: const Color(0xFF0B1636),
+                      hint: const Text('Selecionar País / Região', style: TextStyle(color: Colors.white60)),
                       decoration: const InputDecoration(labelText: 'País / Região', isDense: true),
                       items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (v) => setState(() => _selectedCountry = v ?? 'Portugal'),
+                      onChanged: (v) => setState(() => _selectedCountry = v),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -908,7 +899,7 @@ if (hash) {
                         ),
                       )
                     else
-                                           SizedBox(
+                      SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 11)),
@@ -920,7 +911,6 @@ if (hash) {
                           ),
                         ),
                       ),
-
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -941,7 +931,8 @@ if (hash) {
                       ),
                     ),
                   ],
-                                   AnimatedContainer(
+                  const SizedBox(height: 12),
+                  AnimatedContainer(
                     duration: const Duration(milliseconds: 450),
                     curve: Curves.easeOutCubic,
                     width: double.infinity,
@@ -1011,7 +1002,6 @@ if (hash) {
                       ),
                     ),
                   ),
-
                 ],
               ),
             ),
@@ -1195,3 +1185,4 @@ class _AppLockScreenState extends State<AppLockScreen> {
     );
   }
 }
+
