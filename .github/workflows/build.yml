@@ -1,9 +1,10 @@
-name: Build HELL CREATOR OS (Android e Windows)
+name: Build HELL CREATOR OS (Android APK + Windows EXE)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
 permissions:
   contents: write
 
@@ -21,38 +22,26 @@ jobs:
           channel: 'stable'
       - name: Preparar Android e Compilar APK
         run: |
-           flutter create --platforms=android --project-name hell_creator_os .
+          flutter create --platforms=android --project-name hell_creator_os .
           cp google-services.json android/app/google-services.json
           python3 -c 'import pathlib; p1=pathlib.Path("android/settings.gradle.kts"); p1.write_text(p1.read_text().replace("plugins {", "plugins {\n    id(\"com.google.gms.google-services\") version \"4.4.2\" apply false", 1)); p2=pathlib.Path("android/app/build.gradle.kts"); p2.write_text(p2.read_text().replace("id(\"com.android.application\")", "id(\"com.android.application\")\n    id(\"com.google.gms.google-services\")", 1))'
-
-
           sed -i 's/android:label="hell_creator_os"/android:label="HELL CREATOR OS"/g' android/app/src/main/AndroidManifest.xml
           echo "flutter.compileSdkVersion=36" >> android/local.properties
           echo "flutter.minSdkVersion=23" >> android/local.properties
           sed -i 's/compileSdk = .*/compileSdk = 36/g' android/app/build.gradle.kts || true
           sed -i 's/compileSdkVersion .*/compileSdkVersion 36/g' android/app/build.gradle || true
-          echo 'subprojects { val applySdk: (Project) -> Unit = { p -> p.extensions.findByName("android")?.let { (it as com.android.build.gradle.BaseExtension).compileSdkVersion(36) } }; if (state.executed) applySdk(this) else afterEvaluate { applySdk(this) } }' >> android/build.gradle.kts || true
+          echo 'subprojects { val applySdk: (Project) -> Unit = { p -> p.extensions.findByName("android")?.let { (it as com.android.build.gradle.BaseExtension).compileSdkVersion(36) } }; if (state.executed) applySdk(this) else afterEvaluate(applySdk) }' >> android/build.gradle.kts
           sed -i 's/flutter.minSdkVersion/23/g' android/app/build.gradle.kts || true
           sed -i 's/android {/android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }/g' android/app/build.gradle.kts || true
           sudo apt-get update && sudo apt-get install -y python3-pil
-          python3 -c "from PIL import Image, ImageDraw, ImageFilter; base = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); d = ImageDraw.Draw(glow); d.ellipse([140, 140, 884, 884], fill=(30, 120, 255, 150)); d.ellipse([230, 230, 794, 794], fill=(56, 189, 248, 190)); glow = glow.filter(ImageFilter.GaussianBlur(85)); base = Image.alpha_composite(base, glow); ring = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); dr = ImageDraw.Draw(ring); dr.ellipse([95, 95, 929, 929], outline=(56, 189, 248, 220), width=18); ring = ring.filter(ImageFilter.GaussianBlur(10)); base = Image.alpha_composite(base, ring); logo = Image.open('icon.png').convert('RGBA').resize((880, 880), Image.Resampling.LANCZOS); base.paste(logo, (72, 72), logo); base.save('icon_neon.png')"
+          python3 -c "from PIL import Image, ImageDraw, ImageFilter; base = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); d = ImageDraw.Draw(glow); d.ellipse([140, 140, 884, 884], fill=(0, 195, 255, 165)); glow = glow.filter(ImageFilter.GaussianBlur(85)); base.alpha_composite(glow); icon = Image.open('icon.png').convert('RGBA').resize((780, 780)); base.alpha_composite(icon, (122, 122)); base.save('icon_neon.png')"
           sed -i 's/adaptive_icon_background: .*/adaptive_icon_background: "#050B1E"/g' pubspec.yaml
           sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons
-                   if [ -f hell_release.jks ]; then
-            cp hell_release.jks android/app/hell_release.jks
-          else
-            keytool -genkey -v -keystore hell_release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias hell_key -storepass hell12026os -keypass hell12026os -dname "CN=HELL CREATOR OS, OU=Studio, O=HELL, L=Lisbon, S=Lisbon, C=PT"
-            cp hell_release.jks android/app/hell_release.jks
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git add hell_release.jks
-            git commit -m "Fixar chave permanente hell_release.jks" || true
-            git push || true
-          fi
-          keytool -list -v -keystore android/app/hell_release.jks -alias hell_key -storepass hell12026os -keypass hell12026os | grep "SHA1:"
-          printf "storePassword=hell2026os\nkeyPassword=hell2026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
+          cp hell_release.jks android/app/hell_release.jks
+          printf "storePassword=hell12026os\nkeyPassword=hell12026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
+          sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = signingConfigs.create("release") { storeFile = file("hell_release.jks"); storePassword = "hell12026os"; keyAlias = "hell_key"; keyPassword = "hell12026os" }/g' android/app/build.gradle.kts || true
           flutter build apk --release
       - name: Guardar APK para Download
         uses: actions/upload-artifact@v4
@@ -72,10 +61,9 @@ jobs:
           flutter create --platforms=windows --project-name hell_creator_os .
           flutter pub get
           dart run flutter_launcher_icons
-          $env:CXXFLAGS="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
           flutter build windows --release
-      - name: Guardar App Windows para Download
+      - name: Guardar Windows EXE para Download
         uses: actions/upload-artifact@v4
         with:
-          name: HELL-CREATOR-OS-Windows-PC
+          name: HELL-CREATOR-OS-Windows-EXE
           path: build/windows/x64/runner/Release/
