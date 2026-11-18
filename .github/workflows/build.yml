@@ -42,8 +42,10 @@ jobs:
           dart run flutter_launcher_icons
           cp hell_release.jks android/app/hell_release.jks
           printf "storePassword=hell12026os\nkeyPassword=hell12026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
-          sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = signingConfigs.create("release") { storeFile = file("hell_release.jks"); storePassword = "hell12026os"; keyAlias = "hell_key"; keyPassword = "hell12026os" }/g' android/app/build.gradle.kts || true
+                   python3 -c 'import pathlib; p=pathlib.Path("android/app/build.gradle.kts"); p.write_text(p.read_text().replace("signingConfigs.getByName(\"debug\")", "signingConfigs.create(\"release\") { storeFile = file(\"hell_release.jks\"); storePassword = \"hell12026os\"; keyAlias = \"hell_key\"; keyPassword = \"hell12026os\" }"))'
           flutter build apk --release
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep "SHA1:"
+
       - name: Guardar APK para Download
         uses: actions/upload-artifact@v4
         with:
