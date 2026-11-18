@@ -326,6 +326,7 @@ class _AuthScreenState extends State<AuthScreen> {
   String _selectedCountry = 'Portugal';
   String? _firebaseVerifyToken;
   bool _emailVerified = false;
+  bool _emailSentPulse = false;<
 
   final List<String> _countries = [
     'Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha',
@@ -412,8 +413,9 @@ class _AuthScreenState extends State<AuthScreen> {
       _busy = false;
       _firebaseVerifyToken = res['token'];
     });
-    if (res['token'] != null) {
-      _msg('E-mail real enviado para $email! Abre a caixa de entrada (ou Spam), clica no link e carrega em "Confirmar E-mail".');
+       if (res['token'] != null) {
+      setState(() => _emailSentPulse = true);
+      _msg('E-mail enviado para $email! Abre a caixa de entrada (ou Spam), clica no link e carrega abaixo em "Concluir Registo e Entrar".');
     } else {
       _msg('Falha no envio (${res['error']}).');
     }
@@ -564,10 +566,28 @@ class _AuthScreenState extends State<AuthScreen> {
       _msg('Introduz um endereço de e-mail válido.');
       return;
     }
-    if (!_emailVerified) {
-      _msg('Valida o teu e-mail (clica em "Enviar E-mail", abre o link enviado e depois clica em "Confirmar E-mail").');
-      return;
+       if (!_emailVerified) {
+      if (_firebaseVerifyToken == null) {
+        _msg('Clica primeiro em "Enviar E-mail de Verificação" para receberes o link na tua caixa de entrada.');
+        return;
+      }
+      setState(() => _busy = true);
+      final verifiedNow = await UserAccountManager.checkFirebaseEmailVerified(_firebaseVerifyToken!);
+      if (!mounted) return;
+      if (!verifiedNow) {
+        setState(() => _busy = false);
+        _msg('Ainda não detetámos o clique no link enviado para $email. Abre o e-mail (verifica também o Spam), clica no link e carrega novamente em "Concluir Registo e Entrar".');
+        return;
+      }
+      setState(() {
+        _emailVerified = true;
+        _emailSentPulse = false;
+      });
+      await Future.delayed(const Duration(milliseconds: 950));
+      if (!mounted) return;
+      setState(() => _busy = false);
     }
+
     if (pass.length < 6) {
       _msg('A palavra-passe deve ter pelo menos 6 caracteres.');
       return;
@@ -810,27 +830,19 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       )
                     else
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                              onPressed: _busy ? null : _sendRealVerificationEmail,
-                              icon: const Icon(Icons.mark_email_unread_outlined, size: 16, color: Colors.white),
-                              label: const Text('Enviar E-mail', style: TextStyle(color: Colors.white, fontSize: 11.5)),
-                            ),
+                                           SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 11)),
+                          onPressed: _busy ? null : _sendRealVerificationEmail,
+                          icon: const Icon(Icons.mark_email_unread_outlined, size: 17, color: Colors.white),
+                          label: Text(
+                            _emailSentPulse ? 'Reenviar E-mail de Verificação' : 'Enviar E-mail de Verificação',
+                            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF38BDF8), side: const BorderSide(color: Color(0xFF38BDF8))),
-                              onPressed: _busy ? null : _verifyEmailClicked,
-                              icon: const Icon(Icons.check_circle_outline, size: 16),
-                              label: const Text('Confirmar E-mail', style: TextStyle(fontSize: 11.5)),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
+
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -851,15 +863,77 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  SizedBox(
+                                   AnimatedContainer(
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutCubic,
                     width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(vertical: 13)),
-                      onPressed: _busy ? null : _submitForm,
-                      child: Text(_isRegister ? 'Concluir Registo e Entrar' : 'Entrar na Conta', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: (_isRegister && _emailVerified)
+                          ? const Color(0xFF10B981)
+                          : (_isRegister && _emailSentPulse)
+                              ? const Color(0xFF00A3FF)
+                              : const Color(0xFF1E78FF),
+                      border: Border.all(
+                        color: (_isRegister && _emailVerified)
+                            ? Colors.greenAccent
+                            : (_isRegister && _emailSentPulse)
+                                ? const Color(0xFF7DD3FC)
+                                : Colors.transparent,
+                        width: 1.8,
+                      ),
+                      boxShadow: (_isRegister && _emailVerified)
+                          ? [
+                              BoxShadow(
+                                color: Colors.greenAccent.withOpacity(0.55),
+                                blurRadius: 18,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : (_isRegister && _emailSentPulse)
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF38BDF8).withOpacity(0.5),
+                                    blurRadius: 15,
+                                    spreadRadius: 1.5,
+                                  ),
+                                ]
+                              : [],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _busy ? null : _submitForm,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 13.5, horizontal: 16),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: (_isRegister && _emailVerified)
+                                ? const Row(
+                                    key: ValueKey('verified_btn'),
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.verified_rounded, color: Colors.white, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'E-mail Confirmado • A Entrar...',
+                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    _isRegister ? 'Concluir Registo e Entrar' : 'Entrar na Conta',
+                                    key: ValueKey(_isRegister ? 'reg_btn' : 'login_btn'),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                                  ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+
                 ],
               ),
             ),
