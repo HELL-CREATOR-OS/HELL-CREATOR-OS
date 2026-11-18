@@ -484,11 +484,16 @@ class _AuthScreenState extends State<AuthScreen> {
     widget.onAuthenticated(user);
   }
 
-  Future<void> _googleLoginExistingOnly() async {
+    Future<void> _googleLoginExistingOnly() async {
     setState(() => _busy = true);
     try {
       final windowsClientId = [
         '251620021978-vbinumssj37e57ttiriecucassl9amjd',
+        '.apps.',
+        'googleusercontent.com',
+      ].join();
+      final webServerClientId = [
+        '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d',
         '.apps.',
         'googleusercontent.com',
       ].join();
@@ -497,6 +502,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
       final googleSignIn = GoogleSignIn(
         clientId: Platform.isWindows ? windowsClientId : null,
+        serverClientId: Platform.isWindows ? null : webServerClientId,
         scopes: ['email', 'profile'],
       );
       try {
@@ -519,11 +525,12 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
     } catch (e) {
-      _msg('Não foi possível entrar com Google neste dispositivo. Usa o teu E-mail e Palavra-passe registados.');
+      _msg('Detalhe Google: ${e.toString().split('\n').first}');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
 
   Future<void> _submitForm() async {
     final identifier = _emailCtrl.text.trim();
