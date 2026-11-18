@@ -44,7 +44,8 @@ jobs:
           printf "storePassword=hell12026os\nkeyPassword=hell12026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
                    python3 -c 'import pathlib; p=pathlib.Path("android/app/build.gradle.kts"); p.write_text(p.read_text().replace("signingConfigs.getByName(\"debug\")", "signingConfigs.create(\"release\") { storeFile = file(\"hell_release.jks\"); storePassword = \"hell12026os\"; keyAlias = \"hell_key\"; keyPassword = \"hell12026os\" }"))'
           flutter build apk --release
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep "SHA1:"
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -i "sha" || true
+
 
       - name: Guardar APK para Download
         uses: actions/upload-artifact@v4
