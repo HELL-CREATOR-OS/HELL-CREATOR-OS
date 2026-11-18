@@ -324,7 +324,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _yearFocus = FocusNode();
 
   DateTime? _birthDate;
-  String _selectedCountry = 'Portugal';
+  String? _selectedCountry;
+  String _googlePhotoUrl = '';
   String? _firebaseVerifyToken;
   bool _emailVerified = false;
   bool _emailSentPulse = false;
@@ -545,7 +546,7 @@ if (hash) {
         throw Exception('Sessão Google não concluída.');
       }
 
-      final userInfoUrl = ['https://', 'www.google', '://apis.com'].join();
+      final userInfoUrl = [['https://', 'www.', 'google', 'apis.', 'com/oauth2/v2/userinfo'].join();
       final userInfoRes = await http.get(
         Uri.parse(userInfoUrl),
         headers: {'Authorization': 'Bearer $accessToken'},
@@ -553,9 +554,22 @@ if (hash) {
       if (userInfoRes.statusCode != 200) {
         throw Exception('Falha ao obter perfil Google.');
       }
-      final profile = jsonDecode(userInfoRes.body) as Map<String, dynamic>;
+           final profile = jsonDecode(userInfoRes.body) as Map<String, dynamic>;
       final email = (profile['email'] ?? '').toString().trim().toLowerCase();
       final photo = (profile['picture'] ?? '').toString().trim();
+      final givenName = (profile['given_name'] ?? '').toString().trim();
+      final familyName = (profile['family_name'] ?? '').toString().trim();
+      final fullName = (profile['name'] ?? 'Criador HELL').toString().trim();
+      final locale = (profile['locale'] ?? '').toString().toLowerCase();
+
+      String? detectedCountry;
+      if (locale.contains('pt-pt') || locale == 'pt') detectedCountry = 'Portugal';
+      else if (locale.contains('pt-br')) detectedCountry = 'Brasil';
+      else if (locale.startsWith('es')) detectedCountry = 'Espanha';
+      else if (locale.startsWith('fr')) detectedCountry = 'França';
+      else if (locale.contains('en-gb')) detectedCountry = 'Reino Unido';
+      else if (locale.startsWith('de')) detectedCountry = 'Alemanha';
+      else if (locale.contains('en-us')) detectedCountry = 'Estados Unidos';
 
       if (email.isEmpty) {
         throw Exception('E-mail Google não devolvido.');
@@ -567,12 +581,20 @@ if (hash) {
         await UserAccountManager.saveUser(existing);
         widget.onAuthenticated(existing);
       } else {
+        final parts = fullName.split(' ');
         setState(() {
           _isRegister = true;
+          _firstNameCtrl.text = givenName.isNotEmpty ? givenName : parts.first;
+          _lastNameCtrl.text = familyName.isNotEmpty ? familyName : (parts.length > 1 ? parts.sublist(1).join(' ') : '');
+          _nickCtrl.text = email.split('@').first;
           _emailCtrl.text = email;
+          _googlePhotoUrl = photo;
+          _emailVerified = true;
+          if (detectedCountry != null) _selectedCountry = detectedCountry;
         });
-        _msg('Ainda não tens conta registada com $email. Conclui primeiro o registo abaixo.');
+        _msg('Conta Google ($email) e foto sincronizadas! Preenche apenas a Data de Nascimento, Palavra-passe e aceita os Termos.');
       }
+
     } catch (e) {
       _msg('Aviso Google: ${e.toString().replaceAll('Exception: ', '')}');
     } finally {
@@ -669,7 +691,7 @@ if (hash) {
       'age': _calculateAge(_birthDate!),
       'country': _selectedCountry,
       'email': email,
-      'photoUrl': '',
+      'photoUrl': _googlePhotoUrl
       'passwordSecret': pass,
       'securityMethods': <String>[],
       'legalAuditLog': {
@@ -752,16 +774,16 @@ if (hash) {
                             GoogleOfficialLogo(size: 20),
                             const SizedBox(width: 10),
                             const Text(
-                              'Entrar com Conta Google',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.black87),
-                            ),
-                          ],
-                        ),
+                                                     Text(
+                            _isRegister ? 'Continuar com Conta Google' : 'Entrar com Conta Google',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.black87),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                  ],
-                  if (_isRegister) ...[
+                  ),
+                  const SizedBox(height: 14),
+
                     Row(
                       children: [
                         Expanded(child: TextField(controller: _firstNameCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true))),
