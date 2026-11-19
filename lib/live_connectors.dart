@@ -22,13 +22,27 @@ class LocalObsServer {
   static Future<String> start() async {
     if (_server != null) return 'http://$localIp:$port';
     try {
+            String? fallbackIp;
       for (final iface in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
+        final name = iface.name.toLowerCase();
+        if (name.contains('wsl') || name.contains('hyper-v') || name.contains('virtual') || name.contains('vmware') || name.contains('vbox')) {
+          continue;
+        }
         for (final addr in iface.addresses) {
           if (!addr.isLoopback) {
-            localIp = addr.address;
-            break;
+            if (addr.address.startsWith('192.168.') || addr.address.startsWith('10.')) {
+              localIp = addr.address;
+              break;
+            }
+            fallbackIp ??= addr.address;
           }
         }
+        if (localIp.startsWith('192.168.') || localIp.startsWith('10.')) break;
+      }
+      if (!localIp.startsWith('192.168.') && !localIp.startsWith('10.') && fallbackIp != null) {
+        localIp = fallbackIp;
+      }
+
       }
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen((HttpRequest req) async {
