@@ -468,17 +468,21 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _askToSaveCredentialsAndEnter(Map<String, dynamic> user, String identifier, String password) async {
+   Future<void> _askToSaveCredentialsAndEnter(Map<String, dynamic> user, String identifier, String password) async {
     final autofillEnabled = await UserAccountManager.isAutofillEnabled();
-    final currentSaved = await UserAccountManager.getSavedCredentials();
-    final alreadySaved = currentSaved != null &&
-        currentSaved['identifier'] == identifier.trim() &&
-        currentSaved['password'] == password;
+    final canonicalEmail = (user['email'] ?? identifier).toString().trim().toLowerCase();
+    final savedMap = await UserAccountManager.getSavedPasswordsMap();
+    final alreadySaved = savedMap[canonicalEmail] == password ||
+        savedMap[identifier.trim().toLowerCase()] == password;
 
     if (!autofillEnabled || alreadySaved || !mounted) {
+      if (alreadySaved && autofillEnabled) {
+        await UserAccountManager.saveCredentials(canonicalEmail, password);
+      }
       widget.onAuthenticated(user);
       return;
     }
+
 
     await showDialog(
       context: context,
@@ -502,7 +506,8 @@ class _AuthScreenState extends State<AuthScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
             onPressed: () async {
-              await UserAccountManager.saveCredentials(identifier, password);
+                         await UserAccountManager.saveCredentials(canonicalEmail, password);
+
               if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Guardar Dados', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
