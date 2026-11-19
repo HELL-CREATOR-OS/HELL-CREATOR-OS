@@ -2155,12 +2155,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
             },
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Terminar Todas as Outras Sessões'),
-          ),
-        ),
+                 ),
       ],
     );
+  }
 
   Widget _buildSection08AccountManagement() {
+
     final requests = List<Map<String, dynamic>>.from(
       (_user['accountRequestsHistory'] as List<dynamic>? ?? []).map((e) => Map<String, dynamic>.from(e)),
     );
