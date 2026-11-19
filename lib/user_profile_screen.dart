@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -17,7 +18,7 @@ class CloudFirestoreSync {
     try {
       final raw = await rootBundle.loadString('google-services.json');
       final p = jsonDecode(raw) as Map<String, dynamic>;
-      return (p['client']['api_key']['current_key'] ?? '').toString().trim();
+      return (p['client'][0]['api_key'][0]['current_key'] ?? '').toString().trim();
     } catch (_) {
       return '';
     }
@@ -109,9 +110,35 @@ class ProfileManager {
     {'id': 'preset_star', 'icon': Icons.auto_awesome_rounded, 'color': 0xFF14B8A6},
   ];
 
+  static const Map<String, List<String>> countryCities = {
+    'Portugal': ['Lisboa', 'Porto', 'Braga', 'Coimbra', 'Aveiro', 'Faro', 'Setúbal', 'Viseu', 'Leiria', 'Évora', 'Funchal', 'Ponta Delgada', 'Guimarães', 'Vila Nova de Gaia', 'Matosinhos', 'Sintra', 'Cascais', 'Almada', 'Amadora', 'Odivelas'],
+    'Brasil': ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Belo Horizonte', 'Curitiba', 'Porto Alegre', 'Salvador', 'Fortaleza', 'Recife', 'Manaus', 'Goiânia', 'Florianópolis'],
+    'Espanha': ['Madrid', 'Barcelona', 'Valência', 'Sevilha', 'Saragoça', 'Málaga', 'Bilbau', 'Vigo', 'Corunha'],
+    'França': ['Paris', 'Marselha', 'Lyon', 'Toulouse', 'Nice', 'Nantes', 'Estrasburgo', 'Bordéus'],
+    'Reino Unido': ['Londres', 'Manchester', 'Birmingham', 'Liverpool', 'Leeds', 'Edimburgo', 'Glasgow'],
+    'Alemanha': ['Berlim', 'Munique', 'Hamburgo', 'Frankfurt', 'Colónia', 'Estugarda'],
+    'Suíça': ['Zurique', 'Genebra', 'Basileia', 'Lausana', 'Berna'],
+    'Luxemburgo': ['Luxemburgo', 'Esch-sur-Alzette', 'Differdange', 'Dudelange'],
+    'Angola': ['Luanda', 'Benguela', 'Huambo', 'Lubango', 'Cabinda'],
+    'Moçambique': ['Maputo', 'Matola', 'Beira', 'Nampula'],
+    'Cabo Verde': ['Praia', 'Mindelo', 'Santa Maria'],
+    'Estados Unidos': ['Nova Iorque', 'Los Angeles', 'Chicago', 'Miami', 'Houston', 'Las Vegas', 'Orlando'],
+  };
+
+  static const List<Map<String, dynamic>> availableSocialPlatforms = [
+    {'id': 'website', 'label': 'Website Pessoal', 'icon': Icons.language_rounded, 'color': 0xFF38BDF8, 'hint': 'https://teusite.com'},
+    {'id': 'tiktok', 'label': 'TikTok', 'icon': Icons.music_note_rounded, 'color': 0xFFFF0050, 'hint': '@teuusername'},
+    {'id': 'twitch', 'label': 'Twitch', 'icon': Icons.videocam_rounded, 'color': 0xFF9146FF, 'hint': 'teucanal'},
+    {'id': 'youtube', 'label': 'YouTube', 'icon': Icons.play_circle_fill_rounded, 'color': 0xFFFF0000, 'hint': '@teucanal'},
+    {'id': 'kick', 'label': 'Kick', 'icon': Icons.bolt_rounded, 'color': 0xFF53FC18, 'hint': 'teucanal'},
+    {'id': 'instagram', 'label': 'Instagram', 'icon': Icons.camera_alt_rounded, 'color': 0xFFE1306C, 'hint': '@teuusername'},
+    {'id': 'x', 'label': 'X / Twitter', 'icon': Icons.tag_rounded, 'color': 0xFF94A3B8, 'hint': '@teuusername'},
+    {'id': 'discord', 'label': 'Discord', 'icon': Icons.forum_rounded, 'color': 0xFF5865F2, 'hint': 'discord.gg/convite ou @user'},
+  ];
+
   static const List<String> reserved = [
     'admin', 'administrator', 'administrador', 'suporte', 'support',
-    'moderador', 'moderator', 'staff', 'oficial', 'official', 'hellcreatoros', 'sistema', 'root',
+    'moderador', 'moderator', 'staff', 'oficial', 'official', 'hellcreatoros', 'hellcontrolos', 'sistema', 'root',
   ];
 
   static String hashPass(String raw, String salt) {
@@ -145,6 +172,21 @@ class ProfileManager {
     return List.generate(8, (_) => 'HC-${1000 + r.nextInt(9000)}-${1000 + r.nextInt(9000)}');
   }
 
+  static String detectPortugalPostalZone(String zip) {
+    final clean = zip.replaceAll(RegExp(r'[^0-9]'), '');
+    if (clean.length < 4) return '';
+    final prefix = int.tryParse(clean.substring(0, 4)) ?? 0;
+    if (prefix >= 1000 && prefix <= 1999) return 'Lisboa';
+    if (prefix >= 2000 && prefix <= 2999) return 'Área Metropolitana de Lisboa / Santarém / Setúbal';
+    if (prefix >= 3000 && prefix <= 3999) return 'Coimbra / Aveiro / Viseu';
+    if (prefix >= 4000 && prefix <= 4999) return 'Porto / Braga / Viana do Castelo';
+    if (prefix >= 5000 && prefix <= 5999) return 'Vila Real / Bragança';
+    if (prefix >= 6000 && prefix <= 6999) return 'Castelo Branco / Guarda';
+    if (prefix >= 7000 && prefix <= 7999) return 'Évora / Portalegre / Beja';
+    if (prefix >= 8000 && prefix <= 8999) return 'Faro (Algarve)';
+    if (prefix >= 9000 && prefix <= 9999) return 'Madeira / Açores';
+    return '';
+  }
   static Map<String, dynamic> ensureAccountStructure(Map<String, dynamic> raw) {
     final u = Map<String, dynamic>.from(raw);
     final email = (u['email'] ?? '').toString().trim().toLowerCase();
@@ -170,7 +212,14 @@ class ProfileManager {
     u['accountStatus'] ??= 'Ativa';
     u['verificationStatus'] ??= UserAccountManager.isOwnerEmail(email) ? 'Verificado Oficial' : 'E-mail Verificado';
     u['permissionLevel'] ??= UserAccountManager.isOwnerEmail(email) ? 'Proprietário / Admin Total' : 'Criador Padrão';
-    u['socialLinks'] ??= {'tiktok': '', 'twitch': '', 'youtube': '', 'kick': '', 'instagram': '', 'x': ''};
+
+    u['coverMode'] ??= 'default';
+    u['coverColor'] ??= 0xFF0B1636;
+    u['coverAnimStyle'] ??= 'neon_wave';
+    u['bannerPromoMode'] ??= 'off';
+    u['bannerSlides'] ??= <dynamic>[];
+
+    u['socialLinks'] ??= <String, dynamic>{};
     u['privacy'] ??= {
       'profileVisibility': 'Público', 'photoVisibility': 'Todos', 'bioVisibility': 'Todos',
       'locationVisibility': 'Privada', 'birthDateVisibility': 'Oculta', 'followersVisibility': 'Pública',
@@ -194,6 +243,7 @@ class ProfileManager {
     }];
     return u;
   }
+
   static void logChange(Map<String, dynamic> u, String field, String detail) {
     final l = List<Map<String, dynamic>>.from((u['changeHistory'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
     l.insert(0, {'at': DateTime.now().toUtc().toIso8601String(), 'field': field, 'detail': detail});
@@ -236,7 +286,6 @@ class ProfileManager {
     return ClipOval(child: SizedBox(width: radius * 2, height: radius * 2, child: Icon(Icons.account_circle_outlined, size: radius * 1.85, color: const Color(0xFF38BDF8))));
   }
 }
-
 class TopLeftProfileAvatarButton extends StatelessWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -266,8 +315,8 @@ class StructuredProfileStorage {
     final s = ProfileManager.ensureAccountStructure(u);
     return {
       'users': {'internal_id': s['internalAccountId'], 'status': s['accountStatus'], 'created_at': s['accountCreatedAt'], 'permission_level': s['permissionLevel']},
-      'user_profiles': {'display_name': s['displayName'], 'username': s['username'], 'bio': s['bio'], 'website': s['website'], 'social_links': s['socialLinks']},
-      'user_personal_data': {'first_name': s['firstName'] ?? '', 'last_name': s['lastName'] ?? '', 'birth_date': s['birthDate'] ?? '', 'gender': s['gender'], 'country': s['country'] ?? '', 'city': s['city']},
+      'user_profiles': {'display_name': s['displayName'], 'username': s['username'], 'bio': s['bio'], 'website': s['website'], 'social_links': s['socialLinks'], 'cover_mode': s['coverMode'], 'banner_promo_mode': s['bannerPromoMode'], 'banner_slides': s['bannerSlides']},
+      'user_personal_data': {'first_name': s['firstName'] ?? '', 'last_name': s['lastName'] ?? '', 'birth_date': s['birthDate'] ?? '', 'gender': s['gender'], 'country': s['country'] ?? '', 'city': s['city'], 'postal_code': s['postalCode'], 'address': s['address']},
       'user_contacts': {'primary_email': s['email'] ?? '', 'recovery_email': s['recoveryEmail'], 'phone': s['phone'], 'business_contact': s['businessContact']},
       'user_security': {'two_factor_enabled': s['twoFactorEnabled'], 'passkeys_enabled': s['passkeysEnabled']},
       'user_sessions': {'active_sessions': s['sessions']},
@@ -285,6 +334,7 @@ class StructuredProfileStorage {
     CloudFirestoreSync.sync(s, buildTables(s));
   }
 }
+
 class UserProfileScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -301,38 +351,34 @@ class UserProfileScreen extends StatefulWidget {
   State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
-class _UserProfileScreenState extends State<UserProfileScreen> with SingleTickerProviderStateMixin {
+class _UserProfileScreenState extends State<UserProfileScreen> with TickerProviderStateMixin {
   late Map<String, dynamic> _u;
   late TabController _tabs;
+  late AnimationController _coverAnimCtrl;
+  Timer? _carouselTimer;
+  int _carouselIndex = 0;
 
-  late TextEditingController _dispCtrl, _userCtrl, _bioCtrl, _webCtrl, _locCtrl;
-  late TextEditingController _ttCtrl, _twCtrl, _ytCtrl, _kiCtrl, _igCtrl, _xCtrl;
+  late TextEditingController _dispCtrl, _userCtrl, _bioCtrl, _locCtrl;
   late TextEditingController _fnCtrl, _lnCtrl, _pronCtrl, _cityCtrl, _zipCtrl, _addrCtrl;
   late TextEditingController _newEmailCtrl, _recEmailCtrl, _phoneCtrl, _bizCtrl;
   String? _pendingToken, _pendingEmail;
 
   final List<String> _titles = const [
-    '01. Meu Perfil', '02. Info Pessoais', '03. Contactos', '04. Segurança',
-    '05. Privacidade', '06. Preferências', '07. Sessões', '08. Gestão Conta',
+    'Meu Perfil', 'Info Pessoais', 'Redes Sociais', 'Contactos',
+    'Segurança', 'Privacidade', 'Preferências', 'Sessões', 'Gestão de Conta',
   ];
-
   @override
   void initState() {
     super.initState();
     _u = ProfileManager.ensureAccountStructure(widget.user);
     _tabs = TabController(length: _titles.length, vsync: this);
-    final soc = Map<String, dynamic>.from(_u['socialLinks'] as Map? ?? {});
+    _coverAnimCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat(reverse: true);
+    _startPromoCarousel();
+
     _dispCtrl = TextEditingController(text: (_u['displayName'] ?? '').toString());
     _userCtrl = TextEditingController(text: (_u['username'] ?? '').toString());
     _bioCtrl = TextEditingController(text: (_u['bio'] ?? '').toString());
-    _webCtrl = TextEditingController(text: (_u['website'] ?? '').toString());
     _locCtrl = TextEditingController(text: (_u['publicLocation'] ?? '').toString());
-    _ttCtrl = TextEditingController(text: (soc['tiktok'] ?? '').toString());
-    _twCtrl = TextEditingController(text: (soc['twitch'] ?? '').toString());
-    _ytCtrl = TextEditingController(text: (soc['youtube'] ?? '').toString());
-    _kiCtrl = TextEditingController(text: (soc['kick'] ?? '').toString());
-    _igCtrl = TextEditingController(text: (soc['instagram'] ?? '').toString());
-    _xCtrl = TextEditingController(text: (soc['x'] ?? '').toString());
     _fnCtrl = TextEditingController(text: (_u['firstName'] ?? '').toString());
     _lnCtrl = TextEditingController(text: (_u['lastName'] ?? '').toString());
     _pronCtrl = TextEditingController(text: (_u['pronouns'] ?? '').toString());
@@ -345,8 +391,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     _bizCtrl = TextEditingController(text: (_u['businessContact'] ?? '').toString());
   }
 
+  void _startPromoCarousel() {
+    _carouselTimer?.cancel();
+    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      final slides = (_u['bannerSlides'] as List? ?? []);
+      if (mounted && _u['bannerPromoMode'] == 'carousel' && slides.length > 1) {
+        setState(() => _carouselIndex = (_carouselIndex + 1) % slides.length);
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _carouselTimer?.cancel();
+    _coverAnimCtrl.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -395,6 +453,180 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     );
     return ok;
   }
+
+  Future<void> _openCoverStudio() async {
+    String mode = (_u['coverMode'] ?? 'default').toString();
+    int colorVal = (_u['coverColor'] is int) ? _u['coverColor'] as int : 0xFF0B1636;
+    String animStyle = (_u['coverAnimStyle'] ?? 'neon_wave').toString();
+    String promoMode = (_u['bannerPromoMode'] ?? 'off').toString();
+    final slides = List<Map<String, dynamic>>.from((_u['bannerSlides'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+    final palette = [0xFF0B1636, 0xFF1E1B4B, 0xFF3B0764, 0xFF450A0A, 0xFF064E3B, 0xFF0C4A6E, 0xFF18181B];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setM) => AlertDialog(
+          backgroundColor: const Color(0xFF0B1636),
+          title: const Text('Personalizar Capa & Publicidade', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Fundo da Capa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.white70)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
+                    final p = r?.files.single.path;
+                    if (p != null && p.isNotEmpty) {
+                      _u['coverPath'] = p;
+                      setM(() => mode = 'image');
+                    }
+                  },
+                  icon: const Icon(Icons.image, size: 16),
+                  label: const Text('Imagem', style: TextStyle(fontSize: 12)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => setM(() => mode = 'animated'),
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Animado HD', style: TextStyle(fontSize: 12)),
+                ),
+                OutlinedButton(
+                  onPressed: () => setM(() {
+                    mode = 'default';
+                    _u['coverPath'] = '';
+                  }),
+                  child: const Text('Repor Original / Remover', style: TextStyle(fontSize: 11.5)),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              const Text('Ou escolher Cor Sólida:', style: TextStyle(fontSize: 12, color: Colors.white60)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: palette.map((c) => GestureDetector(
+                  onTap: () => setM(() {
+                    mode = 'color';
+                    colorVal = c;
+                  }),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Color(c),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: (mode == 'color' && colorVal == c) ? const Color(0xFF38BDF8) : Colors.white30, width: 2),
+                    ),
+                  ),
+                )).toList(),
+              ),
+              if (mode == 'animated') ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: animStyle,
+                  dropdownColor: const Color(0xFF0B1636),
+                  decoration: const InputDecoration(labelText: 'Estilo de Animação HD', isDense: true),
+                  items: const [
+                    DropdownMenuItem(value: 'neon_wave', child: Text('Ondas Neon Azul & Ciano')),
+                    DropdownMenuItem(value: 'cyber_pulse', child: Text('Pulso Roxo & Magenta Estúdio')),
+                    DropdownMenuItem(value: 'ember_glow', child: Text('Brilho Fogo & Âmbar')),
+                  ],
+                  onChanged: (v) => setM(() => animStyle = v ?? 'neon_wave'),
+                ),
+              ],
+              const Divider(height: 22),
+              const Text('Publicidade / Parcerias na Capa (Opcional):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                value: promoMode,
+                dropdownColor: const Color(0xFF0B1636),
+                decoration: const InputDecoration(labelText: 'Modo de Exibição', isDense: true),
+                items: const [
+                  DropdownMenuItem(value: 'off', child: Text('Desativado')),
+                  DropdownMenuItem(value: 'static', child: Text('Imagem / Banner Estático')),
+                  DropdownMenuItem(value: 'carousel', child: Text('Carrossel Sequencial (Vários Patrocinadores)')),
+                ],
+                onChanged: (v) => setM(() => promoMode = v ?? 'off'),
+              ),
+              if (promoMode != 'off') ...[
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final titleC = TextEditingController();
+                    final subC = TextEditingController();
+                    String imgP = '';
+                    await showDialog(
+                      context: context,
+                      builder: (c2) => StatefulBuilder(
+                        builder: (c2, setM2) => AlertDialog(
+                          backgroundColor: const Color(0xFF081028),
+                          title: const Text('Adicionar Patrocinador / Banner', style: TextStyle(fontSize: 14, color: Color(0xFF38BDF8))),
+                          content: Column(mainAxisSize: MainAxisSize.min, children: [
+                            TextField(controller: titleC, decoration: const InputDecoration(labelText: 'Nome / Parceiro (ex: ENEBA -15%)', isDense: true)),
+                            const SizedBox(height: 8),
+                            TextField(controller: subC, decoration: const InputDecoration(labelText: 'Código ou Link (ex: Código HELL)', isDense: true)),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
+                                if (r?.files.single.path != null) setM2(() => imgP = r!.files.single.path!);
+                              },
+                              icon: const Icon(Icons.add_photo_alternate, size: 16),
+                              label: Text(imgP.isEmpty ? 'Carregar Imagem/Logo (Opcional)' : 'Imagem selecionada ✓', style: const TextStyle(fontSize: 12)),
+                            ),
+                          ]),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(c2), child: const Text('Cancelar')),
+                            ElevatedButton(
+                              onPressed: () {
+                                if (titleC.text.trim().isNotEmpty || imgP.isNotEmpty) {
+                                  slides.add({'title': titleC.text.trim(), 'subtitle': subC.text.trim(), 'imagePath': imgP});
+                                  Navigator.pop(c2);
+                                }
+                              },
+                              child: const Text('Adicionar'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    setM(() {});
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Adicionar Banner / Parceiro', style: TextStyle(fontSize: 12)),
+                ),
+                ...slides.asMap().entries.map((e) => ListTile(
+                      dense: true,
+                      title: Text(e.value['title'].toString().isEmpty ? 'Banner Imagem' : e.value['title'].toString()),
+                      subtitle: Text(e.value['subtitle'].toString()),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                        onPressed: () => setM(() => slides.removeAt(e.key)),
+                      ),
+                    )),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                _u['coverMode'] = mode;
+                _u['coverColor'] = colorVal;
+                _u['coverAnimStyle'] = animStyle;
+                _u['bannerPromoMode'] = promoMode;
+                _u['bannerSlides'] = slides;
+                _carouselIndex = 0;
+                ProfileManager.logChange(_u, 'Capa & Publicidade', 'Capa atualizada ($mode)');
+                Navigator.pop(ctx);
+                await _save();
+              },
+              child: const Text('Guardar Capa'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   Future<void> _editAvatar() async {
     double s = (_u['avatarScale'] is num) ? (_u['avatarScale'] as num).toDouble() : 1.0;
     double dx = (_u['avatarDx'] is num) ? (_u['avatarDx'] as num).toDouble() : 0.0;
@@ -418,62 +650,56 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
             backgroundColor: const Color(0xFF0B1636),
             title: const Text('Fotografia & Recorte', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
             content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onPanUpdate: (d) => setM(() {
-                      dx = (dx + d.delta.dx).clamp(-60.0, 60.0);
-                      dy = (dy + d.delta.dy).clamp(-60.0, 60.0);
-                    }),
-                    child: ProfileManager.buildTransparentAvatar(prev, radius: 55, scale: s, offset: Offset(dx, dy)),
-                  ),
-                  Slider(value: s, min: 1.0, max: 2.5, onChanged: (v) => setM(() => s = v)),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () async {
-                          final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
-                          final p = r?.files.single.path;
-                          if (p != null && p.isNotEmpty) {
-                            setM(() {
-                              path = p;
-                              url = '';
-                              preset = '';
-                              s = 1.0;
-                              dx = 0;
-                              dy = 0;
-                            });
-                          }
-                        },
-                        child: const Text('Carregar Foto'),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () => setM(() {
-                          path = '';
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                GestureDetector(
+                  onPanUpdate: (d) => setM(() {
+                    dx = (dx + d.delta.dx).clamp(-60.0, 60.0);
+                    dy = (dy + d.delta.dy).clamp(-60.0, 60.0);
+                  }),
+                  child: ProfileManager.buildTransparentAvatar(prev, radius: 55, scale: s, offset: Offset(dx, dy)),
+                ),
+                Slider(value: s, min: 1.0, max: 2.5, onChanged: (v) => setM(() => s = v)),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
+                      final p = r?.files.single.path;
+                      if (p != null && p.isNotEmpty) {
+                        setM(() {
+                          path = p;
                           url = '';
                           preset = '';
-                        }),
-                        child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
-                      ),
-                    ],
+                          s = 1.0;
+                          dx = 0;
+                          dy = 0;
+                        });
+                      }
+                    },
+                    child: const Text('Carregar Foto'),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: ProfileManager.presetAvatars.map((a) => IconButton(
-                      icon: Icon(a['icon'] as IconData, color: Color(a['color'] as int)),
-                      onPressed: () => setM(() {
-                        preset = a['id'] as String;
-                        path = '';
-                        url = '';
-                      }),
-                    )).toList(),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => setM(() {
+                      path = '';
+                      url = '';
+                      preset = '';
+                    }),
+                    child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
                   ),
-                ],
-              ),
+                ]),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: ProfileManager.presetAvatars.map((a) => IconButton(
+                    icon: Icon(a['icon'] as IconData, color: Color(a['color'] as int)),
+                    onPressed: () => setM(() {
+                      preset = a['id'] as String;
+                      path = '';
+                      url = '';
+                    }),
+                  )).toList(),
+                ),
+              ]),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
@@ -498,36 +724,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     );
   }
 
-  Widget _sec01() {
+  Widget _secMeuPerfil() {
     return ListView(padding: const EdgeInsets.all(16), children: [
       Row(children: [
-        ElevatedButton(onPressed: _editAvatar, child: const Text('Alterar / Cortar Foto')),
+        ElevatedButton.icon(onPressed: _editAvatar, icon: const Icon(Icons.crop, size: 16), label: const Text('Alterar / Cortar Foto', style: TextStyle(fontSize: 12))),
         const SizedBox(width: 8),
-        OutlinedButton(
-          onPressed: () async {
-            final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
-            final p = r?.files.single.path;
-            if (p != null && p.isNotEmpty) {
-              _u['coverPath'] = p;
-              await _save();
-            }
-          },
-          child: const Text('Capa'),
-        ),
+        OutlinedButton.icon(onPressed: _openCoverStudio, icon: const Icon(Icons.panorama, size: 16), label: const Text('Personalizar Capa', style: TextStyle(fontSize: 12))),
       ]),
       const SizedBox(height: 10),
       TextField(controller: _dispCtrl, maxLength: 50, decoration: const InputDecoration(labelText: 'Nome de Apresentação', isDense: true)),
       TextField(controller: _userCtrl, maxLength: 30, decoration: const InputDecoration(labelText: '@username (único)', isDense: true)),
       TextField(controller: _bioCtrl, maxLines: 3, maxLength: 300, decoration: const InputDecoration(labelText: 'Biografia', isDense: true)),
-      TextField(controller: _webCtrl, decoration: const InputDecoration(labelText: 'Website (https://...)', isDense: true)),
       TextField(controller: _locCtrl, decoration: const InputDecoration(labelText: 'Localização Pública', isDense: true)),
-      TextField(controller: _ttCtrl, decoration: const InputDecoration(labelText: 'TikTok', isDense: true)),
-      TextField(controller: _twCtrl, decoration: const InputDecoration(labelText: 'Twitch', isDense: true)),
-      TextField(controller: _ytCtrl, decoration: const InputDecoration(labelText: 'YouTube', isDense: true)),
-      TextField(controller: _kiCtrl, decoration: const InputDecoration(labelText: 'Kick', isDense: true)),
-      TextField(controller: _igCtrl, decoration: const InputDecoration(labelText: 'Instagram', isDense: true)),
-      TextField(controller: _xCtrl, decoration: const InputDecoration(labelText: 'X / Twitter', isDense: true)),
-      const SizedBox(height: 10),
+      const SizedBox(height: 8),
       Text('ID Interno Imutável: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 12, color: Colors.white60)),
       const SizedBox(height: 12),
       ElevatedButton(
@@ -548,19 +757,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
           _u['nickname'] = _dispCtrl.text.trim();
           _u['username'] = nu;
           _u['bio'] = _bioCtrl.text.trim();
-          _u['website'] = _webCtrl.text.trim();
           _u['publicLocation'] = _locCtrl.text.trim();
-          _u['socialLinks'] = {'tiktok': _ttCtrl.text.trim(), 'twitch': _twCtrl.text.trim(), 'youtube': _ytCtrl.text.trim(), 'kick': _kiCtrl.text.trim(), 'instagram': _igCtrl.text.trim(), 'x': _xCtrl.text.trim()};
-          ProfileManager.logChange(_u, 'Perfil Público', 'Atualizado');
+          ProfileManager.logChange(_u, 'Meu Perfil', 'Dados públicos atualizados');
           await _save();
         },
         child: const Text('Guardar Perfil Público'),
       ),
     ]);
   }
-  Widget _sec02() {
+  Widget _secInfoPessoais() {
     final genders = ['Prefiro não dizer', 'Masculino', 'Feminino', 'Não-binário', 'Outro'];
-    final countries = ['Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha', 'Suíça', 'Angola', 'Moçambique', 'Outro País'];
+    final countries = ['Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha', 'Suíça', 'Luxemburgo', 'Angola', 'Moçambique', 'Cabo Verde', 'Estados Unidos', 'Outro País'];
+    final selectedCountry = (_u['country'] ?? 'Portugal').toString();
+    final citySuggestions = ProfileManager.countryCities[selectedCountry] ?? <String>[];
+    final postalHint = selectedCountry == 'Portugal' ? ProfileManager.detectPortugalPostalZone(_zipCtrl.text) : '';
+
     return ListView(padding: const EdgeInsets.all(16), children: [
       TextField(controller: _fnCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true)),
       const SizedBox(height: 8),
@@ -591,18 +802,43 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
         },
       ),
       DropdownButtonFormField<String>(
-        value: countries.contains(_u['country']) ? _u['country'] : null,
+        value: countries.contains(selectedCountry) ? selectedCountry : null,
         dropdownColor: const Color(0xFF0B1636),
         decoration: const InputDecoration(labelText: 'País', isDense: true),
         items: countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
         onChanged: (v) => setState(() => _u['country'] = v),
       ),
       const SizedBox(height: 8),
-      TextField(controller: _cityCtrl, decoration: const InputDecoration(labelText: 'Cidade', isDense: true)),
+      Autocomplete<String>(
+        initialValue: TextEditingValue(text: _cityCtrl.text),
+        optionsBuilder: (TextEditingValue val) {
+          if (val.text.isEmpty) return citySuggestions;
+          return citySuggestions.where((c) => c.toLowerCase().contains(val.text.toLowerCase()));
+        },
+        onSelected: (String selection) => _cityCtrl.text = selection,
+        fieldViewBuilder: (ctx, ctrl, focus, onSub) {
+          ctrl.text = _cityCtrl.text;
+          ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
+          return TextField(
+            controller: ctrl,
+            focusNode: focus,
+            onChanged: (v) => _cityCtrl.text = v,
+            decoration: const InputDecoration(labelText: 'Cidade (escreve para sugestões ou manual)', isDense: true),
+          );
+        },
+      ),
       const SizedBox(height: 8),
-      TextField(controller: _zipCtrl, decoration: const InputDecoration(labelText: 'Código Postal', isDense: true)),
+      TextField(
+        controller: _zipCtrl,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: selectedCountry == 'Portugal' ? 'Código Postal (ex: 4000-001)' : 'Código Postal',
+          helperText: postalHint.isNotEmpty ? 'Zona postal detetada: $postalHint' : null,
+          isDense: true,
+        ),
+      ),
       const SizedBox(height: 8),
-      TextField(controller: _addrCtrl, decoration: const InputDecoration(labelText: 'Morada (Opcional)', isDense: true)),
+      TextField(controller: _addrCtrl, decoration: const InputDecoration(labelText: 'Restante da Morada / Rua (Opcional)', isDense: true)),
       const SizedBox(height: 12),
       ElevatedButton(
         onPressed: () async {
@@ -620,7 +856,94 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     ]);
   }
 
-  Widget _sec03() {
+  Widget _secRedesSociais() {
+    final links = Map<String, dynamic>.from(_u['socialLinks'] as Map? ?? {});
+    final activeKeys = links.keys.where((k) => links[k].toString().trim().isNotEmpty).toList();
+
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const Text('Redes Sociais & Website Ativos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8))),
+        ElevatedButton.icon(
+          onPressed: () async {
+            String selectedId = ProfileManager.availableSocialPlatforms.first['id'] as String;
+            final valCtrl = TextEditingController();
+            await showDialog(
+              context: context,
+              builder: (ctx) => StatefulBuilder(
+                builder: (ctx, setM) {
+                  final plat = ProfileManager.availableSocialPlatforms.firstWhere((p) => p['id'] == selectedId);
+                  return AlertDialog(
+                    backgroundColor: const Color(0xFF0B1636),
+                    title: const Text('Adicionar Rede / Website', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
+                    content: Column(mainAxisSize: MainAxisSize.min, children: [
+                      DropdownButtonFormField<String>(
+                        value: selectedId,
+                        dropdownColor: const Color(0xFF0B1636),
+                        decoration: const InputDecoration(labelText: 'Escolher Plataforma', isDense: true),
+                        items: ProfileManager.availableSocialPlatforms
+                            .map((p) => DropdownMenuItem(value: p['id'] as String, child: Text(p['label'] as String)))
+                            .toList(),
+                        onChanged: (v) => setM(() => selectedId = v ?? selectedId),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(controller: valCtrl, decoration: InputDecoration(labelText: plat['hint'] as String, isDense: true)),
+                    ]),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (valCtrl.text.trim().isNotEmpty) {
+                            links[selectedId] = valCtrl.text.trim();
+                            _u['socialLinks'] = links;
+                            if (selectedId == 'website') _u['website'] = valCtrl.text.trim();
+                            Navigator.pop(ctx);
+                          }
+                        },
+                        child: const Text('Adicionar'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+            if (links.isNotEmpty) {
+              ProfileManager.logChange(_u, 'Redes Sociais', 'Lista de redes atualizada');
+              await _save();
+            }
+          },
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Adicionar Rede', style: TextStyle(fontSize: 12)),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      if (activeKeys.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: Text('Nenhuma rede adicionada. Clica em "Adicionar Rede" para escolher apenas as que queres exibir.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60, fontSize: 12.5))),
+        ),
+      ...activeKeys.map((k) {
+        final plat = ProfileManager.availableSocialPlatforms.firstWhere((p) => p['id'] == k, orElse: () => {'label': k.toUpperCase(), 'icon': Icons.link, 'color': 0xFF38BDF8});
+        return Card(
+          color: const Color(0xFF0B1636),
+          child: ListTile(
+            leading: Icon(plat['icon'] as IconData, color: Color(plat['color'] as int)),
+            title: Text(plat['label'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            subtitle: Text(links[k].toString()),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              onPressed: () async {
+                links.remove(k);
+                _u['socialLinks'] = links;
+                if (k == 'website') _u['website'] = '';
+                await _save('Rede removida.');
+              },
+            ),
+          ),
+        );
+      }),
+    ]);
+  }
+  Widget _secContactos() {
     final email = (_u['email'] ?? '').toString();
     return ListView(padding: const EdgeInsets.all(16), children: [
       ListTile(
@@ -685,7 +1008,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
       ),
     ]);
   }
-  Widget _sec04() {
+
+  Widget _secSeguranca() {
     final twoFactor = _u['twoFactorEnabled'] == true;
     final secret = (_u['totpSecret'] ?? '').toString();
     final codes = List<String>.from(_u['recoveryCodes'] ?? []);
@@ -778,7 +1102,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
       ),
     ]);
   }
-  Widget _sec05() {
+  Widget _secPrivacidade() {
     final p = Map<String, dynamic>.from(_u['privacy'] as Map? ?? {});
     Widget drop(String label, String key, List<String> opts) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -827,7 +1151,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     ]);
   }
 
-  Widget _sec06() {
+  Widget _secPreferencias() {
     final pr = Map<String, dynamic>.from(_u['preferences'] as Map? ?? {});
     return ListView(padding: const EdgeInsets.all(16), children: [
       DropdownButtonFormField<String>(
@@ -881,7 +1205,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
       ),
     ]);
   }
-  Widget _sec07() {
+
+  Widget _secSessoes() {
     final sess = List<Map<String, dynamic>>.from((_u['sessions'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
     return ListView(padding: const EdgeInsets.all(16), children: [
       ...sess.map((s) => Card(
@@ -895,9 +1220,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
           )),
     ]);
   }
-
-  Widget _sec08() {
+  Widget _secGestaoConta() {
     return ListView(padding: const EdgeInsets.all(16), children: [
+      ListTile(
+        leading: const Icon(Icons.logout_rounded, color: Color(0xFF38BDF8)),
+        title: const Text('Terminar Sessão (Logout)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+        subtitle: const Text('Sai da conta atual neste dispositivo com segurança.'),
+        onTap: () async {
+          await UserAccountManager.logout();
+          if (mounted) {
+            Navigator.of(context).pop();
+            widget.onAccountDeletedOrSuspended();
+          }
+        },
+      ),
+      const Divider(),
       ListTile(
         leading: const Icon(Icons.download, color: Color(0xFF38BDF8)),
         title: const Text('Exportar Dados Pessoais (RGPD)'),
@@ -938,37 +1275,122 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     ]);
   }
 
+  Widget _buildInteractiveCoverHeader() {
+    final coverMode = (_u['coverMode'] ?? 'default').toString();
+    final coverPath = (_u['coverPath'] ?? '').toString();
+    final coverColor = (_u['coverColor'] is int) ? _u['coverColor'] as int : 0xFF0B1636;
+    final animStyle = (_u['coverAnimStyle'] ?? 'neon_wave').toString();
+    final promoMode = (_u['bannerPromoMode'] ?? 'off').toString();
+    final slides = List<Map<String, dynamic>>.from((_u['bannerSlides'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+    final activeSlide = slides.isNotEmpty ? slides[_carouselIndex % slides.length] : null;
+
+    List<Color> animColors = [const Color(0xFF0B1636), const Color(0xFF0284C7)];
+    if (animStyle == 'cyber_pulse') animColors = [const Color(0xFF1E1B4B), const Color(0xFF9333EA)];
+    if (animStyle == 'ember_glow') animColors = [const Color(0xFF450A0A), const Color(0xFFD97706)];
+
+    return GestureDetector(
+      onTap: _openCoverStudio,
+      child: AnimatedBuilder(
+        animation: _coverAnimCtrl,
+        builder: (context, _) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: coverMode == 'color' ? Color(coverColor) : const Color(0xFF0B1636),
+              gradient: coverMode == 'animated'
+                  ? LinearGradient(
+                      begin: Alignment(-1.0 + _coverAnimCtrl.value * 2, -1),
+                      end: Alignment(1.0 - _coverAnimCtrl.value * 2, 1),
+                      colors: animColors,
+                    )
+                  : null,
+              image: (coverMode == 'image' && coverPath.isNotEmpty && File(coverPath).existsSync())
+                  ? DecorationImage(image: FileImage(File(coverPath)), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.45), BlendMode.darken))
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  GestureDetector(onTap: _editAvatar, child: ProfileManager.buildTransparentAvatar(_u, radius: 30)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text((_u['displayName'] ?? 'Criador').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                      Text('@${_u['username']}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12.5)),
+                      Text('ID: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                    ]),
+                  ),
+                  const Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+                ]),
+                if (promoMode != 'off' && activeSlide != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.55),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
+                    ),
+                    child: Row(children: [
+                      if ((activeSlide['imagePath'] ?? '').toString().isNotEmpty && File(activeSlide['imagePath'].toString()).existsSync())
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.file(File(activeSlide['imagePath'].toString()), width: 28, height: 28, fit: BoxFit.cover),
+                          ),
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Icon(Icons.campaign_rounded, color: Color(0xFF38BDF8), size: 20),
+                        ),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          if ((activeSlide['title'] ?? '').toString().isNotEmpty)
+                            Text(activeSlide['title'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                          if ((activeSlide['subtitle'] ?? '').toString().isNotEmpty)
+                            Text(activeSlide['subtitle'].toString(), style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
+                        ]),
+                      ),
+                      if (promoMode == 'carousel' && slides.length > 1)
+                        Text('${(_carouselIndex % slides.length) + 1}/${slides.length}', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
+                    ]),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cover = (_u['coverPath'] ?? '').toString();
     return Scaffold(
       backgroundColor: const Color(0xFF050B1E),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0B1636),
         title: const Text('Centro de Conta & Perfil', style: TextStyle(fontSize: 16)),
+        actions: [
+          IconButton(
+            tooltip: 'Terminar Sessão (Logout)',
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            onPressed: () async {
+              await UserAccountManager.logout();
+              if (mounted) {
+                Navigator.of(context).pop();
+                widget.onAccountDeletedOrSuspended();
+              }
+            },
+          ),
+        ],
       ),
       body: Column(children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1636),
-            image: (cover.isNotEmpty && File(cover).existsSync())
-                ? DecorationImage(image: FileImage(File(cover)), fit: BoxFit.cover)
-                : null,
-          ),
-          child: Row(children: [
-            GestureDetector(onTap: _editAvatar, child: ProfileManager.buildTransparentAvatar(_u, radius: 30)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text((_u['displayName'] ?? 'Criador').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                Text('@${_u['username']}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12.5)),
-                Text('ID: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
-              ]),
-            ),
-          ]),
-        ),
+        _buildInteractiveCoverHeader(),
         TabBar(
           controller: _tabs,
           isScrollable: true,
@@ -978,7 +1400,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
         Expanded(
           child: TabBarView(
             controller: _tabs,
-            children: [_sec01(), _sec02(), _sec03(), _sec04(), _sec05(), _sec06(), _sec07(), _sec08()],
+            children: [
+              _secMeuPerfil(),
+              _secInfoPessoais(),
+              _secRedesSociais(),
+              _secContactos(),
+              _secSeguranca(),
+              _secPrivacidade(),
+              _secPreferencias(),
+              _secSessoes(),
+              _secGestaoConta(),
+            ],
           ),
         ),
       ]),
