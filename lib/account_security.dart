@@ -787,7 +787,18 @@ if (hash) {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: _isRegister ? const Color(0xFF1E78FF) : Colors.white10),
-                          onPressed: () => setState(() => _isRegister = true),
+                                                    onPressed: () {
+                            setState(() {
+                              _isRegister = true;
+                              _emailCtrl.clear();
+                              _passCtrl.clear();
+                              _passConfirmCtrl.clear();
+                              _emailVerified = false;
+                              _emailSentPulse = false;
+                              _firebaseVerifyToken = null;
+                            });
+                          },
+
                           child: const Text('Criar Registo', style: TextStyle(color: Colors.white)),
                         ),
                       ),
@@ -795,7 +806,22 @@ if (hash) {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: !_isRegister ? const Color(0xFF1E78FF) : Colors.white10),
-                          onPressed: () => setState(() => _isRegister = false),
+                                                    onPressed: () async {
+                            setState(() {
+                              _isRegister = false;
+                              _emailCtrl.clear();
+                              _passCtrl.clear();
+                            });
+                            final savedCreds = await UserAccountManager.getSavedCredentials();
+                            if (!mounted || _isRegister) return;
+                            if (savedCreds != null && (savedCreds['identifier'] ?? '').isNotEmpty) {
+                              setState(() {
+                                _emailCtrl.text = savedCreds['identifier'] ?? '';
+                                _passCtrl.text = savedCreds['password'] ?? '';
+                              });
+                            }
+                          },
+
                           child: const Text('Já Tenho Conta', style: TextStyle(color: Colors.white)),
                         ),
                       ),
@@ -914,7 +940,8 @@ if (hash) {
                   ],
                                     TextField(
                     controller: _emailCtrl,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
+                   autofillHints: _isRegister ? null : const [AutofillHints.username, AutofillHints.email],
+
                     decoration: InputDecoration(
                       labelText: _isRegister ? 'E-mail Oficial' : 'E-mail ou Nickname',
                       isDense: true,
@@ -962,7 +989,8 @@ if (hash) {
                   TextField(
                     controller: _passCtrl,
                     obscureText: _obscure,
-                    autofillHints: const [AutofillHints.password],
+                    autofillHints: _isRegister ? null : const [AutofillHints.password],
+
                     decoration: InputDecoration(
                       labelText: 'Palavra-passe (mín. 6 caracteres)',
                       isDense: true,
