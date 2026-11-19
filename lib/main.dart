@@ -617,20 +617,18 @@ class _MainShellState extends State<MainShell> {
           }).toList(),
         ),
         const SizedBox(height: 16),
-        _menuTile(Icons.bolt_outlined, '1. ${AppTranslations.t(_appLang, 'automations')}', () => setState(() => _selectedIndex = 1), badge: 'AÇÕES & REGRAS'),
-        _menuTile(Icons.dashboard_customize_outlined, '2. ${AppTranslations.t(_appLang, 'control_center')}', () => setState(() => _selectedIndex = 2), badge: 'LIVE & PERFIL'),
-        _menuTile(Icons.record_voice_over_outlined, '3. ${AppTranslations.t(_appLang, 'hell_voice')}', () => setState(() => _selectedIndex = 3), badge: '6 VOZES PT'),
-        _menuTile(Icons.sports_esports_outlined, '4. ${AppTranslations.t(_appLang, 'game_mode')}', () => setState(() => _selectedIndex = 4), badge: 'AUTO'),
-        _menuTile(Icons.grid_view_rounded, '5. ${AppTranslations.t(_appLang, 'second_screen')}', () => setState(() => _selectedIndex = 5), badge: _isSecondScreenPaired ? 'SYNC ON' : 'QR SYNC'),
-        _menuTile(Icons.music_note_outlined, '6. ${AppTranslations.t(_appLang, 'music')}', () => setState(() => _selectedIndex = 6), badge: 'PLAYER'),
-        _menuTile(Icons.psychology_outlined, '7. ${AppTranslations.t(_appLang, 'smart_brain')}', () => setState(() => _selectedIndex = 7), badge: 'DIRECTOR IA'),
-        _menuTile(Icons.movie_filter_outlined, '8. ${AppTranslations.t(_appLang, 'content_factory')}', () => setState(() => _selectedIndex = 8), badge: 'CLIPS 9:16'),
-        _menuTile(Icons.public, '9. ${AppTranslations.t(_appLang, 'community')}', () => setState(() => _selectedIndex = 9), badge: 'GLOBO 3D'),
-        _menuTile(Icons.trending_up_rounded, '10. ${AppTranslations.t(_appLang, 'growth')}', () => setState(() => _selectedIndex = 10), badge: 'GRÁFICOS'),
-        _menuTile(Icons.business_center_outlined, '11. ${AppTranslations.t(_appLang, 'business')}', () => setState(() => _selectedIndex = 11), badge: 'FINANÇAS & ADS'),
-        _menuTile(Icons.extension_outlined, '12. ${AppTranslations.t(_appLang, 'plugins_market')}', () => setState(() => _selectedIndex = 12), badge: 'LOJA & PLANOS'),
-        _menuTile(Icons.info_outline, '13. ${AppTranslations.t(_appLang, 'info_hub')}', () => setState(() => _selectedIndex = 13), badge: 'ROBÔ H & FAQ'),
-        _menuTile(Icons.settings_outlined, '14. ${AppTranslations.t(_appLang, 'settings')}', () => setState(() => _selectedIndex = 14)),
+             _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
+      _menuTile(Icons.grid_view_rounded, 'Streamdeck e Segundo Ecrã', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'QR SYNC'),
+      _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
+      _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
+      _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
+      _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
+      _menuTile(Icons.public, 'Comunidade', () => setState(() => _selectedIndex = 7), badge: 'GLOBO & CHAT'),
+      _menuTile(Icons.extension_outlined, 'Marketplace', () => setState(() => _selectedIndex = 8), badge: 'LOJA & PACKS'),
+      _menuTile(Icons.psychology_outlined, 'Gestão IA', () => setState(() => _selectedIndex = 9), badge: 'DIRETOR & NEGÓCIO'),
+      _menuTile(Icons.info_outline, 'Informações', () => setState(() => _selectedIndex = 10), badge: 'GUIA & FAQ'),
+      _menuTile(Icons.settings_outlined, 'Configurações', () => setState(() => _selectedIndex = 11)),
+
       ],
     );
   }
@@ -729,75 +727,70 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final isOwner = UserAccountManager.isOwnerEmail(widget.user['email']);
-    final titles = [
+        final titles = [
       '',
-      AppTranslations.t(_appLang, 'automations'),
-      AppTranslations.t(_appLang, 'control_center'),
-      AppTranslations.t(_appLang, 'hell_voice'),
-      AppTranslations.t(_appLang, 'game_mode'),
-      AppTranslations.t(_appLang, 'second_screen'),
-      AppTranslations.t(_appLang, 'music'),
-      AppTranslations.t(_appLang, 'smart_brain'),
-      AppTranslations.t(_appLang, 'content_factory'),
-      AppTranslations.t(_appLang, 'community'),
-      AppTranslations.t(_appLang, 'growth'),
-      AppTranslations.t(_appLang, 'business'),
-      AppTranslations.t(_appLang, 'plugins_market'),
-      AppTranslations.t(_appLang, 'info_hub'),
-      AppTranslations.t(_appLang, 'settings'),
+      'Centro de Controlo',
+      'Streamdeck e Segundo Ecrã',
+      'Automações',
+      'Chat e Voz TTS',
+      'Música',
+      'Fábrica de Conteúdos',
+      'Comunidade',
+      'Marketplace',
+      'Gestão IA',
+      'Informações',
+      'Configurações',
     ];
 
     final screens = [
       _buildHomeTab(),
-      ActionsStudioTab(
-        alertsList: _alertsList,
-        goalsList: _goalsList,
-        sounds: _sounds,
-        sfxPlayer: sfxAudioPlayer,
-        voiceRecorder: _voiceRecorder,
-        allGiftsEnabled: _allGiftsEnabled,
-        onToggleAllGifts: (v) => setState(() => _allGiftsEnabled = v),
-        onSpeakVoice: (txt) => _speakRealVoice(txt),
-        onStateChanged: () => setState(() {}),
-      ),
       ControlCenterScreen(
         user: widget.user,
         onUserUpdated: widget.onUserUpdated,
         onLogout: widget.onLogout,
-        activePlatforms: _activePlatforms,
+        activePlatforms: activePlatforms,
         chatFeed: _chatFeed,
         syncCode: _syncCode,
-        isSecondScreenPaired: _isSecondScreenPaired,
+        isSecondScreenPaired: isSecondScreenPaired,
         onValidateSyncCode: (code) {
           if (code.isNotEmpty) {
-            setState(() => _isSecondScreenPaired = true);
-            _showSnack('2.º Aparelho Sincronizado! Stream Deck Pro ativo.');
+            setState(() => isSecondScreenPaired = true);
+            _showSnack('Aparelho Sincronizado! Streamdeck HELL ativo.');
           }
         },
       ),
+      const SizedBox(),
+      ActionsStudioTab(
+        alertsList: _alertsList,
+        goalsList: _goalsList,
+        sounds: sounds,
+        sfxPlayer: sfxAudioPlayer,
+        voiceRecorder: _voiceRecorder,
+        allGiftsEnabled: allGiftsEnabled,
+        onToggleAllGifts: (v) => setState(() => allGiftsEnabled = v),
+        onSpeakVoice: (txt) => _speakRealVoice(txt),
+        onStateChanged: () => setState(() {}),
+      ),
       ChatTtsRepositoryScreen(
-        ttsEnabled: _ttsEnabled,
+        ttsEnabled: ttsEnabled,
         speechRate: _speechRate,
         pitch: _voicePitch,
-        volume: _voiceVolume,
+        volume: voiceVolume,
         onToggleTts: (v) {
-          setState(() => _ttsEnabled = v);
+          setState(() => ttsEnabled = v);
           _saveSettings();
         },
         onParamsChanged: (r, p, vol) {
           setState(() {
             _speechRate = r;
             _voicePitch = p;
-            _voiceVolume = vol;
+            voiceVolume = vol;
           });
           _saveSettings();
         },
         onTestVoice: (sample) => _speakRealVoice(sample),
       ),
-      _buildGameModeScreen(),
-      const SizedBox(),
       MusicBackgroundScreen(bgPlayer: bgMusicPlayer),
-      const SmartBrainScreen(),
       const ContentFactoryScreen(),
       DefaultTabController(
         length: 2,
@@ -807,22 +800,46 @@ class _MainShellState extends State<MainShell> {
               indicatorColor: Color(0xFF38BDF8),
               labelColor: Color(0xFF38BDF8),
               unselectedLabelColor: Colors.white54,
-              tabs: [Tab(text: '🌍 Globo 3D Real'), Tab(text: '👥 Comunidade & Chat')],
+              tabs: [Tab(text: 'Globo 3D Real'), Tab(text: 'Comunidade & Chat')],
             ),
             Expanded(
               child: TabBarView(
                 children: [
-                  CommunityGlobeScreen(serverUrl: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}', isOwner: isOwner),
-                  CommunitySocialScreen(serverUrl: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}', currentUser: widget.user),
+                  CommunityGlobeScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', isOwner: isOwner),
+                  CommunitySocialScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', currentUser: widget.user),
                 ],
               ),
             ),
           ],
         ),
       ),
-      const GrowthAnalyticsScreen(),
-      CreatorBusinessScreen(isOwner: isOwner),
       MarketplacePublicScreen(hasFreeOwnerOrStaffAccess: isOwner),
+      DefaultTabController(
+        length: 3,
+        child: Column(
+          children: [
+            const TabBar(
+              indicatorColor: Color(0xFF38BDF8),
+              labelColor: Color(0xFF38BDF8),
+              unselectedLabelColor: Colors.white54,
+              tabs: [
+                Tab(text: 'AI Diretor Stream'),
+                Tab(text: 'Crescimento'),
+                Tab(text: 'Gestão de Negócio'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  const SmartBrainScreen(),
+                  const GrowthAnalyticsScreen(),
+                  CreatorBusinessScreen(isOwner: isOwner),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
       const HellInfoHubScreen(),
       _buildSettingsTab(),
     ];
@@ -836,7 +853,7 @@ class _MainShellState extends State<MainShell> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _selectedIndex != 0) setState(() => _selectedIndex = 0);
       },
-      child: _selectedIndex == 5
+      child: _selectedIndex == 2
           ? StreamDeckScreen(
               socket: socket,
               activeRoom: _channelCtrl.text.trim(),
@@ -882,19 +899,18 @@ class _MainShellState extends State<MainShell> {
                         ],
                       )
                     : Text(titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: GestureDetector(
-                      onTap: _toggleMuteState,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: _isMuted ? Colors.redAccent : Colors.green, borderRadius: BorderRadius.circular(10)),
-                        child: Icon(_isMuted ? Icons.volume_off : Icons.volume_up, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                ],
+                      actions: [
+          IconButton(
+            tooltip: 'Terminar Sessão (Logout)',
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            onPressed: () async {
+              await UserAccountManager.logout();
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+              }
+            },
+          ),
+        ],
               ),
               body: screens[_selectedIndex],
               bottomNavigationBar: Column(
