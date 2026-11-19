@@ -805,8 +805,8 @@ class _MainShellState extends State<MainShell> {
             Expanded(
               child: TabBarView(
                 children: [
-                                 CommunityGlobeScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', isOwner: isOwner),
-               CommunitySocialScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', currentUser: widget.user),
+                                                CommunityGlobeScreen(serverUrl: 'http://127.0.0.1:8080', isOwner: isOwner),
+               CommunitySocialScreen(serverUrl: 'http://127.0.0.1:8080', currentUser: widget.user),
 
                 ],
               ),
