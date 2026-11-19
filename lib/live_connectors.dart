@@ -67,15 +67,15 @@ class LocalObsServer {
           req.response.headers.contentType = ContentType.html;
           req.response.write(_buildRemoteDeckHtml());
         } else {
-          req.response.headers.contentType = ContentType.html;
+                  req.response.headers.contentType = ContentType.html;
           req.response.write(_buildTransparentOverlayHtml(req.uri.queryParameters['widget'] ?? 'all'));
         }
-
         await req.response.close();
       });
     } catch (_) {}
     return 'http://$localIp:$port';
   }
+
 
   static void pushAlert(String user, String message, String mediaUrl) {
     latestAlert = {
