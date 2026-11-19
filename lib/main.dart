@@ -19,6 +19,8 @@ import 'account_security.dart';
 import 'music_and_social.dart';
 import 'actions_studio.dart';
 import 'live_connectors.dart';
+import 'user_profile_screen.dart';
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -855,15 +857,22 @@ class _MainShellState extends State<MainShell> {
           : Scaffold(
               appBar: AppBar(
                 centerTitle: true,
-                leading: _selectedIndex == 0
-                    ? GestureDetector(
-                        onTap: () => setState(() => _selectedIndex = 2),
-                        child: Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: UserAccountManager.buildUserAvatar(widget.user, radius: 17),
-                        ),
-                      )
-                    : IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _selectedIndex = 0)),
+                       leading: _selectedIndex == 0
+            ? TopLeftProfileAvatarButton(
+                user: widget.user,
+                onUserUpdated: (updated) {
+                  setState(() {
+                    widget.user.clear();
+                    widget.user.addAll(updated);
+                  });
+                },
+                onAccountDeletedOrSuspended: () {
+                  if (mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                  }
+                },
+              )
+            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _selectedIndex = 0)),
                 title: _selectedIndex == 0
                     ? const Column(
                         mainAxisSize: MainAxisSize.min,
