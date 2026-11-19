@@ -134,7 +134,7 @@ class UserAccountManager {
     if (user['registrationCompleted'] != true) return null;
     return user;
   }
-
+  static Future<Map<String, dynamic>?> getSavedUser() => getCurrentUser();
   static Future<void> saveUser(Map<String, dynamic> user) async {
     final prefs = await SharedPreferences.getInstance();
     final email = (user['email'] ?? '').toString().trim().toLowerCase();
@@ -928,6 +928,79 @@ class _AutofillPrivacySettingsCardState
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+extension UserAccountCompat on UserAccountManager {
+  static Future<Map<String, dynamic>?> getSavedUser() =>
+      UserAccountManager.getCurrentUser();
+}
+
+class AuthScreen extends StatelessWidget {
+  final Function(Map<String, dynamic>) onAuthenticated;
+  const AuthScreen({super.key, required this.onAuthenticated});
+
+  @override
+  Widget build(BuildContext context) {
+    return AuthGateScreen(onAuthenticated: onAuthenticated);
+  }
+}
+
+class AppLockScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final VoidCallback onUnlocked;
+  const AppLockScreen({super.key, required this.user, required this.onUnlocked});
+
+  @override
+  State<AppLockScreen> createState() => _AppLockScreenState();
+}
+
+class _AppLockScreenState extends State<AppLockScreen> {
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  @override
+  void initState() {
+    super.initState();
+    _tryUnlock();
+  }
+
+  Future<void> _tryUnlock() async {
+    try {
+      final supported = await _localAuth.isDeviceSupported();
+      if (!supported) {
+        widget.onUnlocked();
+        return;
+      }
+      final ok = await _localAuth.authenticate(
+        localizedReason: 'Desbloqueia o HELL CREATOR OS',
+        options: const AuthenticationOptions(biometricOnly: false),
+      );
+      if (ok && mounted) widget.onUnlocked();
+    } catch (_) {
+      if (mounted) widget.onUnlocked();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF050B1E),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline_rounded, size: 64, color: Color(0xFF38BDF8)),
+            const SizedBox(height: 12),
+            const Text('HELL CREATOR OS BLOQUEADO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _tryUnlock,
+              icon: const Icon(Icons.fingerprint),
+              label: const Text('Desbloquear Agora'),
+            ),
+          ],
+        ),
       ),
     );
   }
