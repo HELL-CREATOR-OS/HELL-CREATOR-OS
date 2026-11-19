@@ -19,10 +19,10 @@ class LocalObsServer {
   static Map<String, dynamic> latestDeckCmd = {'id': 0, 'cmd': '', 'val': null};
   static void Function(String cmd, dynamic val)? onRemoteDeckCommand;
 
-  static Future<String> start() async {
+    static Future<String> start() async {
     if (_server != null) return 'http://$localIp:$port';
     try {
-            String? fallbackIp;
+      String? fallbackIp;
       for (final iface in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
         final name = iface.name.toLowerCase();
         if (name.contains('wsl') || name.contains('hyper-v') || name.contains('virtual') || name.contains('vmware') || name.contains('vbox')) {
@@ -42,12 +42,10 @@ class LocalObsServer {
       if (!localIp.startsWith('192.168.') && !localIp.startsWith('10.') && fallbackIp != null) {
         localIp = fallbackIp;
       }
-
-      }
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen((HttpRequest req) async {
         req.response.headers.add('Access-Control-Allow-Origin', '*');
-               if (req.uri.path == '/api/state') {
+        if (req.uri.path == '/api/state') {
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({
             'alert': latestAlert,
@@ -67,7 +65,7 @@ class LocalObsServer {
           req.response.headers.contentType = ContentType.html;
           req.response.write(_buildRemoteDeckHtml());
         } else {
-                  req.response.headers.contentType = ContentType.html;
+          req.response.headers.contentType = ContentType.html;
           req.response.write(_buildTransparentOverlayHtml(req.uri.queryParameters['widget'] ?? 'all'));
         }
         await req.response.close();
@@ -75,7 +73,6 @@ class LocalObsServer {
     } catch (_) {}
     return 'http://$localIp:$port';
   }
-
 
   static void pushAlert(String user, String message, String mediaUrl) {
     latestAlert = {
@@ -138,70 +135,94 @@ class LocalObsServer {
 </html>
 ''';
   }
-  static String _buildRemoteDeckHtml() {
+   static String _buildRemoteDeckHtml() {
     return '''
 <!DOCTYPE html>
 <html lang="pt">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>HELL CREATOR OS • Streamdeck & 2.º Ecrã</title>
+<title>HELL STREAMDECK</title>
 <style>
-  body { margin: 0; background: #050B1E; color: white; font-family: Arial, sans-serif; }
-  .top { background: #0B1636; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1E293B; }
-  .brand { font-weight: 900; letter-spacing: 2px; color: #38BDF8; font-size: 14px; }
-  .tabs { display: flex; gap: 8px; }
-  .tab { background: #13224D; border: 1px solid #38BDF855; color: white; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 12px; }
-  .tab.active { background: #38BDF8; color: #050B1E; }
-  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px; }
-  .btn { background: #0B1636; border: 1.5px solid #38BDF866; border-radius: 14px; padding: 16px 8px; text-align: center; font-weight: bold; font-size: 12px; color: white; cursor: pointer; user-select: none; }
-  .btn:active { background: #38BDF8; color: #050B1E; transform: scale(0.96); }
-  .btn.danger { border-color: #EF444488; color: #FCA5A5; }
-  .card { background: #0B1636; border: 1px solid #38BDF844; border-radius: 14px; padding: 16px; margin: 14px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: #050B1E; color: white; font-family: Arial, sans-serif; display: flex; flex-direction: column; }
+  .bar { height: 42px; background: #0B1636; padding: 0 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1E293B; flex-shrink: 0; }
+  .btn-nav { background: #13224D; border: 1px solid #38BDF866; color: #38BDF8; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; }
+  .pages { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .pages::-webkit-scrollbar { display: none; }
+  .page { min-width: 100vw; height: 100%; scroll-snap-align: start; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; padding: 8px; }
+  .key { background: #0B1636; border: 1.5px solid #38BDF866; border-radius: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-weight: bold; font-size: 12px; color: white; user-select: none; cursor: pointer; padding: 6px; }
+  .key:active { background: #38BDF8; color: #050B1E; transform: scale(0.96); }
+  .key.danger { border-color: #EF444488; color: #FCA5A5; }
+  .screen-full { flex: 1; display: none; flex-direction: column; justify-content: space-around; padding: 14px; height: calc(100vh - 42px); overflow: hidden; }
+  .card { background: #0B1636; border: 1px solid #38BDF855; border-radius: 14px; padding: 16px; }
 </style>
 </head>
 <body>
-  <div class="top">
-    <div class="brand">HELL STREAMDECK</div>
-    <div class="tabs">
-      <button class="tab active" id="t-deck" onclick="showTab('deck')">Streamdeck</button>
-      <button class="tab" id="t-screen" onclick="showTab('screen')">2.º Ecrã</button>
+  <div class="bar">
+    <button class="btn-nav" id="backBtn" onclick="toggleMode()">⬅ 2.º Ecrã</button>
+    <span style="font-weight:900;letter-spacing:2px;color:#38BDF8;font-size:12px;" id="titleBar">STREAMDECK HELL • PÁG 1/2</span>
+    <button class="btn-nav" onclick="toggleFull()">⛶ Ecrã Cheio</button>
+  </div>
+  <div id="deckView" class="pages" onscroll="updatePageTitle()">
+    <div class="page">
+      <div class="key danger" onclick="sendCmd('toggle_mute')">🔇<br/>MUTE GERAL</div>
+      <div class="key" onclick="sendCmd('scene_game')">🎮<br/>CENA JOGO</div>
+      <div class="key" onclick="sendCmd('scene_cam')">📷<br/>CÂMARA FULL</div>
+      <div class="key" onclick="sendCmd('scene_brb')">⏸️<br/>PAUSA / BRB</div>
+      <div class="key" onclick="sendCmd('stream_start')">📡<br/>INICIAR LIVE</div>
+      <div class="key" onclick="sendCmd('save_clip')">🎬<br/>CLIPAR</div>
+      <div class="key" onclick="sendCmd('music_toggle')">🎵<br/>PLAY / PAUSE</div>
+      <div class="key" onclick="sendCmd('music_next')">⏭️<br/>PRÓXIMA</div>
+      <div class="key" onclick="sendCmd('spin_wheel')">🎡<br/>GIRAR ROLETA</div>
+      <div class="key" onclick="sendCmd('test_alert')">🔔<br/>TESTAR ALERTA</div>
+      <div class="key" onclick="sendCmd('add_timer_60')">⏱️<br/>+1 MIN TIMER</div>
+      <div class="key danger" onclick="sendCmd('stream_stop')">⏹️<br/>PARAR LIVE</div>
+    </div>
+    <div class="page">
+      <div class="key" onclick="sendCmd('sfx_applause')">👏<br/>APLAUSOS</div>
+      <div class="key" onclick="sendCmd('sfx_horn')">📯<br/>BUZINA</div>
+      <div class="key" onclick="sendCmd('sfx_laugh')">😂<br/>RISOS</div>
+      <div class="key" onclick="sendCmd('sfx_drum')">🥁<br/>TAMBOR</div>
+      <div class="key" onclick="sendCmd('chat_clear')">🧹<br/>LIMPAR CHAT</div>
+      <div class="key" onclick="sendCmd('chat_slow')">🐢<br/>MODO LENTO</div>
+      <div class="key" onclick="sendCmd('goal_add')">🎯<br/>+1 NA META</div>
+      <div class="key" onclick="sendCmd('overlay_hide')">👁️<br/>OCULTAR OVERLAY</div>
+      <div class="key" onclick="sendCmd('mic_boost')">🎙️<br/>GANHO MIC</div>
+      <div class="key" onclick="sendCmd('cam_filter')">✨<br/>FILTRO CAM</div>
+      <div class="key" onclick="sendCmd('tts_toggle')">🗣️<br/>VOZ CHAT</div>
+      <div class="key" onclick="sendCmd('brb_screen')">🌙<br/>ECRÃ ESPERA</div>
     </div>
   </div>
-  <div id="view-deck" class="grid">
-    <div class="btn danger" onclick="sendCmd('toggle_mute')">🔇 MUTE GERAL</div>
-    <div class="btn" onclick="sendCmd('scene_game')">🎮 CENA JOGO</div>
-    <div class="btn" onclick="sendCmd('scene_cam')">📷 CÂMARA FULL</div>
-    <div class="btn" onclick="sendCmd('scene_brb')">⏸️ PAUSA / BRB</div>
-    <div class="btn" onclick="sendCmd('stream_start')">📡 INICIAR LIVE</div>
-    <div class="btn" onclick="sendCmd('save_clip')">🎬 CLIPAR</div>
-    <div class="btn" onclick="sendCmd('music_toggle')">🎵 PLAY / PAUSE</div>
-    <div class="btn" onclick="sendCmd('music_next')">⏭️ PRÓXIMA</div>
-    <div class="btn" onclick="sendCmd('spin_wheel')">🎡 GIRAR ROLETA</div>
-    <div class="btn" onclick="sendCmd('test_alert')">🔔 TESTAR ALERTA</div>
-    <div class="btn" onclick="sendCmd('add_timer_60')">⏱️ +1 MIN TIMER</div>
-    <div class="btn danger" onclick="sendCmd('stream_stop')">⏹️ PARAR LIVE</div>
-  </div>
-  <div id="view-screen" style="display:none;">
+  <div id="secondScreen" class="screen-full">
     <div class="card">
-      <div style="color:#38BDF8;font-weight:bold;margin-bottom:6px;">META ATIVA NA LIVE</div>
-      <div id="goal-info" style="font-size:20px;font-weight:900;">A carregar...</div>
+      <div style="color:#38BDF8;font-weight:bold;font-size:12px;">META ATIVA NA LIVE</div>
+      <div id="goal-info" style="font-size:24px;font-weight:900;margin-top:6px;">A carregar...</div>
     </div>
     <div class="card">
-      <div style="color:#38BDF8;font-weight:bold;margin-bottom:6px;">CRONÓMETRO / TIMER</div>
-      <div id="timer-info" style="font-size:28px;font-weight:900;">00:30:00</div>
+      <div style="color:#38BDF8;font-weight:bold;font-size:12px;">CRONÓMETRO / TIMER</div>
+      <div id="timer-info" style="font-size:34px;font-weight:900;margin-top:6px;">00:30:00</div>
     </div>
   </div>
 <script>
-  function showTab(t) {
-    document.getElementById('view-deck').style.display = t === 'deck' ? 'grid' : 'none';
-    document.getElementById('view-screen').style.display = t === 'screen' ? 'block' : 'none';
-    document.getElementById('t-deck').className = t === 'deck' ? 'tab active' : 'tab';
-    document.getElementById('t-screen').className = t === 'screen' ? 'tab active' : 'tab';
+  let isSecond = false;
+  function toggleMode() {
+    isSecond = !isSecond;
+    document.getElementById('deckView').style.display = isSecond ? 'none' : 'flex';
+    document.getElementById('secondScreen').style.display = isSecond ? 'flex' : 'none';
+    document.getElementById('backBtn').innerText = isSecond ? '⬅ Streamdeck' : '⬅ 2.º Ecrã';
+    document.getElementById('titleBar').innerText = isSecond ? 'SEGUNDO ECRÃ • LIVE' : 'STREAMDECK HELL • PÁG 1/2';
   }
-  async function sendCmd(c) {
-    await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c));
+  function updatePageTitle() {
+    const el = document.getElementById('deckView');
+    const p = Math.round(el.scrollLeft / window.innerWidth) + 1;
+    document.getElementById('titleBar').innerText = 'STREAMDECK HELL • PÁG ' + p + '/2';
   }
+  function toggleFull() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  }
+  async function sendCmd(c) { await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c)); }
   setInterval(async () => {
     try {
       const r = await fetch('/api/state');
@@ -221,6 +242,7 @@ class LocalObsServer {
 </html>
 ''';
   }
+
 
 }
 class LivePlatformConnector {
