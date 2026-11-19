@@ -36,343 +36,324 @@ class StreamDeckScreen extends StatefulWidget {
   State<StreamDeckScreen> createState() => _StreamDeckScreenState();
 }
 
-class _StreamDeckScreenState extends State<StreamDeckScreen> {
+class _StreamDeckScreenState extends State<StreamDeckScreen> with SingleTickerProviderStateMixin {
+  late TabController _mainTabs;
+  final PageController _deckPageCtrl = PageController();
+  int _currentDeckPage = 0;
   int _cols = 4;
   int _rows = 3;
-  final Map<int, bool> _activeContinuousStates = {};
+  final Map<int, bool> _activeStates = {};
+  final TextEditingController _joinCodeCtrl = TextEditingController();
+  String _secondScreenMode = 'deck';
 
-  final Map<String, IconData> _iconCatalog = {
-    'bolt': Icons.bolt_rounded,
-    'mic': Icons.mic_rounded,
-    'music': Icons.music_note_rounded,
-    'skip': Icons.skip_next_rounded,
-    'clap': Icons.celebration_rounded,
-    'horn': Icons.campaign_rounded,
-    'scene': Icons.videocam_rounded,
-  };
+  final List<String> _pageNames = ['Live & Cenas', 'Áudio & Efeitos', 'Alertas & Roleta'];
 
-  final List<Map<String, dynamic>> _buttons = [
-    {'label': 'CORTAR SOM', 'cmd': 'toggle_mute', 'val': '', 'iconKey': 'mic', 'colorVal': 0xFFEF4444, 'isContinuous': true},
-    {'label': 'CENA JOGO', 'cmd': 'scene_game', 'val': 'game', 'iconKey': 'scene', 'colorVal': 0xFF38BDF8, 'isContinuous': true},
-    {'label': 'CÂMARA', 'cmd': 'scene_cam', 'val': 'cam', 'iconKey': 'scene', 'colorVal': 0xFF3B82F6, 'isContinuous': true},
-    {'label': 'PAUSA', 'cmd': 'scene_brb', 'val': 'brb', 'iconKey': 'scene', 'colorVal': 0xFFF59E0B, 'isContinuous': true},
-    {'label': 'PLAY / PAUSE', 'cmd': 'music_toggle', 'val': '', 'iconKey': 'music', 'colorVal': 0xFF10B981, 'isContinuous': false},
-    {'label': 'PRÓXIMA', 'cmd': 'music_next', 'val': '', 'iconKey': 'skip', 'colorVal': 0xFF06B6D4, 'isContinuous': false},
-    {'label': 'APLAUSOS', 'cmd': 'sound_clap', 'val': '', 'iconKey': 'clap', 'colorVal': 0xFF8B5CF6, 'isContinuous': false},
-    {'label': 'BUZINA', 'cmd': 'sound_horn', 'val': '', 'iconKey': 'horn', 'colorVal': 0xFFF97316, 'isContinuous': false},
+  final List<List<Map<String, dynamic>>> _pagesButtons = [
+    [
+      {'label': 'CORTAR SOM (MUTE)', 'cmd': 'toggle_mute', 'icon': Icons.mic_off_rounded, 'color': 0xFFEF4444, 'isMuteBtn': true},
+      {'label': 'CENA JOGO', 'cmd': 'scene_game', 'icon': Icons.sports_esports_rounded, 'color': 0xFF38BDF8},
+      {'label': 'CÂMARA FULL', 'cmd': 'scene_cam', 'icon': Icons.videocam_rounded, 'color': 0xFF8B5CF6},
+      {'label': 'PAUSA / BRB', 'cmd': 'scene_brb', 'icon': Icons.pause_circle_filled_rounded, 'color': 0xFFF59E0B},
+      {'label': 'INICIAR LIVE', 'cmd': 'stream_start', 'icon': Icons.sensors_rounded, 'color': 0xFF10B981},
+      {'label': 'CLIPAR JOGADA', 'cmd': 'save_clip', 'icon': Icons.movie_creation_rounded, 'color': 0xFFEC4899},
+      {'label': 'LIMPAR CHAT', 'cmd': 'clear_chat', 'icon': Icons.cleaning_services_rounded, 'color': 0xFF64748B},
+      {'label': 'MODO LENTO', 'cmd': 'slow_chat', 'icon': Icons.speed_rounded, 'color': 0xFF0EA5E9},
+      {'label': 'ENCERRAR LIVE', 'cmd': 'stream_stop', 'icon': Icons.stop_circle_rounded, 'color': 0xFFDC2626},
+    ],
+    [
+      {'label': 'PLAY / PAUSE', 'cmd': 'music_toggle', 'icon': Icons.play_arrow_rounded, 'color': 0xFF10B981},
+      {'label': 'PRÓXIMA FAIXA', 'cmd': 'music_next', 'icon': Icons.skip_next_rounded, 'color': 0xFF38BDF8},
+      {'label': 'APLAUSOS', 'cmd': 'sound_clap', 'icon': Icons.celebration_rounded, 'color': 0xFFEC4899},
+      {'label': 'BUZINA LIVE', 'cmd': 'sound_horn', 'icon': Icons.campaign_rounded, 'color': 0xFFF59E0B},
+      {'label': 'VOZ TTS ON/OFF', 'cmd': 'toggle_tts', 'icon': Icons.record_voice_over_rounded, 'color': 0xFF8B5CF6},
+      {'label': 'SILENCIAR MÚSICA', 'cmd': 'mute_music', 'icon': Icons.volume_off_rounded, 'color': 0xFFEF4444},
+    ],
+    [
+      {'label': 'GIRAR ROLETA', 'cmd': 'spin_wheel', 'icon': Icons.casino_rounded, 'color': 0xFFF59E0B},
+      {'label': 'TESTAR ALERTA', 'cmd': 'test_alert', 'icon': Icons.notifications_active_rounded, 'color': 0xFF38BDF8},
+      {'label': '+1 MIN TIMER', 'cmd': 'add_timer_60', 'icon': Icons.more_time_rounded, 'color': 0xFF10B981},
+      {'label': 'MODO PADRÃO', 'cmd': 'toggle_default_gift', 'icon': Icons.card_giftcard_rounded, 'color': 0xFFEC4899},
+      {'label': 'BANNER PARCEIRO', 'cmd': 'toggle_sponsor', 'icon': Icons.handshake_rounded, 'color': 0xFF8B5CF6},
+      {'label': 'ALERTA RAID', 'cmd': 'trigger_raid', 'icon': Icons.bolt_rounded, 'color': 0xFFEF4444},
+    ],
   ];
 
- void _executeKeyAction(int index, Map<String, dynamic> b) {
-    final cmd = (b['cmd'] ?? '').toString();
-    final val = (b['val'] ?? '').toString();
-    if (cmd == 'toggle_mute') {
-      widget.onToggleMute();
-      return;
-    }
-    if (b['isContinuous'] == true) {
-      setState(() {
-        _activeContinuousStates[index] = !(_activeContinuousStates[index] == true);
-      });
-    } else {
-      setState(() => _activeContinuousStates[index] = true);
-      Timer(const Duration(milliseconds: 350), () {
-        if (mounted) setState(() => _activeContinuousStates[index] = false);
-      });
-    }
-    widget.onSendCommand(cmd, val);
-    try {
-      widget.socket.emit('deck_command', {'cmd': cmd, 'val': val});
-    } catch (_) {}
+  @override
+  void initState() {
+    super.initState();
+    _mainTabs = TabController(length: 2, vsync: this);
   }
 
-  void _addNewKey() {
-    final labelCtrl = TextEditingController();
-    final valCtrl = TextEditingController();
-    bool isContinuous = false;
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: const Color(0xFF0B1636),
-          title: const Text('+ Adicionar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+  @override
+  void dispose() {
+    _mainTabs.dispose();
+    _deckPageCtrl.dispose();
+    _joinCodeCtrl.dispose();
+    super.dispose();
+  }
+  Widget _buildStreamDeckTab() {
+    final totalSlots = _cols * _rows;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+          child: Row(
             children: [
-              TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
-              const SizedBox(height: 8),
-              TextField(controller: valCtrl, decoration: const InputDecoration(labelText: 'Ação / Comando', isDense: true)),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Modo Contínuo (Fica aceso ao ativar)', style: TextStyle(fontSize: 12)),
-                value: isContinuous,
-                onChanged: (v) => setDlg(() => isContinuous = v),
+              const Icon(Icons.grid_view_rounded, color: Color(0xFF38BDF8), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Streamdeck HELL • ${_pageNames[_currentDeckPage]}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF38BDF8)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.4))),
+                child: DropdownButton<String>(
+                  value: '${_cols}x$_rows',
+                  underline: const SizedBox(),
+                  isDense: true,
+                  dropdownColor: const Color(0xFF0B1636),
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.white),
+                  items: const [
+                    DropdownMenuItem(value: '3x3', child: Text('Grelha 3x3 (9)')),
+                    DropdownMenuItem(value: '4x3', child: Text('Grelha 4x3 (12)')),
+                    DropdownMenuItem(value: '5x3', child: Text('Grelha 5x3 (15)')),
+                    DropdownMenuItem(value: '5x4', child: Text('Grelha 5x4 (20)')),
+                    DropdownMenuItem(value: '5x5', child: Text('Grelha 5x5 (25)')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) {
+                      final parts = v.split('x');
+                      setState(() {
+                        _cols = int.parse(parts[0]);
+                        _rows = int.parse(parts[1]);
+                      });
+                    }
+                  },
+                ),
               ),
             ],
           ),
-   actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-              onPressed: () {
-                if (labelCtrl.text.trim().isNotEmpty) {
-                  setState(() {
-                    _buttons.add({
-                      'label': labelCtrl.text.trim(),
-                      'cmd': 'custom_action',
-                      'val': valCtrl.text.trim(),
-                      'iconKey': 'bolt',
-                      'colorVal': 0xFF38BDF8,
-                      'isContinuous': isContinuous,
-                    });
-                  });
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
-      ),
-    );
-  }
-
-  void _editKeyModal(int index) {
-    final b = _buttons[index];
-    final labelCtrl = TextEditingController(text: (b['label'] ?? '').toString());
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        title: const Text('Editar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        content: TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _buttons.removeAt(index));
-              Navigator.pop(ctx);
-            },
-            child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-            onPressed: () {
-              setState(() => b['label'] = labelCtrl.text.trim());
-              Navigator.pop(ctx);
-            },
-            child: const Text('Guardar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
-    final isMuteBtn = b['cmd'] == 'toggle_mute';
-    final isContinuous = b['isContinuous'] == true;
-    final isOn = isMuteBtn ? widget.isMuted : (_activeContinuousStates[index] == true);
-    final Color accent = isMuteBtn ? (widget.isMuted ? Colors.redAccent : Colors.greenAccent) : Color(b['colorVal'] as int);
-    final IconData iconData = isMuteBtn ? (widget.isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded) : (_iconCatalog[b['iconKey']] ?? Icons.bolt_rounded);
-    final String? imgPath = b['imagePath'];
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isOn
-              ? [accent.withOpacity(0.55), accent.withOpacity(0.28), const Color(0xFF050B1E)]
-              : [Colors.white.withOpacity(0.14), accent.withOpacity(0.14), const Color(0xFF050B1E).withOpacity(0.78)],
-        ),
-        border: Border.all(color: isOn ? Colors.white : accent.withOpacity(0.65), width: isOn ? 2.2 : 1.5),
-        boxShadow: [BoxShadow(color: accent.withOpacity(isOn ? 0.55 : 0.22), blurRadius: isOn ? 18 : 10, offset: const Offset(0, 4))],
-      ),
-      child: Stack(
-        children: [
-          if (isContinuous)
-            Positioned(
-              top: 6,
-              right: 8,
-              child: Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: isOn ? Colors.greenAccent : Colors.white24,
-                  shape: BoxShape.circle,
+        Expanded(
+          child: PageView.builder(
+            controller: _deckPageCtrl,
+            itemCount: _pagesButtons.length,
+            onPageChanged: (idx) => setState(() => _currentDeckPage = idx),
+            itemBuilder: (context, pageIdx) {
+              final list = _pagesButtons[pageIdx];
+              return GridView.builder(
+                padding: const EdgeInsets.all(14),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: _cols,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.05,
                 ),
-              ),
-            ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (imgPath != null && File(imgPath).existsSync())
-                  ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(imgPath), width: 34, height: 34, fit: BoxFit.cover))
-                else
-                  Icon(iconData, size: _rows == 2 ? 32 : 24, color: isOn ? Colors.white : accent),
-                const SizedBox(height: 6),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Text(
-                    isMuteBtn ? (widget.isMuted ? 'CORTADO' : 'SOM ATIVO') : (b['label'] as String),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 10.5, color: Colors.white),
+                itemCount: totalSlots,
+                itemBuilder: (context, i) {
+                  if (i >= list.length) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF081028),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: const Center(child: Icon(Icons.add, color: Colors.white24, size: 22)),
+                    );
+                  }
+                  final btn = list[i];
+                  final isMute = btn['isMuteBtn'] == true;
+                  final keyIdx = pageIdx * 100 + i;
+                  final isOn = isMute ? widget.isMuted : (_activeStates[keyIdx] == true);
+                  final baseColor = Color(btn['color'] as int);
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (isMute) {
+                        widget.onToggleMute();
+                      } else {
+                        setState(() => _activeStates[keyIdx] = !isOn);
+                        widget.onSendCommand(btn['cmd'].toString(), !isOn);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isOn ? baseColor.withOpacity(0.28) : const Color(0xFF0B1636),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: isOn ? baseColor : baseColor.withOpacity(0.45), width: isOn ? 2 : 1.1),
+                        boxShadow: isOn ? [BoxShadow(color: baseColor.withOpacity(0.35), blurRadius: 10)] : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(btn['icon'] as IconData, color: isOn ? Colors.white : baseColor, size: _cols >= 5 ? 22 : 27),
+                          const SizedBox(height: 6),
+                          Text(
+                            btn['label'].toString(),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: _cols >= 5 ? 9.5 : 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12, top: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_pagesButtons.length, (i) {
+              final active = _currentDeckPage == i;
+              return GestureDetector(
+                onTap: () => _deckPageCtrl.animateToPage(i, duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  width: active ? 22 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: active ? const Color(0xFF38BDF8) : Colors.white24,
+                    borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-              ],
-            ),
+              );
+            }),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  void _openSyncQrModal() {
-    final code = widget.generatedCode ?? 'HELL-482910';
-    final codeCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5)),
-        title: const Text('📱 Sincronizar 2.º Ecrã (QR / Código)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-              child: QrImageView(data: 'hellcreatoros://sync/$code', version: QrVersions.auto, size: 150),
-            ),
-            const SizedBox(height: 10),
-            SelectableText('Código: $code', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: codeCtrl,
-              decoration: const InputDecoration(hintText: 'Ou introduz código de outro aparelho...', isDense: true, border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-            onPressed: () {
-              if (codeCtrl.text.trim().isNotEmpty) {
-                widget.onJoinWithCode(codeCtrl.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Validar Código', style: TextStyle(color: Colors.white)),
+  Widget _buildSecondScreenTab() {
+    final code = widget.generatedCode ?? (widget.activeRoom.isNotEmpty ? widget.activeRoom : 'HELL-SYNC-8842');
+    final isPaired = widget.pairedRoom != null && widget.pairedRoom!.isNotEmpty;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1636),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isPaired ? Colors.greenAccent : const Color(0xFF38BDF8).withOpacity(0.45)),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(isPaired ? Icons.check_circle : Icons.qr_code_scanner_rounded, color: isPaired ? Colors.greenAccent : const Color(0xFF38BDF8)),
+                  const SizedBox(width: 8),
+                  Text(
+                    isPaired ? 'Segundo Ecrã Conectado (${widget.pairedRoom})' : 'Emparelhar Segundo Ecrã via Sync QR',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isPaired ? Colors.greenAccent : Colors.white),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Lê este Código QR no teu telemóvel ou tablet para transformar o aparelho numa mesa Streamdeck HELL (até 5x) ou num monitor de Centro de Controlo ao vivo.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                child: QrImageView(data: 'HELL_SYNC:$code', version: QrVersions.auto, size: 150),
+              ),
+              const SizedBox(height: 10),
+              SelectableText('Código Manual: $code', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8), letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: widget.onGenerateCode,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Gerar Novo Código QR'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Modo de Exibição no 2.º Aparelho:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'deck', icon: Icon(Icons.grid_view_rounded, size: 16), label: Text('Streamdeck HELL')),
+                  ButtonSegment(value: 'cockpit', icon: Icon(Icons.dashboard_rounded, size: 16), label: Text('Monitor Live & Chat')),
+                ],
+                selected: {_secondScreenMode},
+                onSelectionChanged: (s) {
+                  setState(() => _secondScreenMode = s.first);
+                  widget.onSendCommand('second_screen_mode', s.first);
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: TextField(controller: _joinCodeCtrl, decoration: const InputDecoration(labelText: 'Inserir código de outro PC/App', isDense: true))),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_joinCodeCtrl.text.trim().isNotEmpty) widget.onJoinWithCode(_joinCodeCtrl.text.trim());
+                  },
+                  child: const Text('Ligar'),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final totalButtons = _cols * _rows;
-    final visibleButtons = _buttons.take(totalButtons).toList();
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-
     return Scaffold(
-      backgroundColor: const Color(0xFF030612),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFF090F22), border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08)))),
-              child: Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)), onPressed: widget.onMinimizeDeck),
-                  const Text('STREAM DECK PRO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.add_box_outlined, color: Colors.greenAccent, size: 22),
-                    tooltip: '+ Adicionar Tecla',
-                    onPressed: _addNewKey,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF38BDF8), size: 22),
-                    tooltip: 'Sincronizar 2.º Aparelho',
-                    onPressed: _openSyncQrModal,
-                  ),
-                  DropdownButton<String>(
-                    value: '${_cols}x$_rows',
-                    dropdownColor: const Color(0xFF0B1636),
-                    underline: const SizedBox(),
-                    style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.bold),
-                    items: const [
-                      DropdownMenuItem(value: '4x2', child: Text('4×2')),
-                      DropdownMenuItem(value: '4x3', child: Text('4×3')),
-                      DropdownMenuItem(value: '4x4', child: Text('4×4')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) {
-                        final parts = v.split('x');
-                        setState(() {
-                          _cols = int.parse(parts.first);
-                          _rows = int.parse(parts.last);
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  IgnorePointer(
-                    child: Opacity(
-                      opacity: 0.14,
-                      child: Image.asset('icon.png', width: 240, height: 240, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 200, color: Color(0xFF38BDF8))),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: isLandscape ? 20 : 12, vertical: 10),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        const spacing = 10.0;
-                        final tileW = (constraints.maxWidth - (spacing * (_cols - 1))) / _cols;
-                        final tileH = (constraints.maxHeight - (spacing * (_rows - 1))) / _rows;
-
-                        return GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: visibleButtons.length,
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: _cols,
-                            crossAxisSpacing: spacing,
-                            mainAxisSpacing: spacing,
-                            childAspectRatio: tileW / tileH,
-                          ),
-                          itemBuilder: (ctx, index) {
-                            final b = visibleButtons[index];
-                            return GestureDetector(
-                              onTap: () => _executeKeyAction(index, b),
-                              onLongPress: () => _editKeyModal(index),
-                              child: _buildSingleGlassDeckKey(index, b),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      backgroundColor: const Color(0xFF050B1E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B1636),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: widget.onMinimizeDeck),
+        title: const Text('Streamdeck HELL & Segundo Ecrã', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        bottom: TabBar(
+          controller: _mainTabs,
+          indicatorColor: const Color(0xFF38BDF8),
+          labelColor: const Color(0xFF38BDF8),
+          unselectedLabelColor: Colors.white60,
+          tabs: const [
+            Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: 'Streamdeck HELL'),
+            Tab(icon: Icon(Icons.qr_code_2_rounded, size: 18), text: 'Segundo Ecrã & Sync QR'),
           ],
         ),
       ),
+      body: TabBarView(
+        controller: _mainTabs,
+        children: [
+          _buildStreamDeckTab(),
+          _buildSecondScreenTab(),
+        ],
+      ),
     );
   }
-}                        
+}
+
 class CommunityGlobeScreen extends StatefulWidget {
   final String serverUrl;
   final bool isOwner;
