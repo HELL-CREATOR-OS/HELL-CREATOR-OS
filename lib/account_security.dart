@@ -993,7 +993,6 @@ if (hash) {
                             )
                           : null,
                     ),
-                  ),
 
                   const SizedBox(height: 10),
                   TextField(
