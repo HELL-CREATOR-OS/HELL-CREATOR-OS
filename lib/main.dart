@@ -742,19 +742,19 @@ class _MainShellState extends State<MainShell> {
       'Configurações',
     ];
 
-    final screens = [
+        final screens = [
       _buildHomeTab(),
       ControlCenterScreen(
         user: widget.user,
         onUserUpdated: widget.onUserUpdated,
         onLogout: widget.onLogout,
-        activePlatforms: activePlatforms,
+        activePlatforms: _activePlatforms,
         chatFeed: _chatFeed,
         syncCode: _syncCode,
-        isSecondScreenPaired: isSecondScreenPaired,
+        isSecondScreenPaired: _isSecondScreenPaired,
         onValidateSyncCode: (code) {
           if (code.isNotEmpty) {
-            setState(() => isSecondScreenPaired = true);
+            setState(() => _isSecondScreenPaired = true);
             _showSnack('Aparelho Sincronizado! Streamdeck HELL ativo.');
           }
         },
@@ -763,28 +763,28 @@ class _MainShellState extends State<MainShell> {
       ActionsStudioTab(
         alertsList: _alertsList,
         goalsList: _goalsList,
-        sounds: sounds,
+        sounds: _sounds,
         sfxPlayer: sfxAudioPlayer,
         voiceRecorder: _voiceRecorder,
-        allGiftsEnabled: allGiftsEnabled,
-        onToggleAllGifts: (v) => setState(() => allGiftsEnabled = v),
+        allGiftsEnabled: _allGiftsEnabled,
+        onToggleAllGifts: (v) => setState(() => _allGiftsEnabled = v),
         onSpeakVoice: (txt) => _speakRealVoice(txt),
         onStateChanged: () => setState(() {}),
       ),
       ChatTtsRepositoryScreen(
-        ttsEnabled: ttsEnabled,
+        ttsEnabled: _ttsEnabled,
         speechRate: _speechRate,
         pitch: _voicePitch,
-        volume: voiceVolume,
+        volume: _voiceVolume,
         onToggleTts: (v) {
-          setState(() => ttsEnabled = v);
+          setState(() => _ttsEnabled = v);
           _saveSettings();
         },
         onParamsChanged: (r, p, vol) {
           setState(() {
             _speechRate = r;
             _voicePitch = p;
-            voiceVolume = vol;
+            _voiceVolume = vol;
           });
           _saveSettings();
         },
@@ -805,8 +805,8 @@ class _MainShellState extends State<MainShell> {
             Expanded(
               child: TabBarView(
                 children: [
-                  CommunityGlobeScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', isOwner: isOwner),
-                  CommunitySocialScreen(serverUrl: 'http://${localObsServer.localIp}:${localObsServer.port}', currentUser: widget.user),
+                  CommunityGlobeScreen(serverUrl: 'http://${_localObsServer.localIp}:${_localObsServer.port}', isOwner: isOwner),
+                  CommunitySocialScreen(serverUrl: 'http://${_localObsServer.localIp}:${_localObsServer.port}', currentUser: widget.user),
                 ],
               ),
             ),
