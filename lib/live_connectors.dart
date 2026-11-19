@@ -16,6 +16,8 @@ class LocalObsServer {
   static Map<String, dynamic> latestAlert = {};
   static Map<String, dynamic> latestGoal = {'title': 'Meta da Live', 'current': 0, 'target': 1000};
   static Map<String, dynamic> latestTimer = {'seconds': 1800, 'running': false};
+  static Map<String, dynamic> latestDeckCmd = {'id': 0, 'cmd': '', 'val': null};
+  static void Function(String cmd, dynamic val)? onRemoteDeckCommand;
 
   static Future<String> start() async {
     if (_server != null) return 'http://$localIp:$port';
@@ -31,17 +33,30 @@ class LocalObsServer {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen((HttpRequest req) async {
         req.response.headers.add('Access-Control-Allow-Origin', '*');
-        if (req.uri.path == '/api/state') {
+               if (req.uri.path == '/api/state') {
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({
             'alert': latestAlert,
             'goal': latestGoal,
             'timer': latestTimer,
           }));
+        } else if (req.uri.path == '/api/deck-cmd') {
+          final cmd = req.uri.queryParameters['cmd'] ?? '';
+          final val = req.uri.queryParameters['val'] ?? 'true';
+          latestDeckCmd = {'id': DateTime.now().millisecondsSinceEpoch, 'cmd': cmd, 'val': val};
+          if (onRemoteDeckCommand != null && cmd.isNotEmpty) {
+            onRemoteDeckCommand!(cmd, val);
+          }
+          req.response.headers.contentType = ContentType.json;
+          req.response.write(jsonEncode({'ok': true, 'cmd': cmd}));
+        } else if (req.uri.path == '/deck') {
+          req.response.headers.contentType = ContentType.html;
+          req.response.write(_buildRemoteDeckHtml());
         } else {
           req.response.headers.contentType = ContentType.html;
           req.response.write(_buildTransparentOverlayHtml(req.uri.queryParameters['widget'] ?? 'all'));
         }
+
         await req.response.close();
       });
     } catch (_) {}
@@ -109,6 +124,90 @@ class LocalObsServer {
 </html>
 ''';
   }
+  static String _buildRemoteDeckHtml() {
+    return '''
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>HELL CREATOR OS • Streamdeck & 2.º Ecrã</title>
+<style>
+  body { margin: 0; background: #050B1E; color: white; font-family: Arial, sans-serif; }
+  .top { background: #0B1636; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1E293B; }
+  .brand { font-weight: 900; letter-spacing: 2px; color: #38BDF8; font-size: 14px; }
+  .tabs { display: flex; gap: 8px; }
+  .tab { background: #13224D; border: 1px solid #38BDF855; color: white; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 12px; }
+  .tab.active { background: #38BDF8; color: #050B1E; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px; }
+  .btn { background: #0B1636; border: 1.5px solid #38BDF866; border-radius: 14px; padding: 16px 8px; text-align: center; font-weight: bold; font-size: 12px; color: white; cursor: pointer; user-select: none; }
+  .btn:active { background: #38BDF8; color: #050B1E; transform: scale(0.96); }
+  .btn.danger { border-color: #EF444488; color: #FCA5A5; }
+  .card { background: #0B1636; border: 1px solid #38BDF844; border-radius: 14px; padding: 16px; margin: 14px; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">HELL STREAMDECK</div>
+    <div class="tabs">
+      <button class="tab active" id="t-deck" onclick="showTab('deck')">Streamdeck</button>
+      <button class="tab" id="t-screen" onclick="showTab('screen')">2.º Ecrã</button>
+    </div>
+  </div>
+  <div id="view-deck" class="grid">
+    <div class="btn danger" onclick="sendCmd('toggle_mute')">🔇 MUTE GERAL</div>
+    <div class="btn" onclick="sendCmd('scene_game')">🎮 CENA JOGO</div>
+    <div class="btn" onclick="sendCmd('scene_cam')">📷 CÂMARA FULL</div>
+    <div class="btn" onclick="sendCmd('scene_brb')">⏸️ PAUSA / BRB</div>
+    <div class="btn" onclick="sendCmd('stream_start')">📡 INICIAR LIVE</div>
+    <div class="btn" onclick="sendCmd('save_clip')">🎬 CLIPAR</div>
+    <div class="btn" onclick="sendCmd('music_toggle')">🎵 PLAY / PAUSE</div>
+    <div class="btn" onclick="sendCmd('music_next')">⏭️ PRÓXIMA</div>
+    <div class="btn" onclick="sendCmd('spin_wheel')">🎡 GIRAR ROLETA</div>
+    <div class="btn" onclick="sendCmd('test_alert')">🔔 TESTAR ALERTA</div>
+    <div class="btn" onclick="sendCmd('add_timer_60')">⏱️ +1 MIN TIMER</div>
+    <div class="btn danger" onclick="sendCmd('stream_stop')">⏹️ PARAR LIVE</div>
+  </div>
+  <div id="view-screen" style="display:none;">
+    <div class="card">
+      <div style="color:#38BDF8;font-weight:bold;margin-bottom:6px;">META ATIVA NA LIVE</div>
+      <div id="goal-info" style="font-size:20px;font-weight:900;">A carregar...</div>
+    </div>
+    <div class="card">
+      <div style="color:#38BDF8;font-weight:bold;margin-bottom:6px;">CRONÓMETRO / TIMER</div>
+      <div id="timer-info" style="font-size:28px;font-weight:900;">00:30:00</div>
+    </div>
+  </div>
+<script>
+  function showTab(t) {
+    document.getElementById('view-deck').style.display = t === 'deck' ? 'grid' : 'none';
+    document.getElementById('view-screen').style.display = t === 'screen' ? 'block' : 'none';
+    document.getElementById('t-deck').className = t === 'deck' ? 'tab active' : 'tab';
+    document.getElementById('t-screen').className = t === 'screen' ? 'tab active' : 'tab';
+  }
+  async function sendCmd(c) {
+    await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c));
+  }
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/state');
+      const d = await r.json();
+      if (d.goal) document.getElementById('goal-info').innerText = (d.goal.title || 'Meta') + ': ' + (d.goal.current || 0) + ' / ' + (d.goal.target || 100);
+      if (d.timer) {
+        const s = d.timer.seconds || 0;
+        const h = String(Math.floor(s/3600)).padStart(2,'0');
+        const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+        const sec = String(s%60).padStart(2,'0');
+        document.getElementById('timer-info').innerText = h + ':' + m + ':' + sec;
+      }
+    } catch(e) {}
+  }, 1000);
+</script>
+</body>
+</html>
+''';
+  }
+
 }
 class LivePlatformConnector {
   WebSocket? _ws;
