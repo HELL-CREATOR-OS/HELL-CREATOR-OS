@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'account_security.dart';
 
 class CloudFirestoreSync {
@@ -482,7 +482,6 @@ class ProfileManager {
     );
   }
 }
-}
 
 class TopLeftProfileAvatarButton extends StatelessWidget {
   final Map<String, dynamic> user;
@@ -630,7 +629,6 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> with SingleTickerProviderStateMixin {
   late Map<String, dynamic> _user;
   late TabController _tabController;
-  final ImagePicker _picker = ImagePicker();
 
   int _failedSensitiveAttempts = 0;
   DateTime? _sensitiveLockUntil;
@@ -873,7 +871,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
                         onPressed: () async {
-                          final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
+                                                  final res = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+                        );
+                        final pickedPath = res?.files.single.path;
+                        if (pickedPath != null && pickedPath.isNotEmpty) {
+                          final fileSize = await File(pickedPath).length();
+                          if (fileSize > 5 * 1024 * 1024) {
+                            _showSnack('A imagem ultrapassa o limite máximo de 5 MB.', isError: true);
+                            return;
+                          }
+                          setModalState(() {
+                            tempLocalPath = pickedPath;
+                            tempPhotoUrl = '';
+                            tempPresetId = '';
+                            tempScale = 1.0;
+                            tempDx = 0.0;
+                            tempDy = 0.0;
+                          });
+                        }
+
                           if (picked != null) {
                             final lower = picked.path.toLowerCase();
                             if (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg') && !lower.endsWith('.png') && !lower.endsWith('.webp')) {
@@ -978,14 +996,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
     );
   }
 
-  Future<void> _pickCoverImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, maxHeight: 600);
-    if (picked == null) return;
-    final lower = picked.path.toLowerCase();
-    if (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg') && !lower.endsWith('.png') && !lower.endsWith('.webp')) {
-      _showSnack('Formato de capa inválido. Utiliza JPG, PNG ou WEBP.', isError: true);
+    Future<void> _pickCoverImage() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    final pickedPath = res?.files.single.path;
+    if (pickedPath == null || pickedPath.isEmpty) return;
+    final size = await File(pickedPath).length();
+    if (size > 6 * 1024 * 1024) {
+      _showSnack('A imagem de capa não pode ultrapassar 6 MB.', isError: true);
       return;
     }
+    _user['coverPath'] = pickedPath;
+    ProfileManager.appendChangeLog(_user, 'Imagem de Capa', 'Banner de perfil atualizado');
+    await _saveAllChanges();
+  }
+
     final size = await File(picked.path).length();
     if (size > 6 * 1024 * 1024) {
       _showSnack('A imagem de capa não pode ultrapassar 6 MB.', isError: true);
