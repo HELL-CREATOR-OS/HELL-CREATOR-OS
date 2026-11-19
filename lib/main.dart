@@ -892,13 +892,16 @@ class _MainShellState extends State<MainShell> {
               )
             : IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _selectedIndex = 0)),
                 title: _selectedIndex == 0
-                    ? const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: 4, color: Colors.white, height: 1.0)),
-                          Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10.5, letterSpacing: 3, color: Color(0xFF38BDF8))),
-                        ],
-                      )
+                             ? const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 4, color: Colors.white, height: 1.0)),
+                Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 3, color: Color(0xFF38BDF8), height: 1.15)),
+                SizedBox(height: 2),
+                Text('UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 8.5, letterSpacing: 1.1, color: Colors.white70)),
+              ],
+            )
+
                     : Text(titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
                       actions: [
           IconButton(
@@ -944,16 +947,7 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                     ),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08)))),
-                    child: const Text(
-                      'UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10.5, letterSpacing: 1.4, color: Color(0xFF7DD3FC), fontWeight: FontWeight.w700),
-                    ),
-                  ),
+                 
                 ],
               ),
             ),
