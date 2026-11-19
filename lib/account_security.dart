@@ -950,11 +950,18 @@ class AuthScreen extends StatelessWidget {
 class AppLockScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final VoidCallback onUnlocked;
-  const AppLockScreen({super.key, required this.user, required this.onUnlocked});
+  final VoidCallback? onLogout;
+  const AppLockScreen({
+    super.key,
+    required this.user,
+    required this.onUnlocked,
+    this.onLogout,
+  });
 
   @override
   State<AppLockScreen> createState() => _AppLockScreenState();
 }
+
 
 class _AppLockScreenState extends State<AppLockScreen> {
   final LocalAuthentication _localAuth = LocalAuthentication();
