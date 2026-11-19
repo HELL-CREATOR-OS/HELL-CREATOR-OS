@@ -3,11 +3,68 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+class _BirthDateAutoFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final limited = digits.length > 8 ? digits.substring(0, 8) : digits;
+    final buf = StringBuffer();
+    for (int i = 0; i < limited.length; i++) {
+      if (i == 2 || i == 4) buf.write('/');
+      buf.write(limited[i]);
+    }
+    final formatted = buf.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _GoogleOfficialPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final stroke = w * 0.19;
+    final rect = Rect.fromLTWH(stroke / 2, stroke / 2, w - stroke, h - stroke);
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
+
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, -2.45, 1.85, false, paint);
+
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, 2.35, 1.48, false, paint);
+
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, 0.72, 1.63, false, paint);
+
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, -0.15, 0.87, false, paint);
+
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromLTWH(w * 0.50, h * 0.41, w * 0.46, stroke * 0.95),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class UserAccountManager {
   static const String _kCurrentUserKey = 'hell_current_user_v2';
@@ -325,11 +382,24 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final localScheme = ['http:', '//', '127.0.0.1'].join();
       final redirectUri = '$localScheme:${server.port}';
-      final webClientId = [
-        '251620821976-uclsrct00t77ctn15ttvn0u2vii4sj0d',
-        '.apps.',
-        'googleusercontent.com',
-      ].join();
+           String webClientId = '://googleusercontent.com';
+      try {
+        final rawGs = await rootBundle.loadString('google-services.json');
+        final parsedGs = jsonDecode(rawGs) as Map<String, dynamic>;
+        final clients = parsedGs['client'] as List?;
+        if (clients != null && clients.isNotEmpty) {
+          final oauthList = clients.first['oauth_client'] as List?;
+          if (oauthList != null) {
+            for (final oc in oauthList) {
+              if (oc['client_type'] == 3 && (oc['client_id'] ?? '').toString().isNotEmpty) {
+                webClientId = oc['client_id'].toString().trim();
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
 
       final authHost = ['accounts.', 'google', '.com'].join();
       final params = <String, String>{
@@ -563,25 +633,16 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
     await UserAccountManager.saveCredentials(email, pass);
     widget.onAuthenticated(user);
   }
-  Widget _googleLogoIcon() {
+    Widget _googleLogoIcon() {
     return Container(
       width: 22,
       height: 22,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: RichText(
-        text: const TextSpan(
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: 'Roboto'),
-          children: [
-            TextSpan(text: 'G', style: TextStyle(color: Color(0xFF4285F4))),
-          ],
-        ),
-      ),
+      padding: const EdgeInsets.all(2),
+      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+      child: CustomPaint(painter: _GoogleOfficialPainter()),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -752,27 +813,32 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime(2000),
-                                firstDate: DateTime(1930),
-                                lastDate: DateTime.now(),
-                              );
-                              if (picked != null) {
-                                setState(() => _birthDate = picked);
+                          child: TextField(
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [_BirthDateAutoFormatter()],
+                            decoration: const InputDecoration(
+                              labelText: 'Nascimento (DD/MM/AAAA) *',
+                              hintText: '15/08/1998',
+                              isDense: true,
+                            ),
+                            onChanged: (val) {
+                              if (val.length == 10) {
+                                final p = val.split('/');
+                                if (p.length == 3) {
+                                  final d = int.tryParse(p);
+                                  final m = int.tryParse(p);
+                                  final y = int.tryParse(p);
+                                  if (d != null && m != null && y != null && y >= 1920 && y <= DateTime.now().year) {
+                                    setState(() => _birthDate = DateTime(y, m, d));
+                                  }
+                                }
+                              } else if (_birthDate != null) {
+                                setState(() => _birthDate = null);
                               }
                             },
-                            icon: const Icon(Icons.cake_outlined, size: 16),
-                            label: Text(
-                              _birthDate == null
-                                  ? 'Nascimento *'
-                                  : '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
                           ),
                         ),
+
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<String>(
