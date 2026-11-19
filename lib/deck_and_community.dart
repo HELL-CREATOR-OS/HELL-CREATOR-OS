@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'live_connectors.dart';
 
 class StreamDeckScreen extends StatefulWidget {
   final IO.Socket socket;
@@ -273,7 +274,8 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> with SingleTickerPr
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                child: QrImageView(data: 'HELL_SYNC:$code', version: QrVersions.auto, size: 150),
+                              child: QrImageView(data: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/deck?room=$code', version: QrVersions.auto, size: 150),
+
               ),
               const SizedBox(height: 10),
               SelectableText('Código Manual: $code', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8), letterSpacing: 1.5)),
