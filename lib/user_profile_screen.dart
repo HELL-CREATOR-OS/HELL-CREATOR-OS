@@ -2159,7 +2159,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with SingleTicker
         ),
       ],
     );
-  }
 
   Widget _buildSection08AccountManagement() {
     final requests = List<Map<String, dynamic>>.from(
