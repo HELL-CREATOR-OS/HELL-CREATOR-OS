@@ -517,15 +517,26 @@ class _AuthScreenState extends State<AuthScreen> {
     );
     widget.onAuthenticated(user);
   }
-  Future<void> _googleLoginExistingOnly() async {
+    Future<void> _googleLoginExistingOnly() async {
     setState(() => _busy = true);
     HttpServer? server;
     try {
+      final savedCreds = await UserAccountManager.getSavedCredentials();
+      final savedEmail = (savedCreds?['identifier'] ?? '').trim().toLowerCase();
+      if (savedEmail.contains('@')) {
+        final existing = await UserAccountManager.findRegisteredAccount(savedEmail);
+        if (existing != null && existing['registrationCompleted'] == true && existing['authProvider'] == 'google') {
+          await UserAccountManager.saveUser(existing);
+          widget.onAuthenticated(existing);
+          return;
+        }
+      }
+
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      final localScheme = ['http:', '//', '127.0.0.1:'].join();
-      final redirectUri = '$localScheme${server.port}';
+      final localScheme = ['http:', '//', '127.0.0.1'].join();
+      final redirectUri = '$localScheme:${server.port}';
       final webClientId = [
-        '251620021978-uclsrrtd0l77ctn15tivh0u2vii4sj0d',
+        '251620821976-uclsrct00t77ctn15ttvn0u2vii4sj0d',
         '.apps.',
         'googleusercontent.com',
       ].join();
@@ -536,7 +547,6 @@ class _AuthScreenState extends State<AuthScreen> {
         'redirect_uri': redirectUri,
         'response_type': 'token',
         'scope': 'email profile',
-        'prompt': 'select_account',
       });
 
       final launched = await launchUrl(authUri, mode: LaunchMode.externalApplication);
@@ -618,10 +628,14 @@ if (hash) {
       }
 
       final existing = await UserAccountManager.findRegisteredAccount(email);
-      if (existing != null && existing['registrationCompleted'] == true) {
-        if (photo.isNotEmpty) existing['photoUrl'] = photo;
-        await UserAccountManager.saveUser(existing);
-        widget.onAuthenticated(existing);
+             if (existing != null && existing['registrationCompleted'] == true) {
+          if (photo.isNotEmpty) existing['photoUrl'] = photo;
+          existing['authProvider'] = 'google';
+          await UserAccountManager.saveUser(existing);
+          widget.onAuthenticated(existing);
+          return;
+        }
+
       } else {
         final parts = fullName.split(' ');
         setState(() {
@@ -765,23 +779,19 @@ if (hash) {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Container(
+                    child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B1636),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
-            ),
             child: AutofillGroup(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset('icon.png', height: 68, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 60, color: Color(0xFF38BDF8))),
+                  Image.asset('icon.png', height: 68, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 68, color: Color(0xFF38BDF8))),
                   const SizedBox(height: 8),
-                  const Text('HELL', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0)),
+                  const Text('HELL', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0)),
                   const Text('CREATOR OS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 3, color: Color(0xFF38BDF8))),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 4),
+                  const Text('UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, letterSpacing: 1.1, color: Colors.white70)),
+                  const SizedBox(height: 22),
                   Row(
                     children: [
                       Expanded(
