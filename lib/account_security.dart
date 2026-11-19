@@ -825,9 +825,10 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                               if (val.length == 10) {
                                 final p = val.split('/');
                                 if (p.length == 3) {
-                                  final d = int.tryParse(p);
-                                  final m = int.tryParse(p);
-                                  final y = int.tryParse(p);
+                                                                   final d = int.tryParse(p.first);
+                                  final m = int.tryParse(p.elementAt(1));
+                                  final y = int.tryParse(p.last);
+
                                   if (d != null && m != null && y != null && y >= 1920 && y <= DateTime.now().year) {
                                     setState(() => _birthDate = DateTime(y, m, d));
                                   }
