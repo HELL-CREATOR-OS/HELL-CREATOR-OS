@@ -29,7 +29,7 @@ class SponsorBannerManager {
   ];
 }
 
-// ABA 2: CENTRO DE CONTROLO + PERFIS & EMPARELHAMENTO QR
+// CENTRO DE CONTROLO • COCKPIT MODULAR EXPANSÍVEL (SEM PERFIL E SEM SYNC QR)
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -57,289 +57,281 @@ class ControlCenterScreen extends StatefulWidget {
 }
 
 class _ControlCenterScreenState extends State<ControlCenterScreen> {
-  final _chatFilterCtrl = TextEditingController();
-  final _syncInputCtrl = TextEditingController();
-  final _bannedWordCtrl = TextEditingController();
+  String? _expandedPanelId;
+  final TextEditingController _chatFilterCtrl = TextEditingController();
+  final TextEditingController _bannedWordCtrl = TextEditingController();
   final List<String> _bannedWords = ['spam', 'scam', 'link falso'];
   final List<String> _moderators = ['@Mod_Joao', '@Mod_Sofia'];
   String _activeObsScene = 'Cena Principal (Jogo)';
 
   @override
-  Widget build(BuildContext context) {
-    final activeCount = widget.activePlatforms.values.where((v) => v).length;
-    final obsUrl = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay';
-    final isOwner = UserAccountManager.isOwnerEmail(widget.user['email']);
+  void dispose() {
+    _chatFilterCtrl.dispose();
+    _bannedWordCtrl.dispose();
+    super.dispose();
+  }
 
-    return DefaultTabController(
-      length: 5,
+  Widget _panelShell({
+    required String id,
+    required String title,
+    required IconData icon,
+    required Color accent,
+    required Widget compactBody,
+    required Widget expandedBody,
+    String? badge,
+  }) {
+    final isExpanded = _expandedPanelId == id;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1636),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withOpacity(isExpanded ? 0.85 : 0.35), width: isExpanded ? 1.5 : 1),
+        boxShadow: [BoxShadow(color: accent.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const TabBar(
-            isScrollable: true,
-            indicatorColor: Color(0xFF38BDF8),
-            labelColor: Color(0xFF38BDF8),
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              Tab(text: '📡 Live Monitor'),
-              Tab(text: '💬 Unified Chat & Mod'),
-              Tab(text: '🎬 OBS Control'),
-              Tab(text: '📊 Stats & Diagnóstico'),
-              Tab(text: '👤 Perfil & Sync QR'),
+          Row(
+            children: [
+              Icon(icon, color: accent, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: accent), overflow: TextOverflow.ellipsis),
+              ),
+              if (badge != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: accent.withOpacity(0.16), borderRadius: BorderRadius.circular(8)),
+                  child: Text(badge, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: accent)),
+                ),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => setState(() => _expandedPanelId = isExpanded ? null : id),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(isExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded, size: 18, color: Colors.white),
+                ),
+              ),
             ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                // 2.1 LIVE MONITOR & 2.8 MULTI-PLATFORM CONTROL
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _neonBox(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('📡 Estado das Transmissões', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-                              Text(activeCount > 0 ? '● EM DIRETO ($activeCount)' : '○ EM ESPERA', style: TextStyle(fontWeight: FontWeight.bold, color: activeCount > 0 ? Colors.greenAccent : Colors.orangeAccent)),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          ...['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
-                            final on = widget.activePlatforms[p] == true;
-                            return ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.circle, size: 11, color: on ? Colors.greenAccent : Colors.white24),
-                              title: Text(p.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Text(on ? 'Ligação estável · Bitrate 6000 kbps' : 'Desligado', style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
-                              trailing: Text(on ? 'ATIVA' : 'OFF', style: TextStyle(fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white38)),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                // 2.2 UNIFIED CHAT, 2.3 EVENT MONITOR & 2.4 MODERAÇÃO
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    TextField(
-                      controller: _chatFilterCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(hintText: 'Pesquisar mensagens ou utilizador...', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: _neonBox(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('🛡️ Moderação & Moderadores', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            children: _moderators.map((m) => Chip(label: Text(m, style: const TextStyle(fontSize: 11)))).toList(),
-                          ),
-                          Row(
-                            children: [
-                              Expanded(child: TextField(controller: _bannedWordCtrl, decoration: const InputDecoration(hintText: 'Adicionar palavra bloqueada...', isDense: true))),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
-                                onPressed: () {
-                                  if (_bannedWordCtrl.text.trim().isNotEmpty) {
-                                    setState(() {
-                                      _bannedWords.add(_bannedWordCtrl.text.trim().toLowerCase());
-                                      _bannedWordCtrl.clear();
-                                    });
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (widget.chatFeed.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Center(child: Text('Aguardando mensagens do TikTok, Twitch, YouTube ou Kick...', style: TextStyle(color: Colors.white54))),
-                      )
-                    else
-                      ...widget.chatFeed
-                          .where((m) => _chatFilterCtrl.text.isEmpty || (m['msg'] ?? '').toLowerCase().contains(_chatFilterCtrl.text.toLowerCase()))
-                          .map((m) => Card(
-                                color: const Color(0xFF0B1636),
-                                child: ListTile(
-                                  dense: true,
-                                  title: Text('${m['user']} [${(m['type'] ?? 'chat').toUpperCase()}]', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                                  subtitle: Text(m['msg'] ?? ''),
-                                ),
-                              )),
-                  ],
-                ),
-
-                // 2.5 OBS CONTROL
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _neonBox(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('🎬 Controlo OBS Studio / Live Studio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 8),
-                          SelectableText(obsUrl, style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: obsUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL Browser Source copiado!')));
-                            },
-                            icon: const Icon(Icons.copy, size: 16, color: Colors.white),
-                            label: const Text('Copiar Browser Source OBS', style: TextStyle(color: Colors.white)),
-                          ),
-                          const Divider(color: Colors.white12, height: 22),
-                          const Text('Mudar Cena Ativa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: ['Cena Principal (Jogo)', 'Just Chatting / Câmara', 'Pausa / Volto Já', 'Encerramento'].map((sc) => ChoiceChip(
-                              label: Text(sc),
-                              selected: _activeObsScene == sc,
-                              selectedColor: const Color(0xFF1E78FF),
-                              onSelected: (_) => setState(() => _activeObsScene = sc),
-                            )).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                // 2.6 DIAGNÓSTICO & 2.7 LIVE STATISTICS
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _neonBox(),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('🩺 Diagnóstico de Rede & Incidentes', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                          SizedBox(height: 8),
-                          Text('• Servidor Local OBS: Online (8765)\n• Motor de Voz PT-PT: Operacional\n• Incidentes registados na sessão: 0', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                // PERFIL, EMPARELHAMENTO QR / CÓDIGO & GESTÃO DONO
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _neonBox(),
-                      child: Column(
-                        children: [
-                          UserAccountManager.buildUserAvatar(widget.user, radius: 36),
-                          const SizedBox(height: 8),
-                          Text(widget.user['nickname'] ?? 'Criador', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text(widget.user['email'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white60)),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF122B6B)),
-                            onPressed: () async {
-                              final res = await FilePicker.platform.pickFiles(type: FileType.image);
-                              if (res != null && res.files.single.path != null) {
-                                final updated = Map<String, dynamic>.from(widget.user);
-                                updated['avatarPath'] = res.files.single.path!;
-                                await UserAccountManager.saveUser(updated);
-                                widget.onUserUpdated(updated);
-                              }
-                            },
-                            icon: const Icon(Icons.photo_camera, size: 16, color: Colors.white),
-                            label: const Text('Alterar Foto de Perfil', style: TextStyle(color: Colors.white, fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: _neonBox(),
-                      child: Column(
-                        children: [
-                          const Text('📱 Sincronizar 2.º Aparelho (Telemóvel Velho)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                            child: QrImageView(data: 'hellcreatoros://sync/${widget.syncCode}', version: QrVersions.auto, size: 130),
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText('Código: ${widget.syncCode}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 15)),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                                                               Expanded(child: TextField(controller: _syncInputCtrl, decoration: const InputDecoration(hintText: 'Validar código do aparelho principal...', isDense: true))),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                                onPressed: () => widget.onValidateSyncCode(_syncInputCtrl.text.trim()),
-                                child: const Text('Sincronizar', style: TextStyle(color: Colors.white, fontSize: 12)),
-                              ),
-                            ],
-                          ),
-                          if (widget.isSecondScreenPaired)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8),
-                              child: Text('✅ 2.º Aparelho Sincronizado! Stream Deck Pro desbloqueado.', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (isOwner) ...[
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                        onPressed: () async {
-                          final key = await UserAccountManager.generateVipKey();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chave VIP Gerada: $key')));
-                          }
-                        },
-                        icon: const Icon(Icons.vpn_key, color: Colors.white),
-                        label: const Text('👑 Gerar Nova Chave VIP (Dono)', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                                const AutofillPrivacySettingsCard(),
-    
-                    const SizedBox(height: 10),
-                    TextButton(onPressed: widget.onLogout, child: const Text('Terminar Sessão', style: TextStyle(color: Colors.redAccent))),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          const Divider(height: 16, color: Colors.white12),
+          isExpanded ? expandedBody : compactBody,
         ],
       ),
     );
   }
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = widget.activePlatforms.values.where((v) => v).length;
+    final obsUrl = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay';
+    final filteredChat = widget.chatFeed.where((m) {
+      final q = _chatFilterCtrl.text.trim().toLowerCase();
+      if (q.isEmpty) return true;
+      return (m['user'] ?? '').toLowerCase().contains(q) || (m['text'] ?? '').toLowerCase().contains(q);
+    }).toList();
+
+    final livePanel = _panelShell(
+      id: 'live',
+      title: 'Transmissões Multiplataforma',
+      icon: Icons.sensors_rounded,
+      accent: activeCount > 0 ? Colors.greenAccent : const Color(0xFF38BDF8),
+      badge: activeCount > 0 ? '$activeCount EM DIRETO' : 'EM ESPERA',
+      compactBody: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: ['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
+          final on = widget.activePlatforms[p] == true;
+          return Chip(
+            backgroundColor: on ? Colors.greenAccent.withOpacity(0.18) : Colors.white10,
+            avatar: Icon(Icons.circle, size: 10, color: on ? Colors.greenAccent : Colors.white38),
+            label: Text(p.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white60)),
+          );
+        }).toList(),
+      ),
+      expandedBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: ['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
+          final on = widget.activePlatforms[p] == true;
+          return ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.circle, size: 12, color: on ? Colors.greenAccent : Colors.white30),
+            title: Text(p.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(on ? 'Sinal ativo • Chat e eventos sincronizados' : 'Aguardando ligação na aba Configurações'),
+            trailing: Text(on ? 'ONLINE' : 'OFFLINE', style: TextStyle(fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white38)),
+          );
+        }).toList(),
+      ),
+    );
+
+    final chatPanel = _panelShell(
+      id: 'chat',
+      title: 'Chat Unificado & Moderação',
+      icon: Icons.forum_rounded,
+      accent: const Color(0xFF38BDF8),
+      badge: '${widget.chatFeed.length} msgs',
+      compactBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: filteredChat.isEmpty
+            ? [const Text('Sem mensagens no feed neste momento.', style: TextStyle(fontSize: 12, color: Colors.white54))]
+            : filteredChat.take(4).map((m) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('[${(m['platform'] ?? 'LIVE').toUpperCase()}] ${m['user']}: ${m['text']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                )).toList(),
+      ),
+      expandedBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(controller: _chatFilterCtrl, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Filtrar mensagens ou utilizador', isDense: true)),
+          const SizedBox(height: 8),
+          ...filteredChat.take(15).map((m) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text('${m['user']} (${(m['platform'] ?? 'LIVE').toUpperCase()})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF38BDF8))),
+                subtitle: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12)),
+              )),
+          const Divider(),
+          Text('Moderadores ativos: ${_moderators.join(', ')}', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: TextField(controller: _bannedWordCtrl, decoration: const InputDecoration(labelText: 'Adicionar palavra bloqueada', isDense: true))),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                if (_bannedWordCtrl.text.trim().isNotEmpty) {
+                  setState(() {
+                    _bannedWords.add(_bannedWordCtrl.text.trim());
+                    _bannedWordCtrl.clear();
+                  });
+                }
+              },
+              child: const Text('Bloquear'),
+            ),
+          ]),
+        ],
+      ),
+    );
+
+    final obsPanel = _panelShell(
+      id: 'obs',
+      title: 'Estúdio OBS / Streamlabs / TikTok Live',
+      icon: Icons.videocam_rounded,
+      accent: const Color(0xFFA855F7),
+      badge: _activeObsScene,
+      compactBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Cena Ativa: $_activeObsScene', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+          const SizedBox(height: 4),
+          Text('Overlay Browser Source: $obsUrl', style: const TextStyle(fontSize: 11, color: Colors.white60), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+      expandedBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText('Link Overlay (OBS / Streamlabs / TikTok Studio):\n$obsUrl', style: const TextStyle(fontSize: 12, color: Color(0xFF38BDF8))),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ['Cena Principal (Jogo)', 'Just Chatting / Câmara', 'Intervalo / Pausa', 'Encerramento'].map((sc) => ChoiceChip(
+              label: Text(sc),
+              selected: _activeObsScene == sc,
+              onSelected: (_) => setState(() => _activeObsScene = sc),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+
+    final statsPanel = _panelShell(
+      id: 'stats',
+      title: 'Telemetria, Metas & Streamdeck HELL',
+      icon: Icons.analytics_rounded,
+      accent: Colors.amberAccent,
+      badge: widget.isSecondScreenPaired ? '2.º ECRÃ ATIVO' : 'PRONTO',
+      compactBody: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Plataformas: $activeCount/4', style: const TextStyle(fontSize: 12)),
+          Text('Segundo Ecrã: ${widget.isSecondScreenPaired ? 'Ligado' : 'Em espera'}', style: const TextStyle(fontSize: 12)),
+          const Text('Motor: 60 FPS', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
+        ],
+      ),
+      expandedBody: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Plataformas Conectadas'), trailing: Text('$activeCount de 4')),
+          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Mensagens Processadas na Sessão'), trailing: Text('${widget.chatFeed.length}')),
+          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Estado Streamdeck HELL & Segundo Ecrã'), trailing: Text(widget.isSecondScreenPaired ? 'Sincronizado' : 'Configurar na aba Streamdeck')),
+          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Servidor Local de Overlays'), trailing: Text('Porta ${LocalObsServer.port}')),
+        ],
+      ),
+    );
+
+    final allPanels = <String, Widget>{
+      'live': livePanel,
+      'chat': chatPanel,
+      'obs': obsPanel,
+      'stats': statsPanel,
+    };
+
+    if (_expandedPanelId != null && allPanels.containsKey(_expandedPanelId)) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Vista Expandida do Painel', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              TextButton.icon(
+                onPressed: () => setState(() => _expandedPanelId = null),
+                icon: const Icon(Icons.grid_view_rounded, size: 16),
+                label: const Text('Minimizar para Vista Completa'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          allPanels[_expandedPanelId]!,
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 780;
+        if (isWide) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: livePanel), const SizedBox(width: 14), Expanded(child: obsPanel)]),
+                const SizedBox(height: 14),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: chatPanel), const SizedBox(width: 14), Expanded(child: statsPanel)]),
+              ],
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            livePanel,
+            const SizedBox(height: 12),
+            obsPanel,
+            const SizedBox(height: 12),
+            chatPanel,
+            const SizedBox(height: 12),
+            statsPanel,
+          ],
+        );
+      },
+    );
+  }
 }
+
  
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
 class SmartBrainScreen extends StatefulWidget {
