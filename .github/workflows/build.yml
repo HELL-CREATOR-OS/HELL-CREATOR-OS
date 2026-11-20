@@ -43,8 +43,7 @@ jobs:
           cp hell_release.jks android/app/hell_release.jks
           printf "storePassword=hell12026os\nkeyPassword=hell12026os\nkeyAlias=hell_key\nstoreFile=hell_release.jks\n" > android/key.properties
                    python3 -c 'import pathlib; p=pathlib.Path("android/app/build.gradle.kts"); p.write_text(p.read_text().replace("signingConfigs.getByName(\"debug\")", "signingConfigs.create(\"release\") { storeFile = file(\"hell_release.jks\"); storePassword = \"hell12026os\"; keyAlias = \"hell_key\"; keyPassword = \"hell12026os\" }"))'
-                 flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
-
+                       flutter build apk --release
           keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep -i "sha" || true
 
 
@@ -68,8 +67,7 @@ jobs:
           $cmake = Get-Content "windows/CMakeLists.txt" -Raw
           $cmake = $cmake -replace "project\(", "add_definitions(/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`nproject("
           Set-Content "windows/CMakeLists.txt" $cmake
-                 flutter build windows --release --obfuscate --split-debug-info=build/windows/symbols
-
+             flutter build windows --release
           flutter build windows --release
 
 
