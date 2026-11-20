@@ -18,6 +18,10 @@ class LocalObsServer {
   static Map<String, dynamic> latestTimer = {'seconds': 1800, 'running': false};
   static Map<String, dynamic> latestDeckCmd = {'id': 0, 'cmd': '', 'val': null};
   static void Function(String cmd, dynamic val)? onRemoteDeckCommand;
+  static Map<String, int> platformViewers = {'TikTok': 0, 'Twitch': 0, 'YouTube': 0, 'Kick': 0};
+  static List<Map<String, dynamic>> liveChatFeed = [];
+  static List<Map<String, dynamic>> recentAlerts = [];
+  static Map<String, dynamic> liveHealth = {'bitrate': '6.5 Mbps', 'fps': '60.0', 'status': 'Green Stable', 'dropped': 0, 'uptime': '00:00:00', 'scene': 'Jogo', 'muted': false, 'tts': true, 'track': 'Sem faixa ativa'};
 
     static Future<String> start() async {
     if (_server != null) return 'http://$localIp:$port';
@@ -45,13 +49,18 @@ class LocalObsServer {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen((HttpRequest req) async {
         req.response.headers.add('Access-Control-Allow-Origin', '*');
-        if (req.uri.path == '/api/state') {
+               if (req.uri.path == '/api/state') {
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({
             'alert': latestAlert,
+            'alerts': recentAlerts,
             'goal': latestGoal,
             'timer': latestTimer,
+            'viewers': platformViewers,
+            'chat': liveChatFeed,
+            'health': liveHealth,
           }));
+
         } else if (req.uri.path == '/api/deck-cmd') {
           final cmd = req.uri.queryParameters['cmd'] ?? '';
           final val = req.uri.queryParameters['val'] ?? 'true';
@@ -135,43 +144,94 @@ class LocalObsServer {
 </html>
 ''';
   }
-   static String _buildRemoteDeckHtml() {
+  static String _buildRemoteDeckHtml() {
     return '''
 <!DOCTYPE html>
 <html lang="pt">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>HELL STREAMDECK</title>
+<title>HELL CREATOR OS • Stream Deck & 2.º Ecrã</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100vw; height: 100vh; overflow: hidden; background: #050B1E; color: white; font-family: Arial, sans-serif; display: flex; flex-direction: column; }
-  .bar { height: 42px; background: #0B1636; padding: 0 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1E293B; flex-shrink: 0; }
-  .btn-nav { background: #13224D; border: 1px solid #38BDF866; color: #38BDF8; padding: 5px 10px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; }
-  .pages { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  html, body { width: 100%; height: 100%; background: #050B1E; color: white; font-family: Arial, sans-serif; overflow: hidden; display: flex; flex-direction: column; }
+  .header { background: #09122C; border-bottom: 1px solid #1E293B; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+  .brand-title { font-weight: 900; font-size: 13px; letter-spacing: 2px; color: white; }
+  .brand-sub { font-size: 8px; color: #38BDF8; letter-spacing: 1px; font-weight: bold; }
+  .badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .badge { background: #0B1636; border: 1px solid #38BDF844; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 4px; }
+  .badge.total { border-color: #38BDF8; color: #38BDF8; }
+  .badge.qr { border-color: #22C55E; color: #4ADE80; }
+  .switcher { display: flex; background: #0B1636; border: 1px solid #38BDF866; border-radius: 10px; overflow: hidden; }
+  .sw-btn { border: none; background: transparent; color: #94A3B8; padding: 6px 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
+  .sw-btn.active { background: #38BDF8; color: #050B1E; }
+  .rot-btn { background: #13224D; border: 1px solid #38BDF855; color: #38BDF8; border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: bold; cursor: pointer; }
+  .app-nav { background: #070E26; border-bottom: 1px solid #1E293B; padding: 5px 10px; display: flex; gap: 6px; overflow-x: auto; flex-shrink: 0; }
+  .nav-pill { background: #0B1636; border: 1px solid #38BDF833; color: #CBD5E1; padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+  .nav-pill.active { background: #1E7BFF; color: white; border-color: #38BDF8; }
+  .pages { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; }
   .pages::-webkit-scrollbar { display: none; }
-  .page { min-width: 100vw; height: 100%; scroll-snap-align: start; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; padding: 8px; }
-  .key { background: #0B1636; border: 1.5px solid #38BDF866; border-radius: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-weight: bold; font-size: 12px; color: white; user-select: none; cursor: pointer; padding: 6px; }
+  .page { min-width: 100vw; height: 100%; scroll-snap-align: start; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; padding: 10px; }
+  .key { background: linear-gradient(145deg, #0D1B42, #08112B); border: 1.5px solid #38BDF877; border-radius: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-weight: bold; font-size: 12px; color: white; cursor: pointer; user-select: none; box-shadow: 0 0 12px #38BDF822; }
   .key:active { background: #38BDF8; color: #050B1E; transform: scale(0.96); }
-  .key.danger { border-color: #EF444488; color: #FCA5A5; }
-  .screen-full { flex: 1; display: none; flex-direction: column; justify-content: space-around; padding: 14px; height: calc(100vh - 42px); overflow: hidden; }
-  .card { background: #0B1636; border: 1px solid #38BDF855; border-radius: 14px; padding: 16px; }
+  .key.danger { border-color: #EF444499; color: #FCA5A5; }
+  .second-wrap { flex: 1; overflow-y: auto; padding: 10px; display: none; }
+  .grid-mods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; height: 100%; }
+  @media (max-width: 820px) {
+    .grid-mods { display: flex; flex-direction: column; height: auto; }
+    .mod-chat { min-height: 58vh; }
+  }
+  .mod { background: #0B1636; border: 1px solid #38BDF844; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+  .mod.expanded { position: fixed; inset: 48px 0 0 0; z-index: 99; border-radius: 0; background: #050B1E; }
+  .mod-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #1E293B; padding-bottom: 6px; }
+  .mod-title { font-weight: 900; font-size: 12px; color: #38BDF8; }
+  .mod-acts button { background: #13224D; border: 1px solid #38BDF844; color: white; border-radius: 6px; padding: 2px 7px; font-size: 11px; cursor: pointer; margin-left: 4px; }
+  .chat-box { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 8px; }
+  .chat-msg { background: #070E26; padding: 6px 8px; border-radius: 8px; border-left: 3px solid #38BDF8; }
+  .row-btn { display: flex; gap: 6px; flex-wrap: wrap; }
+  .act-btn { flex: 1; background: #13224D; border: 1px solid #38BDF855; color: white; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; text-align: center; }
+  .act-btn.primary { background: #38BDF8; color: #050B1E; }
+  .act-btn.danger { background: #7F1D1D; border-color: #EF4444; }
+  input.chat-in { flex: 1; background: #050B1E; border: 1px solid #38BDF855; color: white; padding: 7px 10px; border-radius: 8px; font-size: 12px; }
 </style>
 </head>
 <body>
-  <div class="bar">
-    <button class="btn-nav" id="backBtn" onclick="toggleMode()">⬅ 2.º Ecrã</button>
-    <span style="font-weight:900;letter-spacing:2px;color:#38BDF8;font-size:12px;" id="titleBar">STREAMDECK HELL • PÁG 1/2</span>
-    <button class="btn-nav" onclick="toggleFull()">⛶ Ecrã Cheio</button>
+  <div class="header">
+    <div>
+      <div class="brand-title">HELL CREATOR OS</div>
+      <div class="brand-sub">UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL</div>
+    </div>
+    <div class="badges">
+      <div class="badge">🎵 <span id="v-tk">0</span></div>
+      <div class="badge">🟣 <span id="v-tw">0</span></div>
+      <div class="badge">🔴 <span id="v-yt">0</span></div>
+      <div class="badge">🟢 <span id="v-kk">0</span></div>
+      <div class="badge total">👥 Total: <span id="v-tot">0</span></div>
+      <div class="badge qr">QR SYNC: LIGADO</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <div class="switcher">
+        <button class="sw-btn active" id="sw-deck" onclick="setMode('deck')">Stream Deck</button>
+        <button class="sw-btn" id="sw-2nd" onclick="setMode('2nd')">2.º Ecrã</button>
+      </div>
+      <button class="rot-btn" onclick="rotateScreen()">🔄 Rodar</button>
+    </div>
   </div>
-  <div id="deckView" class="pages" onscroll="updatePageTitle()">
+  <div class="app-nav" id="appNav" style="display:none;">
+    <button class="nav-pill active" onclick="openAppTab('painel', this)">🎛️ Painel de Controlo</button>
+    <button class="nav-pill" onclick="openAppTab('estudio', this)">📡 Estúdio & Cenas</button>
+    <button class="nav-pill" onclick="openAppTab('automacoes', this)">⚡ Automações & Roleta</button>
+    <button class="nav-pill" onclick="openAppTab('musica', this)">🎵 Música & Áudio</button>
+    <button class="nav-pill" onclick="addModulePrompt()">➕ Personalizar Módulos</button>
+  </div>
+  <div id="deckView" class="pages">
     <div class="page">
       <div class="key danger" onclick="sendCmd('toggle_mute')">🔇<br/>MUTE GERAL</div>
       <div class="key" onclick="sendCmd('scene_game')">🎮<br/>CENA JOGO</div>
       <div class="key" onclick="sendCmd('scene_cam')">📷<br/>CÂMARA FULL</div>
       <div class="key" onclick="sendCmd('scene_brb')">⏸️<br/>PAUSA / BRB</div>
       <div class="key" onclick="sendCmd('stream_start')">📡<br/>INICIAR LIVE</div>
-      <div class="key" onclick="sendCmd('save_clip')">🎬<br/>CLIPAR</div>
+      <div class="key" onclick="sendCmd('save_clip')">🎬<br/>CLIPE 9:16</div>
       <div class="key" onclick="sendCmd('music_toggle')">🎵<br/>PLAY / PAUSE</div>
       <div class="key" onclick="sendCmd('music_next')">⏭️<br/>PRÓXIMA</div>
       <div class="key" onclick="sendCmd('spin_wheel')">🎡<br/>GIRAR ROLETA</div>
@@ -185,63 +245,155 @@ class LocalObsServer {
       <div class="key" onclick="sendCmd('sfx_laugh')">😂<br/>RISOS</div>
       <div class="key" onclick="sendCmd('sfx_drum')">🥁<br/>TAMBOR</div>
       <div class="key" onclick="sendCmd('chat_clear')">🧹<br/>LIMPAR CHAT</div>
-      <div class="key" onclick="sendCmd('chat_slow')">🐢<br/>MODO LENTO</div>
+      <div class="key" onclick="sendCmd('tts_toggle')">🗣️<br/>VOZ TTS ON/OFF</div>
       <div class="key" onclick="sendCmd('goal_add')">🎯<br/>+1 NA META</div>
       <div class="key" onclick="sendCmd('overlay_hide')">👁️<br/>OCULTAR OVERLAY</div>
       <div class="key" onclick="sendCmd('mic_boost')">🎙️<br/>GANHO MIC</div>
       <div class="key" onclick="sendCmd('cam_filter')">✨<br/>FILTRO CAM</div>
-      <div class="key" onclick="sendCmd('tts_toggle')">🗣️<br/>VOZ CHAT</div>
+      <div class="key" onclick="sendCmd('ia_director')">🤖<br/>GATILHO IA</div>
       <div class="key" onclick="sendCmd('brb_screen')">🌙<br/>ECRÃ ESPERA</div>
     </div>
   </div>
-  <div id="secondScreen" class="screen-full">
-    <div class="card">
-      <div style="color:#38BDF8;font-weight:bold;font-size:12px;">META ATIVA NA LIVE</div>
-      <div id="goal-info" style="font-size:24px;font-weight:900;margin-top:6px;">A carregar...</div>
-    </div>
-    <div class="card">
-      <div style="color:#38BDF8;font-weight:bold;font-size:12px;">CRONÓMETRO / TIMER</div>
-      <div id="timer-info" style="font-size:34px;font-weight:900;margin-top:6px;">00:30:00</div>
+  <div id="secondView" class="second-wrap">
+    <div class="grid-mods" id="modsContainer">
+      <div class="mod mod-chat" id="mod-chat">
+        <div class="mod-head">
+          <span class="mod-title">💬 CHAT UNIFICADO & VOZ TTS</span>
+          <div class="mod-acts">
+            <button onclick="sendCmd('tts_toggle')">🗣️ TTS</button>
+            <button onclick="toggleExpand('mod-chat')">⛶</button>
+            <button onclick="removeMod('mod-chat')">✕</button>
+          </div>
+        </div>
+        <div class="chat-box" id="chatFeed">
+          <div class="chat-msg"><b>Sistema:</b> Chat multiplataforma sincronizado em tempo real.</div>
+        </div>
+        <div class="row-btn">
+          <input class="chat-in" id="chatInput" placeholder="Responder no chat em direto..."/>
+          <button class="act-btn primary" style="flex:0 0 auto;" onclick="sendChatReply()">Enviar</button>
+        </div>
+      </div>
+      <div class="mod" id="mod-alerts">
+        <div class="mod-head">
+          <span class="mod-title">🔔 ALERTAS, DIRETOR IA & MÚSICA</span>
+          <div class="mod-acts">
+            <button onclick="toggleExpand('mod-alerts')">⛶</button>
+            <button onclick="removeMod('mod-alerts')">✕</button>
+          </div>
+        </div>
+        <div id="alertStatus" style="font-size:12px;color:#CBD5E1;margin-bottom:8px;">A aguardar interações ao vivo...</div>
+        <div class="row-btn" style="margin-bottom:8px;">
+          <button class="act-btn primary" onclick="sendCmd('save_clip')">🎬 CRIAR CLIPE 9:16 AGORA</button>
+        </div>
+        <div class="row-btn">
+          <button class="act-btn" onclick="sendCmd('test_alert')">🔁 Replay Alerta</button>
+          <button class="act-btn" onclick="sendCmd('spin_wheel')">🎡 Girar Roleta</button>
+          <button class="act-btn" onclick="sendCmd('music_toggle')">⏯️ Música</button>
+        </div>
+      </div>
+      <div class="mod" id="mod-studio">
+        <div class="mod-head">
+          <span class="mod-title">🎚️ MIXER, CENAS & SAÚDE DA LIVE</span>
+          <div class="mod-acts">
+            <button onclick="toggleExpand('mod-studio')">⛶</button>
+            <button onclick="removeMod('mod-studio')">✕</button>
+          </div>
+        </div>
+        <div id="healthInfo" style="font-size:12px;color:#4ADE80;font-weight:bold;margin-bottom:8px;">Bitrate: 6.5 Mbps • FPS: 60.0 (Green Stable)</div>
+        <div id="goalTimerInfo" style="font-size:13px;font-weight:900;margin-bottom:8px;">Meta: 0/100 • ⏱️ 30:00</div>
+        <div class="row-btn" style="margin-bottom:6px;">
+          <button class="act-btn" onclick="sendCmd('scene_game')">🎮 Jogo</button>
+          <button class="act-btn" onclick="sendCmd('scene_cam')">📷 Câmara</button>
+          <button class="act-btn" onclick="sendCmd('scene_brb')">⏸️ Pausa</button>
+        </div>
+        <div class="row-btn">
+          <button class="act-btn danger" onclick="sendCmd('toggle_mute')">🔇 Mutar Mic</button>
+          <button class="act-btn" onclick="sendCmd('add_timer_60')">⏱️ +1 Min</button>
+          <button class="act-btn" onclick="sendCmd('goal_add')">🎯 +1 Meta</button>
+        </div>
+      </div>
     </div>
   </div>
 <script>
-  let isSecond = false;
-  function toggleMode() {
-    isSecond = !isSecond;
-    document.getElementById('deckView').style.display = isSecond ? 'none' : 'flex';
-    document.getElementById('secondScreen').style.display = isSecond ? 'flex' : 'none';
-    document.getElementById('backBtn').innerText = isSecond ? '⬅ Streamdeck' : '⬅ 2.º Ecrã';
-    document.getElementById('titleBar').innerText = isSecond ? 'SEGUNDO ECRÃ • LIVE' : 'STREAMDECK HELL • PÁG 1/2';
+  function setMode(m) {
+    const isDeck = m === 'deck';
+    document.getElementById('deckView').style.display = isDeck ? 'flex' : 'none';
+    document.getElementById('secondView').style.display = isDeck ? 'none' : 'block';
+    document.getElementById('appNav').style.display = isDeck ? 'none' : 'flex';
+    document.getElementById('sw-deck').className = isDeck ? 'sw-btn active' : 'sw-btn';
+    document.getElementById('sw-2nd').className = !isDeck ? 'sw-btn active' : 'sw-btn';
   }
-  function updatePageTitle() {
-    const el = document.getElementById('deckView');
-    const p = Math.round(el.scrollLeft / window.innerWidth) + 1;
-    document.getElementById('titleBar').innerText = 'STREAMDECK HELL • PÁG ' + p + '/2';
+  function rotateScreen() {
+    if (screen.orientation && screen.orientation.lock) {
+      const next = screen.orientation.type.startsWith('landscape') ? 'portrait' : 'landscape';
+      screen.orientation.lock(next).catch(()=>{});
+    }
   }
-  function toggleFull() {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-    else document.exitFullscreen().catch(()=>{});
+  function toggleExpand(id) {
+    document.getElementById(id).classList.toggle('expanded');
   }
-  async function sendCmd(c) { await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c)); }
+  function removeMod(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+  function addModulePrompt() {
+    ['mod-chat', 'mod-alerts', 'mod-studio'].forEach(id => {
+      document.getElementById(id).style.display = 'flex';
+    });
+  }
+  function openAppTab(tab, btn) {
+    document.querySelectorAll('.nav-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    addModulePrompt();
+    if (tab === 'estudio') toggleExpand('mod-studio');
+    else if (tab === 'automacoes' || tab === 'musica') toggleExpand('mod-alerts');
+    else document.querySelectorAll('.mod').forEach(m => m.classList.remove('expanded'));
+  }
+  async function sendCmd(c, v = 'true') {
+    await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c) + '&val=' + encodeURIComponent(v));
+  }
+  async function sendChatReply() {
+    const inp = document.getElementById('chatInput');
+    if (!inp.value.trim()) return;
+    await sendCmd('chat_reply', inp.value.trim());
+    const box = document.getElementById('chatFeed');
+    box.innerHTML += '<div class="chat-msg"><b>Tu (2.º Ecrã):</b> ' + inp.value.trim() + '</div>';
+    box.scrollTop = box.scrollHeight;
+    inp.value = '';
+  }
   setInterval(async () => {
     try {
       const r = await fetch('/api/state');
       const d = await r.json();
-      if (d.goal) document.getElementById('goal-info').innerText = (d.goal.title || 'Meta') + ': ' + (d.goal.current || 0) + ' / ' + (d.goal.target || 100);
-      if (d.timer) {
+      if (d.viewers) {
+        const tk = d.viewers.TikTok || 0, tw = d.viewers.Twitch || 0, yt = d.viewers.YouTube || 0, kk = d.viewers.Kick || 0;
+        document.getElementById('v-tk').innerText = tk;
+        document.getElementById('v-tw').innerText = tw;
+        document.getElementById('v-yt').innerText = yt;
+        document.getElementById('v-kk').innerText = kk;
+        document.getElementById('v-tot').innerText = tk + tw + yt + kk;
+      }
+      if (d.goal && d.timer) {
         const s = d.timer.seconds || 0;
-        const h = String(Math.floor(s/3600)).padStart(2,'0');
-        const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+        const m = String(Math.floor(s/60)).padStart(2,'0');
         const sec = String(s%60).padStart(2,'0');
-        document.getElementById('timer-info').innerText = h + ':' + m + ':' + sec;
+        document.getElementById('goalTimerInfo').innerText = (d.goal.title || 'Meta') + ': ' + (d.goal.current || 0) + '/' + (d.goal.target || 100) + ' • ⏱️ ' + m + ':' + sec;
+      }
+      if (d.health) {
+        document.getElementById('healthInfo').innerText = 'Bitrate: ' + (d.health.bitrate || '6.5 Mbps') + ' • FPS: ' + (d.health.fps || '60.0') + ' (' + (d.health.status || 'Green Stable') + ')';
+      }
+      if (d.chat && Array.isArray(d.chat) && d.chat.length > 0) {
+        const box = document.getElementById('chatFeed');
+        box.innerHTML = d.chat.slice(-25).map(c => '<div class="chat-msg"><b>[' + (c.platform || 'Live') + '] ' + (c.user || 'User') + ':</b> ' + (c.text || '') + '</div>').join('');
+        box.scrollTop = box.scrollHeight;
       }
     } catch(e) {}
-  }, 1000);
+  }, 1200);
 </script>
 </body>
 </html>
 ''';
   }
+
 
 
 }
