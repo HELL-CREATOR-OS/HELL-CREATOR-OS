@@ -664,96 +664,129 @@ class _MainShellState extends State<MainShell> {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
-                      BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF04091A),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: const Text(
-                          'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
-                          style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF030714),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black, width: 2),
-                          boxShadow: [
-                            BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.12), blurRadius: 8),
-                          ],
-                        ),
-                        child: GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 4,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 0.84,
-                          children: platforms.map((p) {
-                            final id = p['id']!;
-                            final name = p['name']!;
-                            return PlatformGlassTile(
-                              platform: id,
-                              label: name,
-                              isActive: _activePlatforms[id] == true,
-                              onTap: () => _handlePlatformTap(id, name),
-                              onLongPress: () => _openPlatformSetupDialog(id, name),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  ),
+         Widget _buildHomeTab() {
+    final platforms = [
+      {'id': 'tiktok', 'name': 'TikTok'},
+      {'id': 'twitch', 'name': 'Twitch'},
+      {'id': 'youtube', 'name': 'YouTube'},
+      {'id': 'kick', 'name': 'Kick'},
+    ];
+
+    final menuItems = [
+      _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
+      _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
+      _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
+      _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
+      _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
+      _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
+      _menuTile(Icons.public, 'Comunidade', () => setState(() => _selectedIndex = 7), badge: 'GLOBO & CHAT'),
+      _menuTile(Icons.extension_outlined, 'Marketplace', () => setState(() => _selectedIndex = 8), badge: 'LOJA & PACKS'),
+      _menuTile(Icons.psychology_outlined, 'Gestão IA', () => setState(() => _selectedIndex = 9), badge: 'DIRETOR & NEGÓCIO'),
+      _menuTile(Icons.info_outline, 'Informações', () => setState(() => _selectedIndex = 10), badge: 'GUIA & FAQ'),
+      _menuTile(Icons.settings_outlined, 'Configurações', () => setState(() => _selectedIndex = 11)),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 650;
+        final cols = constraints.maxWidth >= 1050 ? 3 : (isWide ? 2 : 1);
+
+        final deckPanel = Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isWide ? 440 : 360),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
                 ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
+                  BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF04091A),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: const Text(
+                      'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
+                      style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF030714),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.black, width: 2),
+                      boxShadow: [
+                        BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.12), blurRadius: 8),
+                      ],
+                    ),
+                    child: GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 0.84,
+                      children: platforms.map((p) {
+                        final id = p['id']!;
+                        final name = p['name']!;
+                        return PlatformGlassTile(
+                          platform: id,
+                          label: name,
+                          isActive: _activePlatforms[id] == true,
+                          onTap: () => _handlePlatformTap(id, name),
+                          onLongPress: () => _openPlatformSetupDialog(id, name),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
-            _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
-            _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
-            _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
-            _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
-            _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
-            _menuTile(Icons.public, 'Comunidade', () => setState(() => _selectedIndex = 7), badge: 'GLOBO & CHAT'),
-            _menuTile(Icons.extension_outlined, 'Marketplace', () => setState(() => _selectedIndex = 8), badge: 'LOJA & PACKS'),
-            _menuTile(Icons.psychology_outlined, 'Gestão IA', () => setState(() => _selectedIndex = 9), badge: 'DIRETOR & NEGÓCIO'),
-            _menuTile(Icons.info_outline, 'Informações', () => setState(() => _selectedIndex = 10), badge: 'GUIA & FAQ'),
-            _menuTile(Icons.settings_outlined, 'Configurações', () => setState(() => _selectedIndex = 11)),
+          ),
+        );
+
+        return ListView(
+          padding: EdgeInsets.fromLTRB(isWide ? 24 : 14, 14, isWide ? 24 : 14, 28),
+          children: [
+            deckPanel,
+            const SizedBox(height: 18),
+            if (cols == 1)
+              ...menuItems
+            else
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: menuItems.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 4,
+                  mainAxisExtent: 74,
+                ),
+                itemBuilder: (_, i) => menuItems[i],
+              ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
+
 
 
   Widget _buildGameModeScreen() {
