@@ -654,16 +654,7 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-   Widget _buildHomeTab() {
-    final platforms = [
-      {'id': 'tiktok', 'name': 'TikTok'},
-      {'id': 'twitch', 'name': 'Twitch'},
-      {'id': 'youtube', 'name': 'YouTube'},
-      {'id': 'kick', 'name': 'Kick'},
-    ];
-
-    return Center(
-      child: ConstrainedBox(
+  
          Widget _buildHomeTab() {
     final platforms = [
       {'id': 'tiktok', 'name': 'TikTok'},
