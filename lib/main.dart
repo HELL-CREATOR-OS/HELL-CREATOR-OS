@@ -554,33 +554,101 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  BoxDecoration _neonCard() => BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
+   BoxDecoration _neonCard() => BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+          stops: [0.0, 0.55, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45), width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.65),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: const Color(0xFF1E78FF).withOpacity(0.18),
+            blurRadius: 16,
+            spreadRadius: 0.5,
+          ),
+        ],
       );
 
   Widget _menuTile(IconData icon, String title, VoidCallback onTap, {String? badge}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.only(bottom: 11),
         decoration: _neonCard(),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFF38BDF8), size: 22),
-            const SizedBox(width: 14),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600))),
-            if (badge != null)
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFF1E78FF), borderRadius: BorderRadius.circular(8)),
-                child: Text(badge, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 14,
+                right: 14,
+                child: Container(
+                  height: 1.5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.transparent, Colors.white.withOpacity(0.55), Colors.transparent],
+                    ),
+                  ),
+                ),
               ),
-            const Icon(Icons.chevron_right, color: Colors.white54),
-          ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF38BDF8).withOpacity(0.12),
+                        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.4)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF38BDF8).withOpacity(0.35),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+                      ),
+                    ),
+                    if (badge != null)
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF0284C7)]),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24, width: 0.8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF38BDF8).withOpacity(0.4),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: Text(badge, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                      ),
+                    const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -618,7 +686,7 @@ class _MainShellState extends State<MainShell> {
         ),
         const SizedBox(height: 16),
              _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
-      _menuTile(Icons.grid_view_rounded, 'Streamdeck e Segundo Ecrã', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'QR SYNC'),
+         _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
       _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
       _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
       _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
@@ -730,7 +798,7 @@ class _MainShellState extends State<MainShell> {
         final titles = [
       '',
       'Centro de Controlo',
-      'Streamdeck e Segundo Ecrã',
+            'Stream Deck HELL',
       'Automações',
       'Chat e Voz TTS',
       'Música',
