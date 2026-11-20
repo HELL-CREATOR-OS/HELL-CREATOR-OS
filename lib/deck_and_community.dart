@@ -7,6 +7,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'live_connectors.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 
 class StreamDeckScreen extends StatefulWidget {
@@ -43,6 +48,28 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
   int _cols = 4;
   int _rows = 3;
   final Map<int, bool> _activeContinuousStates = {};
+  final AudioPlayer _deckAudioPlayer = AudioPlayer();
+  final FlutterTts _deckTts = FlutterTts();
+  final AudioRecorder _deckRecorder = AudioRecorder();
+
+  Future<void> _playDeckAudioOrTts({String? audioPath, String? ttsText}) async {
+    try {
+      await _deckAudioPlayer.stop();
+      await _deckTts.stop();
+      if (audioPath != null && audioPath.isNotEmpty) {
+        if (audioPath.startsWith('http')) {
+          await _deckAudioPlayer.play(UrlSource(audioPath));
+        } else if (File(audioPath).existsSync()) {
+          await _deckAudioPlayer.play(DeviceFileSource(audioPath));
+        }
+      }
+      if (ttsText != null && ttsText.trim().isNotEmpty) {
+        await _deckTts.setLanguage('pt-PT');
+        await _deckTts.setSpeechRate(0.52);
+        await _deckTts.speak(ttsText.trim());
+      }
+    } catch (_) {}
+  }
 
   final Map<String, IconData> _iconCatalog = {
     'bolt': Icons.bolt_rounded,
@@ -65,7 +92,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     {'label': 'BUZINA', 'cmd': 'sound_horn', 'val': '', 'iconKey': 'horn', 'colorVal': 0xFFF97316, 'isContinuous': false},
   ];
 
- void _executeKeyAction(int index, Map<String, dynamic> b) {
+   void _executeKeyAction(int index, Map<String, dynamic> b) {
+    _playDeckAudioOrTts(audioPath: b['soundPath']?.toString(), ttsText: b['ttsText']?.toString());
+    if (b['cmd'] == 'play_sound_only') return;
     final cmd = (b['cmd'] ?? '').toString();
     final val = (b['val'] ?? '').toString();
     if (cmd == 'toggle_mute') {
@@ -88,7 +117,7 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     } catch (_) {}
   }
 
-   void _addNewKey() => _openProKeyEditorModal(null);
+  void _addNewKey() => _openProKeyEditorModal(null);
   void _editKeyModal(int index) => _openProKeyEditorModal(index);
 
   void _openProKeyEditorModal(int? editIndex) {
@@ -97,15 +126,19 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
 
     final labelCtrl = TextEditingController(text: (existing['label'] ?? '').toString());
     final valCtrl = TextEditingController(text: (existing['val'] ?? '').toString());
+    final ttsCtrl = TextEditingController(text: (existing['ttsText'] ?? '').toString());
     String selectedCmd = (existing['cmd'] ?? 'scene_game').toString();
     String selectedIcon = (existing['iconKey'] ?? 'bolt').toString();
     int selectedColor = (existing['colorVal'] as int?) ?? 0xFF38BDF8;
     bool isContinuous = existing['isContinuous'] == true;
     String? imagePath = existing['imagePath']?.toString();
+    String? soundPath = existing['soundPath']?.toString();
     bool fullCoverImg = existing['fullCoverImg'] == true;
     bool hideLabelOnImg = existing['hideLabelOnImg'] == true;
+    bool isRecordingVoice = false;
 
     const actionsList = <Map<String, String>>[
+      {'cmd': 'play_sound_only', 'name': '🔊 Tocar Som / Voz / TTS da Tecla'},
       {'cmd': 'scene_game', 'name': '🎮 Mudar para Cena Jogo'},
       {'cmd': 'scene_cam', 'name': '📷 Mudar para Câmara Full'},
       {'cmd': 'scene_brb', 'name': '⏸️ Mudar para Pausa / BRB'},
@@ -133,6 +166,127 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
       0xFF38BDF8, 0xFF1E7BFF, 0xFF22C55E, 0xFFEF4444,
       0xFFF59E0B, 0xFFA855F7, 0xFFEC4899, 0xFF14B8A6,
     ];
+
+    Future<void> openOnlineSoundLibrary(StateSetter setParentDlg) async {
+      final searchCtrl = TextEditingController(text: 'applause');
+      List<Map<String, String>> results = [];
+      bool loading = false;
+
+      Future<void> searchOnline(String query, StateSetter setLib) async {
+        setLib(() => loading = true);
+        try {
+          final uri = Uri.parse(
+            'https://wikimedia.org{Uri.encodeComponent("$query filetype:audio")}&gsrnamespace=6&gsrlimit=25&prop=imageinfo&iiprop=url&format=json',
+          );
+          final res = await http.get(uri);
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            final pages = (data['query']?['pages'] as Map<String, dynamic>?) ?? {};
+            final list = <Map<String, String>>[];
+            for (final entry in pages.values) {
+              final title = (entry['title'] ?? '').toString().replaceFirst('File:', '');
+              final info = (entry['imageinfo'] as List?)?.firstOrNull;
+              final url = (info?['url'] ?? '').toString();
+              if (url.isNotEmpty) list.add({'title': title, 'url': url});
+            }
+            setLib(() => results = list);
+          }
+        } catch (_) {}
+        setLib(() => loading = false);
+      }
+
+      await showDialog(
+        context: context,
+        builder: (libCtx) => StatefulBuilder(
+          builder: (libCtx, setLib) {
+            if (results.isEmpty && !loading) {
+              Future.microtask(() => searchOnline('applause', setLib));
+            }
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0B1636),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+              ),
+              title: const Text('🌐 Biblioteca Online de Efeitos Sonoros', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+              content: SizedBox(
+                width: 420,
+                height: 360,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: searchCtrl,
+                            decoration: const InputDecoration(hintText: 'Pesquisar som (ex: applause, horn, laugh, win)...', isDense: true),
+                            onSubmitted: (v) => searchOnline(v, setLib),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.search, color: Color(0xFF38BDF8)),
+                          onPressed: () => searchOnline(searchCtrl.text.trim(), setLib),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : ListView.builder(
+                              itemCount: results.length,
+                              itemBuilder: (_, i) {
+                                final item = results[i];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(item['title']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.play_circle_filled, color: Colors.cyanAccent, size: 22),
+                                        tooltip: 'Ouvir Prévia',
+                                        onPressed: () => _playDeckAudioOrTts(audioPath: item['url']),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.download_rounded, color: Colors.greenAccent, size: 22),
+                                        tooltip: 'Baixar & Usar na Tecla',
+                                        onPressed: () async {
+                                          try {
+                                            final dir = await getApplicationDocumentsDirectory();
+                                            final ext = item['url']!.split('.').last.split('?').first;
+                                            final localFile = File('${dir.path}/deck_sfx_${DateTime.now().millisecondsSinceEpoch}.$ext');
+                                            final bytes = await http.readBytes(Uri.parse(item['url']!));
+                                            await localFile.writeAsBytes(bytes);
+                                            setParentDlg(() => soundPath = localFile.path);
+                                            if (libCtx.mounted) Navigator.pop(libCtx);
+                                          } catch (_) {}
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _deckAudioPlayer.stop();
+                    Navigator.pop(libCtx);
+                  },
+                  child: const Text('Fechar'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
 
     showDialog(
       context: context,
@@ -174,6 +328,79 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                     isDense: true,
                   ),
                 ),
+                                const SizedBox(height: 10),
+                const Text('🔊 Som, Biblioteca Online, Voz Própria ou TTS:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                      onPressed: () => openOnlineSoundLibrary(setDlg),
+                      icon: const Icon(Icons.library_music_rounded, size: 16, color: Colors.cyanAccent),
+                      label: const Text('Biblioteca Online', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                      onPressed: () async {
+                        final res = await FilePicker.platform.pickFiles(type: FileType.audio);
+                        if (res != null && res.files.single.path != null) {
+                          setDlg(() => soundPath = res.files.single.path);
+                        }
+                      },
+                      icon: const Icon(Icons.folder_open_rounded, size: 16, color: Colors.amberAccent),
+                      label: const Text('MP3/WAV Local', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isRecordingVoice ? Colors.redAccent : const Color(0xFF13224D),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onPressed: () async {
+                        if (!isRecordingVoice) {
+                          if (await _deckRecorder.hasPermission()) {
+                            final dir = await getApplicationDocumentsDirectory();
+                            final recPath = '${dir.path}/deck_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                            await _deckRecorder.start(const RecordConfig(), path: recPath);
+                            setDlg(() => isRecordingVoice = true);
+                          }
+                        } else {
+                          final saved = await _deckRecorder.stop();
+                          setDlg(() {
+                            isRecordingVoice = false;
+                            if (saved != null) soundPath = saved;
+                          });
+                        }
+                      },
+                      icon: Icon(isRecordingVoice ? Icons.stop_rounded : Icons.mic_rounded, size: 16, color: Colors.white),
+                      label: Text(isRecordingVoice ? 'Parar Gravação' : 'Gravar Voz', style: const TextStyle(fontSize: 11, color: Colors.white)),
+                    ),
+                  ],
+                ),
+                if (soundPath != null && soundPath!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('✅ Áudio associado: ${soundPath!.split(Platform.pathSeparator).last}', style: const TextStyle(fontSize: 10.5, color: Colors.greenAccent), overflow: TextOverflow.ellipsis)),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                          onPressed: () => setDlg(() => soundPath = null),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: ttsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: '🗣️ Mensagem Falada pela Voz TTS (opcional)',
+                    hintText: 'Ex: Obrigado pelo follow, bem-vindo à live!',
+                    isDense: true,
+                  ),
+                ),
+
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -259,6 +486,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                     onPressed: () {
                       final testCmd = selectedCmd;
                       final testVal = valCtrl.text.trim().isEmpty ? 'true' : valCtrl.text.trim();
+                                          _playDeckAudioOrTts(audioPath: soundPath, ttsText: ttsCtrl.text);
+                    if (testCmd != 'play_sound_only')
+
                       widget.onSendCommand(testCmd, testVal);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -297,6 +527,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                   'colorVal': selectedColor,
                   'isContinuous': isContinuous,
                   'imagePath': imagePath,
+                                  'soundPath': soundPath,
+                'ttsText': ttsCtrl.text.trim(),
+
                   'fullCoverImg': fullCoverImg,
                   'hideLabelOnImg': hideLabelOnImg,
                 };
