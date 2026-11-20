@@ -6,6 +6,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'live_connectors.dart';
+import 'package:file_picker/file_picker.dart';
 
 
 class StreamDeckScreen extends StatefulWidget {
@@ -87,51 +88,203 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     } catch (_) {}
   }
 
-  void _addNewKey() {
-    final labelCtrl = TextEditingController();
-    final valCtrl = TextEditingController();
-    bool isContinuous = false;
+   void _addNewKey() => _openProKeyEditorModal(null);
+  void _editKeyModal(int index) => _openProKeyEditorModal(index);
+
+  void _openProKeyEditorModal(int? editIndex) {
+    final isEditing = editIndex != null;
+    final existing = isEditing ? Map<String, dynamic>.from(_buttons[editIndex]) : <String, dynamic>{};
+
+    final labelCtrl = TextEditingController(text: (existing['label'] ?? '').toString());
+    final valCtrl = TextEditingController(text: (existing['val'] ?? '').toString());
+    String selectedCmd = (existing['cmd'] ?? 'scene_game').toString();
+    String selectedIcon = (existing['iconKey'] ?? 'bolt').toString();
+    int selectedColor = (existing['colorVal'] as int?) ?? 0xFF38BDF8;
+    bool isContinuous = existing['isContinuous'] == true;
+    String? imagePath = existing['imagePath']?.toString();
+    bool fullCoverImg = existing['fullCoverImg'] == true;
+    bool hideLabelOnImg = existing['hideLabelOnImg'] == true;
+
+    const actionsList = <Map<String, String>>[
+      {'cmd': 'scene_game', 'name': '🎮 Mudar para Cena Jogo'},
+      {'cmd': 'scene_cam', 'name': '📷 Mudar para Câmara Full'},
+      {'cmd': 'scene_brb', 'name': '⏸️ Mudar para Pausa / BRB'},
+      {'cmd': 'toggle_mute', 'name': '🔇 Mutar / Ativar Microfone'},
+      {'cmd': 'stream_start', 'name': '📡 Iniciar Transmissão Live'},
+      {'cmd': 'stream_stop', 'name': '⏹️ Parar Transmissão Live'},
+      {'cmd': 'save_clip', 'name': '🎬 Criar Clipe 9:16 Agora'},
+      {'cmd': 'music_toggle', 'name': '🎵 Música Play / Pause'},
+      {'cmd': 'music_next', 'name': '⏭️ Próxima Música'},
+      {'cmd': 'spin_wheel', 'name': '🎡 Girar Roleta Interativa'},
+      {'cmd': 'test_alert', 'name': '🔔 Disparar / Replay Alerta'},
+      {'cmd': 'add_timer_60', 'name': '⏱️ Adicionar +1 Minuto Timer'},
+      {'cmd': 'goal_add', 'name': '🎯 Somar +1 na Meta Ativa'},
+      {'cmd': 'tts_toggle', 'name': '🗣️ Voz TTS Chat On / Off'},
+      {'cmd': 'chat_reply', 'name': '💬 Enviar Mensagem no Chat'},
+      {'cmd': 'open_url', 'name': '🌐 Abrir Link / Webhook HTTP'},
+      {'cmd': 'custom_action', 'name': '⚡ Comando / Macro Personalizado'},
+    ];
+
+    if (!actionsList.any((a) => a['cmd'] == selectedCmd)) {
+      selectedCmd = 'custom_action';
+    }
+
+    const palette = <int>[
+      0xFF38BDF8, 0xFF1E7BFF, 0xFF22C55E, 0xFFEF4444,
+      0xFFF59E0B, 0xFFA855F7, 0xFFEC4899, 0xFF14B8A6,
+    ];
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: const Color(0xFF0B1636),
-          title: const Text('+ Adicionar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
-              const SizedBox(height: 8),
-              TextField(controller: valCtrl, decoration: const InputDecoration(labelText: 'Ação / Comando', isDense: true)),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Modo Contínuo (Fica aceso ao ativar)', style: TextStyle(fontSize: 12)),
-                value: isContinuous,
-                onChanged: (v) => setDlg(() => isContinuous = v),
-              ),
-            ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
           ),
-   actions: [
+          title: Text(
+            isEditing ? '🎛️ Personalizar Tecla Pro' : '➕ Nova Tecla Stream Deck Pro',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8)),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(labelText: 'Nome / Rótulo da Tecla', isDense: true),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedCmd,
+                  dropdownColor: const Color(0xFF050B1E),
+                  decoration: const InputDecoration(labelText: 'Ação Principal da Tecla', isDense: true),
+                  items: actionsList
+                      .map((a) => DropdownMenuItem(value: a['cmd'], child: Text(a['name']!, style: const TextStyle(fontSize: 12))))
+                      .toList(),
+                  onChanged: (v) => setDlg(() => selectedCmd = v ?? 'scene_game'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: valCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Parâmetro (Mensagem Chat, URL, Macro ou Valor)',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D)),
+                        onPressed: () async {
+                          final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                          if (res != null && res.files.single.path != null) {
+                            setDlg(() => imagePath = res.files.single.path);
+                          }
+                        },
+                        icon: const Icon(Icons.image_outlined, size: 17, color: Color(0xFF38BDF8)),
+                        label: Text(
+                          imagePath != null && imagePath!.isNotEmpty ? 'Trocar PNG HD' : 'Escolher Imagem PNG HD',
+                          style: const TextStyle(fontSize: 11.5, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    if (imagePath != null && imagePath!.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        tooltip: 'Remover Imagem',
+                        onPressed: () => setDlg(() => imagePath = null),
+                      ),
+                    ],
+                  ],
+                ),
+                if (imagePath != null && imagePath!.isNotEmpty) ...[
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Imagem em Ecrã Total da Tecla (HD)', style: TextStyle(fontSize: 11.5)),
+                    value: fullCoverImg,
+                    onChanged: (v) => setDlg(() => fullCoverImg = v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Ocultar Texto sobre a Imagem', style: TextStyle(fontSize: 11.5)),
+                    value: hideLabelOnImg,
+                    onChanged: (v) => setDlg(() => hideLabelOnImg = v),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                const Text('Cor Neon da Tecla:', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: palette.map((c) {
+                    final active = selectedColor == c;
+                    return GestureDetector(
+                      onTap: () => setDlg(() => selectedColor = c),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Color(c),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: active ? Colors.white : Colors.transparent, width: 2.5),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Modo Contínuo / Toggle (Fica aceso ao ativar)', style: TextStyle(fontSize: 11.5)),
+                  value: isContinuous,
+                  onChanged: (v) => setDlg(() => isContinuous = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (isEditing)
+              TextButton(
+                onPressed: () {
+                  setState(() => _buttons.removeAt(editIndex));
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+              ),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E7BFF)),
               onPressed: () {
-                if (labelCtrl.text.trim().isNotEmpty) {
-                  setState(() {
-                    _buttons.add({
-                      'label': labelCtrl.text.trim(),
-                      'cmd': 'custom_action',
-                      'val': valCtrl.text.trim(),
-                      'iconKey': 'bolt',
-                      'colorVal': 0xFF38BDF8,
-                      'isContinuous': isContinuous,
-                    });
-                  });
-                  Navigator.pop(ctx);
-                }
+                final newKey = <String, dynamic>{
+                  'label': labelCtrl.text.trim().isEmpty ? 'Tecla Pro' : labelCtrl.text.trim(),
+                  'cmd': selectedCmd,
+                  'val': valCtrl.text.trim().isEmpty ? 'true' : valCtrl.text.trim(),
+                  'iconKey': selectedIcon,
+                  'colorVal': selectedColor,
+                  'isContinuous': isContinuous,
+                  'imagePath': imagePath,
+                  'fullCoverImg': fullCoverImg,
+                  'hideLabelOnImg': hideLabelOnImg,
+                };
+                setState(() {
+                  if (isEditing) {
+                    _buttons[editIndex] = newKey;
+                  } else {
+                    _buttons.add(newKey);
+                  }
+                });
+                Navigator.pop(ctx);
               },
-              child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
+              child: const Text('Guardar Tecla', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -139,45 +292,23 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     );
   }
 
-  void _editKeyModal(int index) {
-    final b = _buttons[index];
-    final labelCtrl = TextEditingController(text: (b['label'] ?? '').toString());
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        title: const Text('Editar Tecla', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        content: TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _buttons.removeAt(index));
-              Navigator.pop(ctx);
-            },
-            child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-            onPressed: () {
-              setState(() => b['label'] = labelCtrl.text.trim());
-              Navigator.pop(ctx);
-            },
-            child: const Text('Guardar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
+   Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
     final isMuteBtn = b['cmd'] == 'toggle_mute';
     final isContinuous = b['isContinuous'] == true;
     final isOn = isMuteBtn ? widget.isMuted : (_activeContinuousStates[index] == true);
-    final Color accent = isMuteBtn ? (widget.isMuted ? Colors.redAccent : Colors.greenAccent) : Color(b['colorVal'] as int);
-    final IconData iconData = isMuteBtn ? (widget.isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded) : (_iconCatalog[b['iconKey']] ?? Icons.bolt_rounded);
-    final String? imgPath = b['imagePath'];
+    final Color accent = isMuteBtn
+        ? (widget.isMuted ? Colors.redAccent : Colors.greenAccent)
+        : Color((b['colorVal'] as int?) ?? 0xFF38BDF8);
+    final IconData iconData = isMuteBtn
+        ? (widget.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded)
+        : (_iconCatalog[b['iconKey']] ?? Icons.bolt_rounded);
+    final String? imgPath = b['imagePath']?.toString();
+    final bool hasValidImg = imgPath != null && imgPath.isNotEmpty && File(imgPath).existsSync();
+    final bool fullCover = b['fullCoverImg'] == true;
+    final bool hideLabel = b['hideLabelOnImg'] == true && hasValidImg;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
@@ -190,80 +321,133 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
         border: Border.all(color: isOn ? Colors.white : accent.withOpacity(0.65), width: isOn ? 2.2 : 1.5),
         boxShadow: [BoxShadow(color: accent.withOpacity(isOn ? 0.55 : 0.22), blurRadius: isOn ? 18 : 10, offset: const Offset(0, 4))],
       ),
-      child: Stack(
-        children: [
-          if (isContinuous)
-            Positioned(
-              top: 6,
-              right: 8,
-              child: Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: isOn ? Colors.greenAccent : Colors.white24,
-                  shape: BoxShape.circle,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasValidImg && fullCover)
+              Image.file(File(imgPath), fit: BoxFit.cover),
+            if (isContinuous)
+              Positioned(
+                top: 6,
+                right: 8,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(color: isOn ? Colors.greenAccent : Colors.white24, shape: BoxShape.circle),
                 ),
               ),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (hasValidImg && !fullCover)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(File(imgPath), width: 38, height: 38, fit: BoxFit.cover),
+                    )
+                  else if (!hasValidImg)
+                    Icon(iconData, size: _rows == 2 ? 32 : 24, color: isOn ? Colors.white : accent),
+                  if (!hideLabel) ...[
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Text(
+                        isMuteBtn ? (widget.isMuted ? 'CORTADO' : 'SOM ATIVO') : (b['label'] ?? '').toString(),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10.5,
+                          color: Colors.white,
+                          shadows: hasValidImg && fullCover ? const [Shadow(blurRadius: 6, color: Colors.black)] : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (imgPath != null && File(imgPath).existsSync())
-                  ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(imgPath), width: 34, height: 34, fit: BoxFit.cover))
-                else
-                  Icon(iconData, size: _rows == 2 ? 32 : 24, color: isOn ? Colors.white : accent),
-                const SizedBox(height: 6),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Text(
-                    isMuteBtn ? (widget.isMuted ? 'CORTADO' : 'SOM ATIVO') : (b['label'] as String),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 10.5, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _openSyncQrModal() {
+   void _openSyncQrModal() {
     final code = widget.generatedCode ?? 'HELL-482910';
     final codeCtrl = TextEditingController();
+    bool dialogOpen = true;
+
+    LocalObsServer.onQrDeviceConnected = () {
+      if (dialogOpen && mounted) {
+        dialogOpen = false;
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 2.º Aparelho sincronizado em tempo real!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    };
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0B1636),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5)),
-        title: const Text('📱 Sincronizar 2.º Ecrã (QR / Código)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+        ),
+        title: const Text(
+          '📱 Sincronizar 2.º Ecrã (QR / Código)',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                            child: QrImageView(data: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/deck?room=$code', version: QrVersions.auto, size: 150),
+              child: QrImageView(
+                data: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/deck?room=$code',
+                version: QrVersions.auto,
+                size: 150,
+              ),
             ),
             const SizedBox(height: 10),
-            SelectableText('Código: $code', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
+            SelectableText(
+              'Código: $code',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5),
+            ),
             const SizedBox(height: 10),
             TextField(
               controller: codeCtrl,
-              decoration: const InputDecoration(hintText: 'Ou introduz código de outro aparelho...', isDense: true, border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                hintText: 'Ou introduz código de outro aparelho...',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+          TextButton(
+            onPressed: () {
+              dialogOpen = false;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Fechar'),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E7BFF)),
             onPressed: () {
               if (codeCtrl.text.trim().isNotEmpty) {
+                dialogOpen = false;
                 widget.onJoinWithCode(codeCtrl.text.trim());
                 Navigator.pop(ctx);
               }
@@ -272,8 +456,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
           ),
         ],
       ),
-    );
+    ).then((_) => dialogOpen = false);
   }
+
 
    bool _editMode = false;
   bool _showSecondScreen = false;
