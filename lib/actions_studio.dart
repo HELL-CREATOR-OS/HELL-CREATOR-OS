@@ -94,11 +94,21 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
     super.dispose();
   }
 
-  BoxDecoration _neonCard() => BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
+   BoxDecoration _neonCard() => BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+          stops: [0.0, 0.55, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45), width: 1.3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.65), blurRadius: 12, offset: const Offset(0, 6)),
+          BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.18), blurRadius: 16, spreadRadius: 0.5),
+        ],
       );
+
   Future<void> _togglePlayAudio(String url, {bool isLocal = false, VoidCallback? onStateUpdate}) async {
     if (url.isEmpty) return;
     if (_currentlyPlayingUrl == url) {
