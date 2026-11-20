@@ -654,7 +654,7 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildHomeTab() {
+   Widget _buildHomeTab() {
     final platforms = [
       {'id': 'tiktok', 'name': 'TikTok'},
       {'id': 'twitch', 'name': 'Twitch'},
@@ -662,44 +662,99 @@ class _MainShellState extends State<MainShell> {
       {'id': 'kick', 'name': 'Kick'},
     ];
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 4,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 0.86,
-          children: platforms.map((p) {
-            final id = p['id']!;
-            final name = p['name']!;
-            return PlatformGlassTile(
-              platform: id,
-              label: name,
-              isActive: _activePlatforms[id] == true,
-              onTap: () => _handlePlatformTap(id, name),
-              onLongPress: () => _openPlatformSetupDialog(id, name),
-            );
-          }).toList(),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
+                      BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF04091A),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: const Text(
+                          'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
+                          style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF030714),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.black, width: 2),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.12), blurRadius: 8),
+                          ],
+                        ),
+                        child: GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 4,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 0.84,
+                          children: platforms.map((p) {
+                            final id = p['id']!;
+                            final name = p['name']!;
+                            return PlatformGlassTile(
+                              platform: id,
+                              label: name,
+                              isActive: _activePlatforms[id] == true,
+                              onTap: () => _handlePlatformTap(id, name),
+                              onLongPress: () => _openPlatformSetupDialog(id, name),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
+            _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
+            _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
+            _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
+            _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
+            _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
+            _menuTile(Icons.public, 'Comunidade', () => setState(() => _selectedIndex = 7), badge: 'GLOBO & CHAT'),
+            _menuTile(Icons.extension_outlined, 'Marketplace', () => setState(() => _selectedIndex = 8), badge: 'LOJA & PACKS'),
+            _menuTile(Icons.psychology_outlined, 'Gestão IA', () => setState(() => _selectedIndex = 9), badge: 'DIRETOR & NEGÓCIO'),
+            _menuTile(Icons.info_outline, 'Informações', () => setState(() => _selectedIndex = 10), badge: 'GUIA & FAQ'),
+            _menuTile(Icons.settings_outlined, 'Configurações', () => setState(() => _selectedIndex = 11)),
+          ],
         ),
-        const SizedBox(height: 16),
-             _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
-         _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
-      _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
-      _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
-      _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
-      _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
-      _menuTile(Icons.public, 'Comunidade', () => setState(() => _selectedIndex = 7), badge: 'GLOBO & CHAT'),
-      _menuTile(Icons.extension_outlined, 'Marketplace', () => setState(() => _selectedIndex = 8), badge: 'LOJA & PACKS'),
-      _menuTile(Icons.psychology_outlined, 'Gestão IA', () => setState(() => _selectedIndex = 9), badge: 'DIRETOR & NEGÓCIO'),
-      _menuTile(Icons.info_outline, 'Informações', () => setState(() => _selectedIndex = 10), badge: 'GUIA & FAQ'),
-      _menuTile(Icons.settings_outlined, 'Configurações', () => setState(() => _selectedIndex = 11)),
-
-      ],
+      ),
     );
   }
+
 
   Widget _buildGameModeScreen() {
     final isSingleDevice = !_isSecondScreenPaired;
@@ -959,18 +1014,37 @@ class _MainShellState extends State<MainShell> {
                 },
               )
             : IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => setState(() => _selectedIndex = 0)),
-                title: _selectedIndex == 0
-                             ? const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 4, color: Colors.white, height: 1.0)),
-                Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 3, color: Color(0xFF38BDF8), height: 1.15)),
-                SizedBox(height: 2),
-                Text('UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 8.5, letterSpacing: 1.1, color: Colors.white70)),
-              ],
-            )
+                            title: _selectedIndex == 0
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 4.5, color: Colors.white, height: 1.0)),
+                            const Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 3.2, color: Color(0xFF38BDF8), height: 1.15)),
+                            const SizedBox(height: 3),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0A1433),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.35), width: 0.8),
+                              ),
+                              child: const Text(
+                                'UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 8.0, letterSpacing: 1.0, color: Colors.white70),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(
+                        titles[_selectedIndex],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5),
+                      ),
 
-                    : Text(titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
                       actions: [
           IconButton(
             tooltip: 'Terminar Sessão (Logout)',
