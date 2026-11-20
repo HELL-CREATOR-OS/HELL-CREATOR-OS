@@ -18,6 +18,7 @@ class LocalObsServer {
   static Map<String, dynamic> latestTimer = {'seconds': 1800, 'running': false};
   static Map<String, dynamic> latestDeckCmd = {'id': 0, 'cmd': '', 'val': null};
   static void Function(String cmd, dynamic val)? onRemoteDeckCommand;
+  static void Function()? onQrDeviceConnected;
   static Map<String, int> platformViewers = {'TikTok': 0, 'Twitch': 0, 'YouTube': 0, 'Kick': 0};
   static List<Map<String, dynamic>> liveChatFeed = [];
   static List<Map<String, dynamic>> recentAlerts = [];
@@ -71,6 +72,7 @@ class LocalObsServer {
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({'ok': true, 'cmd': cmd}));
         } else if (req.uri.path == '/deck') {
+          if (onQrDeviceConnected != null) onQrDeviceConnected!();
           req.response.headers.contentType = ContentType.html;
           req.response.write(_buildRemoteDeckHtml());
         } else {
