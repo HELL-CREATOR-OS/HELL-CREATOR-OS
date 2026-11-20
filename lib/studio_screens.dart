@@ -11,10 +11,20 @@ import 'live_connectors.dart';
 import 'account_security.dart';
 
 BoxDecoration _neonBox() => BoxDecoration(
-      gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFF1E429F), width: 1.2),
-    );
+  gradient: const LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+    stops: [0.0, 0.55, 1.0],
+  ),
+  borderRadius: BorderRadius.circular(16),
+  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45), width: 1.3),
+  boxShadow: [
+    BoxShadow(color: Colors.black.withOpacity(0.65), blurRadius: 12, offset: const Offset(0, 6)),
+    BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.18), blurRadius: 16, spreadRadius: 0.5),
+  ],
+);
+
 
 class SponsorBannerManager {
   static final List<Map<String, String>> activeSponsors = [
@@ -83,12 +93,20 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     final isExpanded = _expandedPanelId == id;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1636),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(isExpanded ? 0.85 : 0.35), width: isExpanded ? 1.5 : 1),
-        boxShadow: [BoxShadow(color: accent.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
+             decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF112354), Color(0xFF08122E), Color(0xFF04091A)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: accent.withOpacity(isExpanded ? 0.9 : 0.45), width: isExpanded ? 1.8 : 1.2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.75), blurRadius: 14, offset: const Offset(0, 6)),
+            BoxShadow(color: accent.withOpacity(isExpanded ? 0.28 : 0.14), blurRadius: 16),
+          ],
+        ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
