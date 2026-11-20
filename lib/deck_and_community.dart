@@ -518,7 +518,6 @@ class CommunityGlobeScreen extends StatefulWidget {
   @override
   State<CommunityGlobeScreen> createState() => _CommunityGlobeScreenState();
 }
-1. 
 
 class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with SingleTickerProviderStateMixin {
 
