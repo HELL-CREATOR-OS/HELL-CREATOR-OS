@@ -52,6 +52,227 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
   final AudioPlayer _deckAudioPlayer = AudioPlayer();
   final FlutterTts _deckTts = FlutterTts();
   final AudioRecorder _deckRecorder = AudioRecorder();
+    bool _tutorialChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstTimeTutorial());
+  }
+
+  Future<void> _checkFirstTimeTutorial() async {
+    if (_tutorialChecked) return;
+    _tutorialChecked = true;
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('stream_deck_hell_tutorial_seen_v1') ?? false;
+    if (!seen && mounted) {
+      await _showStreamDeckTutorialDialog(saveOnClose: true);
+    }
+  }
+
+  Future<void> _showStreamDeckTutorialDialog({bool saveOnClose = true}) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF38BDF8), size: 24),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Bem-vindo à Stream Deck HELL',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF050B1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: const Text(
+                  'Sabias que podes transformar um telemóvel antigo, tablet (Android) ou outro PC (Windows) numa Stream Deck HELL ou Centro de Controlo dedicado sem gastar dinheiro?',
+                  style: TextStyle(fontSize: 13, color: Colors.white, height: 1.4, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('COMO EMPARELHAR EM 4 PASSOS:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8), letterSpacing: 1)),
+              const SizedBox(height: 8),
+              const Text('1. Instala a app HELL CREATOR OS no segundo dispositivo (Android ou Windows).', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
+              const SizedBox(height: 6),
+              const Text('2. Abre o Centro de Controlo ou diretamente a Stream Deck HELL e carrega em "Emparelhar".', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
+              const SizedBox(height: 6),
+              const Text('3. O dispositivo principal gera um código de sincronização seguro.', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
+              const SizedBox(height: 6),
+              const Text('4. Copia e cola esse código no segundo dispositivo e fica tudo sincronizado em tempo real para completares o teu setup!', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
+            ],
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E78FF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                if (saveOnClose) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('stream_deck_hell_tutorial_seen_v1', true);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text('PERCEBIDO · INFORMAÇÃO RECEBIDA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openPairDeviceDialog() {
+    final code = widget.generatedCode ?? 'HELL-482910';
+    final codeCtrl = TextEditingController();
+    bool dialogOpen = true;
+
+    LocalObsServer.onQrDeviceConnected = () {
+      if (dialogOpen && mounted) {
+        dialogOpen = false;
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aparelho sincronizado em tempo real!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.link_rounded, color: Color(0xFF38BDF8)),
+            SizedBox(width: 8),
+            Expanded(child: Text('Emparelhar Stream Deck HELL', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900))),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('DISPOSITIVO PRINCIPAL (GERAR CÓDIGO):', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8), letterSpacing: 0.8)),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF050B1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    SelectableText(
+                      code,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E78FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Código copiado! Cola no segundo dispositivo.')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Copiar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('SEGUNDO DISPOSITIVO (COLAR CÓDIGO):', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF10B981), letterSpacing: 0.8)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: codeCtrl,
+                textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 2),
+                decoration: InputDecoration(
+                  hintText: 'Ex: $code',
+                  filled: true,
+                  fillColor: const Color(0xFF050B1E),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              dialogOpen = false;
+              Navigator.pop(ctx);
+              _showStreamDeckTutorialDialog(saveOnClose: false);
+            },
+            child: const Text('Ver Ajuda', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () {
+              dialogOpen = false;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Fechar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+            onPressed: () {
+              final entered = codeCtrl.text.trim();
+              if (entered.isNotEmpty) {
+                dialogOpen = false;
+                widget.onJoinWithCode(entered);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Sincronizar Agora', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ).then((_) => dialogOpen = false);
+  }
+
+
 
   Future<void> _playDeckAudioOrTts({String? audioPath, String? ttsText}) async {
     try {
@@ -566,19 +787,34 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     final bool fullCover = b['fullCoverImg'] == true;
     final bool hideLabel = b['hideLabelOnImg'] == true && hasValidImg;
 
-    return AnimatedContainer(
+       return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isOn
-              ? [accent.withOpacity(0.55), accent.withOpacity(0.28), const Color(0xFF050B1E)]
-              : [Colors.white.withOpacity(0.14), accent.withOpacity(0.14), const Color(0xFF050B1E).withOpacity(0.78)],
+              ? [accent.withOpacity(0.75), accent.withOpacity(0.32), const Color(0xFF050B1E)]
+              : [const Color(0xFF15285E), accent.withOpacity(0.18), const Color(0xFF04091A)],
+          stops: const [0.0, 0.5, 1.0],
         ),
-        border: Border.all(color: isOn ? Colors.white : accent.withOpacity(0.65), width: isOn ? 2.2 : 1.5),
-        boxShadow: [BoxShadow(color: accent.withOpacity(isOn ? 0.55 : 0.22), blurRadius: isOn ? 18 : 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isOn ? Colors.white : accent.withOpacity(0.65),
+          width: isOn ? 2.2 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.85),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: accent.withOpacity(isOn ? 0.65 : 0.25),
+            blurRadius: isOn ? 20 : 12,
+            spreadRadius: isOn ? 1 : 0,
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
@@ -587,14 +823,33 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
           children: [
             if (hasValidImg && fullCover)
               Image.file(File(imgPath), fit: BoxFit.cover),
+            Positioned(
+              top: 0,
+              left: 10,
+              right: 10,
+              child: Container(
+                height: 1.5,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.transparent, Colors.white.withOpacity(0.65), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
             if (isContinuous)
               Positioned(
-                top: 6,
+                top: 7,
                 right: 8,
                 child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(color: isOn ? Colors.greenAccent : Colors.white24, shape: BoxShape.circle),
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isOn ? Colors.greenAccent : Colors.white24,
+                    shape: BoxShape.circle,
+                    boxShadow: isOn
+                        ? [const BoxShadow(color: Colors.greenAccent, blurRadius: 8)]
+                        : null,
+                  ),
                 ),
               ),
             Center(
@@ -607,9 +862,22 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                       child: Image.file(File(imgPath), width: 38, height: 38, fit: BoxFit.cover),
                     )
                   else if (!hasValidImg)
-                    Icon(iconData, size: _rows == 2 ? 32 : 24, color: isOn ? Colors.white : accent),
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withOpacity(isOn ? 0.28 : 0.14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withOpacity(isOn ? 0.6 : 0.35),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: Icon(iconData, size: _rows >= 4 ? 22 : 28, color: isOn ? Colors.white : accent),
+                    ),
                   if (!hideLabel) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: Text(
@@ -618,10 +886,13 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                           fontSize: 10.5,
+                          letterSpacing: 0.3,
                           color: Colors.white,
-                          shadows: hasValidImg && fullCover ? const [Shadow(blurRadius: 6, color: Colors.black)] : null,
+                          shadows: [
+                            Shadow(blurRadius: hasValidImg && fullCover ? 6 : 4, color: Colors.black),
+                          ],
                         ),
                       ),
                     ),
@@ -633,89 +904,6 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
         ),
       ),
     );
-  }
-
-   void _openSyncQrModal() {
-    final code = widget.generatedCode ?? 'HELL-482910';
-    final codeCtrl = TextEditingController();
-    bool dialogOpen = true;
-
-    LocalObsServer.onQrDeviceConnected = () {
-      if (dialogOpen && mounted) {
-        dialogOpen = false;
-        Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ 2.º Aparelho sincronizado em tempo real!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    };
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
-        ),
-        title: const Text(
-          '📱 Sincronizar 2.º Ecrã (QR / Código)',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-              child: QrImageView(
-                data: 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/deck?room=$code',
-                version: QrVersions.auto,
-                size: 150,
-              ),
-            ),
-            const SizedBox(height: 10),
-            SelectableText(
-              'Código: $code',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: codeCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Ou introduz código de outro aparelho...',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              dialogOpen = false;
-              Navigator.pop(ctx);
-            },
-            child: const Text('Fechar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E7BFF)),
-            onPressed: () {
-              if (codeCtrl.text.trim().isNotEmpty) {
-                dialogOpen = false;
-                widget.onJoinWithCode(codeCtrl.text.trim());
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Validar Código', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ).then((_) => dialogOpen = false);
   }
 
 
@@ -750,17 +938,12 @@ bool _testMode = false;
                     tooltip: 'Retroceder / Minimizar',
                     onPressed: widget.onMinimizeDeck,
                   ),
-                  Text(
-                    _showSecondScreen ? '2.º ECRÃ LIVE' : 'STREAM DECK PRO (${_currentPage + 1}/$pageCount)',
-                    style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(_showSecondScreen ? Icons.grid_view_rounded : Icons.monitor_rounded, color: const Color(0xFF38BDF8), size: 21),
-                    tooltip: _showSecondScreen ? 'Voltar à Streamdeck' : 'Abrir 2.º Ecrã Completo',
-                    onPressed: () => setState(() => _showSecondScreen = !_showSecondScreen),
-                  ),
-                  if (!_showSecondScreen) ...[
+                                        Text(
+                        'STREAM DECK HELL (${_currentPage + 1}/$pageCount)',
+                        style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
+                      ),
+                      const Spacer(),
+
                                      IconButton(
                       icon: Icon(
                         _testMode ? Icons.play_circle_filled_rounded : Icons.play_circle_outline_rounded,
@@ -790,11 +973,38 @@ bool _testMode = false;
                       tooltip: 'Adicionar Tecla',
                       onPressed: _addNewKey,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF38BDF8), size: 21),
-                      tooltip: 'Sincronizar 2.º Aparelho (QR)',
-                      onPressed: _openSyncQrModal,
-                    ),
+                                         Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF0284C7)]),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24, width: 0.9),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.35), blurRadius: 8),
+                          ],
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _openPairDeviceDialog,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.link_rounded, color: Colors.white, size: 16),
+                                SizedBox(width: 5),
+                                Text('Emparelhar', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.help_outline_rounded, color: Colors.white70, size: 20),
+                        tooltip: 'Como Emparelhar (Tutorial)',
+                        onPressed: () => _showStreamDeckTutorialDialog(saveOnClose: false),
+                      ),
+
                     DropdownButton<String>(
                       value: '${_cols}x$_rows',
                       dropdownColor: const Color(0xFF0B1636),
@@ -820,65 +1030,12 @@ bool _testMode = false;
                         }
                       },
                     ),
-                  ],
                 ],
               ),
             ),
             Expanded(
-              child: _showSecondScreen
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0B1636),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.4)),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text('META ATIVA NA LIVE', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${LocalObsServer.latestGoal['title'] ?? 'Meta'}: ${LocalObsServer.latestGoal['current'] ?? 0} / ${LocalObsServer.latestGoal['target'] ?? 100}',
-                                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0B1636),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.4)),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text('CRONÓMETRO / TIMER', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${((LocalObsServer.latestTimer['seconds'] ?? 1800) ~/ 60).toString().padLeft(2, '0')}:${((LocalObsServer.latestTimer['seconds'] ?? 1800) % 60).toString().padLeft(2, '0')}',
-                                    style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : Stack(
+                                   child: Stack(
+
                       alignment: Alignment.center,
                       children: [
                         IgnorePointer(
