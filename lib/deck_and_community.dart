@@ -248,6 +248,31 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                   value: isContinuous,
                   onChanged: (v) => setDlg(() => isContinuous = v),
                 ),
+                                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF38BDF8)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onPressed: () {
+                      final testCmd = selectedCmd;
+                      final testVal = valCtrl.text.trim().isEmpty ? 'true' : valCtrl.text.trim();
+                      widget.onSendCommand(testCmd, testVal);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('▶️ A pré-visualizar: ${labelCtrl.text.trim().isEmpty ? testCmd : labelCtrl.text.trim()}'),
+                          duration: const Duration(seconds: 1),
+                          backgroundColor: const Color(0xFF1E7BFF),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.play_circle_filled_rounded, color: Color(0xFF38BDF8), size: 20),
+                    label: const Text('Pré-visualizar Som / Ação Agora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                ),
+
               ],
             ),
           ),
@@ -460,7 +485,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
   }
 
 
-   bool _editMode = false;
+  bool _editMode = false;
+bool _testMode = false;
+
   bool _showSecondScreen = false;
   final PageController _pageCtrl = PageController();
   int _currentPage = 0;
@@ -500,10 +527,29 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                     onPressed: () => setState(() => _showSecondScreen = !_showSecondScreen),
                   ),
                   if (!_showSecondScreen) ...[
+                                     IconButton(
+                      icon: Icon(
+                        _testMode ? Icons.play_circle_filled_rounded : Icons.play_circle_outline_rounded,
+                        color: _testMode ? Colors.cyanAccent : Colors.white70,
+                        size: 22,
+                      ),
+                      tooltip: _testMode ? 'Sair do Modo Pré-visualização' : 'Pré-visualizar / Testar Teclas',
+                      onPressed: () => setState(() {
+                        _testMode = !_testMode;
+                        if (_testMode) _editMode = false;
+                      }),
+                    ),
                     IconButton(
-                      icon: Icon(_editMode ? Icons.check_circle_rounded : Icons.edit_rounded, color: _editMode ? Colors.greenAccent : Colors.amberAccent, size: 21),
+                      icon: Icon(
+                        _editMode ? Icons.check_circle_rounded : Icons.edit_rounded,
+                        color: _editMode ? Colors.greenAccent : Colors.amberAccent,
+                        size: 21,
+                      ),
                       tooltip: _editMode ? 'Concluir Edição' : 'Editar Teclas',
-                      onPressed: () => setState(() => _editMode = !_editMode),
+                      onPressed: () => setState(() {
+                        _editMode = !_editMode;
+                        if (_editMode) _testMode = false;
+                      }),
                     ),
                     IconButton(
                       icon: const Icon(Icons.add_box_outlined, color: Colors.greenAccent, size: 21),
@@ -524,7 +570,11 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                         DropdownMenuItem(value: '4x2', child: Text('4x2')),
                         DropdownMenuItem(value: '4x3', child: Text('4x3')),
                         DropdownMenuItem(value: '4x4', child: Text('4x4')),
+                        DropdownMenuItem(value: '5x2', child: Text('5x2')),
+                        DropdownMenuItem(value: '5x3', child: Text('5x3')),
+                        DropdownMenuItem(value: '5x4', child: Text('5x4')),
                       ],
+
                       onChanged: (v) {
                         if (v != null) {
                           final parts = v.split('x');
@@ -650,7 +700,29 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                                         },
                                         builder: (context, candidateData, rejectedData) {
                                           final keyWidget = GestureDetector(
-                                            onTap: () => _editMode ? _editKeyModal(realIndex) : _executeKeyAction(realIndex, b),
+                                                                                       onTap: () {
+                                              if (_editMode) {
+                                                _editKeyModal(realIndex);
+                                              } else if (_testMode) {
+                                                final cmd = (b['cmd'] ?? '').toString();
+                                                final isCriticalLive = cmd == 'stream_start' || cmd == 'stream_stop';
+                                                if (!isCriticalLive) {
+                                                  _executeKeyAction(realIndex, b);
+                                                }
+                                                ScaffoldMessenger.of(context).clearSnackBars();
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text('▶️ PRÉ-VISUALIZAÇÃO: "${b['label']}" ➔ Ação [$cmd]'),
+                                                    duration: const Duration(milliseconds: 1400),
+                                                    backgroundColor: const Color(0xFF0E7490),
+                                                    behavior: SnackBarBehavior.floating,
+                                                  ),
+                                                );
+                                              } else {
+                                                _executeKeyAction(realIndex, b);
+                                              }
+                                            },
+
                                             onDoubleTap: () => _editKeyModal(realIndex),
                                             child: Stack(
                                               children: [
