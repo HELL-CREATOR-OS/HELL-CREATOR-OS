@@ -39,7 +39,7 @@ class SponsorBannerManager {
   ];
 }
 
-// CENTRO DE CONTROLO • COCKPIT MODULAR EXPANSÍVEL (SEM PERFIL E SEM SYNC QR)
+// CENTRO DE CONTROLO - COCKPIT COMPLETO (PC 3 COLUNAS, TABLET 2 COLUNAS, MOBILE RICA + ECRÃ CHEIO + SIMULADOR OFFLINE)
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -68,281 +68,768 @@ class ControlCenterScreen extends StatefulWidget {
 
 class _ControlCenterScreenState extends State<ControlCenterScreen> {
   String? _expandedPanelId;
+  bool _ttsEnabled = true;
+  bool _isMusicPlaying = true;
   final TextEditingController _chatFilterCtrl = TextEditingController();
-  final TextEditingController _bannedWordCtrl = TextEditingController();
-  final List<String> _bannedWords = ['spam', 'scam', 'link falso'];
-  final List<String> _moderators = ['@Mod_Joao', '@Mod_Sofia'];
-  String _activeObsScene = 'Cena Principal (Jogo)';
+  final TextEditingController _quickReplyCtrl = TextEditingController();
+  double _micVol = 0.85;
+  double _gameVol = 0.65;
+  double _musicVol = 0.45;
+  double _alertVol = 0.90;
+  bool _micMuted = false;
+
+  final List<Map<String, String>> _simChat = [
+    {'platform': 'tiktok', 'user': '@joao_gamer', 'text': 'Que jogada absurda mano!!'},
+    {'platform': 'twitch', 'user': 'SofiaLive', 'text': 'A imagem 4K está brutal!'},
+    {'platform': 'youtube', 'user': 'CarlosPT', 'text': 'Salve para Portugal!'},
+    {'platform': 'kick', 'user': 'Nitro_99', 'text': 'Rumo à meta de hoje!'},
+  ];
+
+  final List<Map<String, dynamic>> _recentAlerts = [
+    {'type': 'SUB', 'user': 'SofiaLive', 'detail': 'Sub Tier 1 · 3 Meses', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded},
+    {'type': 'DONATION', 'user': 'CarlosPT', 'detail': '€15.00 · MB WAY', 'color': const Color(0xFF10B981), 'icon': Icons.euro_rounded},
+    {'type': 'PRESENTE', 'user': '@joao_gamer', 'detail': 'Galáxia (1000 Moedas)', 'color': const Color(0xFFF43F5E), 'icon': Icons.auto_awesome},
+    {'type': 'FOLLOW', 'user': 'Nitro_99', 'detail': 'Novo Seguidor Kick', 'color': const Color(0xFF38BDF8), 'icon': Icons.person_add_alt_1},
+  ];
+
+  final List<double> _bitrateSamples = [6.1, 6.4, 6.2, 6.6, 6.5, 6.8, 6.4, 6.7, 6.5, 6.9];
 
   @override
   void dispose() {
     _chatFilterCtrl.dispose();
-    _bannedWordCtrl.dispose();
+    _quickReplyCtrl.dispose();
     super.dispose();
   }
 
-  Widget _panelShell({
+  void _triggerOfflineSim(String type) {
+    setState(() {
+      if (type == 'sub') {
+        _recentAlerts.insert(0, {'type': 'SUB SIM', 'user': 'AlexPro_PT', 'detail': 'Subscrição Simulada', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded});
+        _simChat.insert(0, {'platform': 'twitch', 'user': 'AlexPro_PT', 'text': 'Acabei de subscrever ao canal!'});
+      } else if (type == 'donation') {
+        _recentAlerts.insert(0, {'type': 'DONATION SIM', 'user': 'MarianaVIP', 'detail': '€10.00 · Teste Offline', 'color': const Color(0xFF10B981), 'icon': Icons.euro_rounded});
+        _simChat.insert(0, {'platform': 'youtube', 'user': 'MarianaVIP', 'text': 'Força na live, continua assim!'});
+      } else if (type == 'gift') {
+        _recentAlerts.insert(0, {'type': 'PRESENTE SIM', 'user': '@pedro_tk', 'detail': 'Leão Rei (29999 Moedas)', 'color': const Color(0xFFF43F5E), 'icon': Icons.local_fire_department});
+        _simChat.insert(0, {'platform': 'tiktok', 'user': '@pedro_tk', 'text': 'Enviou um Leão Rei!'});
+      } else {
+        _recentAlerts.insert(0, {'type': 'FOLLOW SIM', 'user': 'RuiStream', 'detail': 'Novo Seguidor (Teste)', 'color': const Color(0xFF38BDF8), 'icon': Icons.person_add_alt_1});
+        _simChat.insert(0, {'platform': 'kick', 'user': 'RuiStream', 'text': 'Cheguei agora à transmissão!'});
+      }
+      if (_recentAlerts.length > 6) _recentAlerts.removeLast();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Simulação Offline disparada com sucesso!'),
+        backgroundColor: Color(0xFF1E78FF),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Color _platColor(String p) {
+    switch (p.toLowerCase()) {
+      case 'tiktok':
+        return const Color(0xFFFF2A5F);
+      case 'twitch':
+        return const Color(0xFF9146FF);
+      case 'youtube':
+        return const Color(0xFFFF0033);
+      default:
+        return const Color(0xFF53FC18);
+    }
+  }
+
+  Widget _cockpitCard({
     required String id,
     required String title,
     required IconData icon,
     required Color accent,
-    required Widget compactBody,
-    required Widget expandedBody,
+    required Widget child,
     String? badge,
   }) {
     final isExpanded = _expandedPanelId == id;
     return Container(
       padding: const EdgeInsets.all(14),
-             decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF112354), Color(0xFF08122E), Color(0xFF04091A)],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withOpacity(isExpanded ? 0.9 : 0.45), width: isExpanded ? 1.8 : 1.2),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.75), blurRadius: 14, offset: const Offset(0, 6)),
-            BoxShadow(color: accent.withOpacity(isExpanded ? 0.28 : 0.14), blurRadius: 16),
-          ],
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF12255B), Color(0xFF091330), Color(0xFF04091A)],
+          stops: [0.0, 0.55, 1.0],
         ),
-
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withOpacity(isExpanded ? 0.95 : 0.5), width: isExpanded ? 1.8 : 1.3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(color: accent.withOpacity(isExpanded ? 0.3 : 0.16), blurRadius: 18),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Icon(icon, color: accent, size: 19),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: accent.withOpacity(0.5)),
+                ),
+                child: Icon(icon, color: accent, size: 17),
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: accent), overflow: TextOverflow.ellipsis),
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.4, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               if (badge != null)
                 Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: accent.withOpacity(0.16), borderRadius: BorderRadius.circular(8)),
-                  child: Text(badge, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: accent)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: accent.withOpacity(0.5)),
+                  ),
+                  child: Text(badge, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: accent)),
                 ),
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () => setState(() => _expandedPanelId = isExpanded ? null : id),
                 child: Container(
                   padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(8)),
-                  child: Icon(isExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded, size: 18, color: Colors.white),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Icon(isExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded, size: 17, color: Colors.white),
                 ),
               ),
             ],
           ),
-          const Divider(height: 16, color: Colors.white12),
-          isExpanded ? expandedBody : compactBody,
+          const Divider(height: 18, color: Colors.white12),
+          child,
         ],
       ),
     );
   }
-  @override
-  Widget build(BuildContext context) {
+
+  Widget _buildTopCockpitHeader(bool isWide) {
     final activeCount = widget.activePlatforms.values.where((v) => v).length;
-    final obsUrl = 'http://${LocalObsServer.localIp}:${LocalObsServer.port}/overlay';
-    final filteredChat = widget.chatFeed.where((m) {
-      final q = _chatFilterCtrl.text.trim().toLowerCase();
-      if (q.isEmpty) return true;
-      return (m['user'] ?? '').toLowerCase().contains(q) || (m['text'] ?? '').toLowerCase().contains(q);
-    }).toList();
+    final pills = [
+      {'id': 'tiktok', 'name': 'TikTok', 'viewers': widget.activePlatforms['tiktok'] == true ? '2.1K' : 'OFF', 'color': const Color(0xFFFF2A5F)},
+      {'id': 'twitch', 'name': 'Twitch', 'viewers': widget.activePlatforms['twitch'] == true ? '1.8K' : 'OFF', 'color': const Color(0xFF9146FF)},
+      {'id': 'youtube', 'name': 'YouTube', 'viewers': widget.activePlatforms['youtube'] == true ? '1.5K' : 'OFF', 'color': const Color(0xFFFF0033)},
+      {'id': 'kick', 'name': 'Kick', 'viewers': widget.activePlatforms['kick'] == true ? '900' : 'OFF', 'color': const Color(0xFF53FC18)},
+    ];
 
-    final livePanel = _panelShell(
-      id: 'live',
-      title: 'Transmissões Multiplataforma',
-      icon: Icons.sensors_rounded,
-      accent: activeCount > 0 ? Colors.greenAccent : const Color(0xFF38BDF8),
-      badge: activeCount > 0 ? '$activeCount EM DIRETO' : 'EM ESPERA',
-      compactBody: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        children: ['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
-          final on = widget.activePlatforms[p] == true;
-          return Chip(
-            backgroundColor: on ? Colors.greenAccent.withOpacity(0.18) : Colors.white10,
-            avatar: Icon(Icons.circle, size: 10, color: on ? Colors.greenAccent : Colors.white38),
-            label: Text(p.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white60)),
-          );
-        }).toList(),
-      ),
-      expandedBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: ['tiktok', 'twitch', 'youtube', 'kick'].map((p) {
-          final on = widget.activePlatforms[p] == true;
-          return ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.circle, size: 12, color: on ? Colors.greenAccent : Colors.white30),
-            title: Text(p.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(on ? 'Sinal ativo • Chat e eventos sincronizados' : 'Aguardando ligação na aba Configurações'),
-            trailing: Text(on ? 'ONLINE' : 'OFFLINE', style: TextStyle(fontWeight: FontWeight.bold, color: on ? Colors.greenAccent : Colors.white38)),
-          );
-        }).toList(),
-      ),
-    );
-
-    final chatPanel = _panelShell(
-      id: 'chat',
-      title: 'Chat Unificado & Moderação',
-      icon: Icons.forum_rounded,
-      accent: const Color(0xFF38BDF8),
-      badge: '${widget.chatFeed.length} msgs',
-      compactBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: filteredChat.isEmpty
-            ? [const Text('Sem mensagens no feed neste momento.', style: TextStyle(fontSize: 12, color: Colors.white54))]
-            : filteredChat.take(4).map((m) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('[${(m['platform'] ?? 'LIVE').toUpperCase()}] ${m['user']}: ${m['text']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                )).toList(),
-      ),
-      expandedBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(controller: _chatFilterCtrl, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Filtrar mensagens ou utilizador', isDense: true)),
-          const SizedBox(height: 8),
-          ...filteredChat.take(15).map((m) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text('${m['user']} (${(m['platform'] ?? 'LIVE').toUpperCase()})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF38BDF8))),
-                subtitle: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12)),
-              )),
-          const Divider(),
-          Text('Moderadores ativos: ${_moderators.join(', ')}', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
-          const SizedBox(height: 6),
-          Row(children: [
-            Expanded(child: TextField(controller: _bannedWordCtrl, decoration: const InputDecoration(labelText: 'Adicionar palavra bloqueada', isDense: true))),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () {
-                if (_bannedWordCtrl.text.trim().isNotEmpty) {
-                  setState(() {
-                    _bannedWords.add(_bannedWordCtrl.text.trim());
-                    _bannedWordCtrl.clear();
-                  });
-                }
-              },
-              child: const Text('Bloquear'),
-            ),
-          ]),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF142A66), Color(0xFF08122E), Color(0xFF040817)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.85), blurRadius: 18, offset: const Offset(0, 7)),
+          BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.24), blurRadius: 22),
         ],
       ),
-    );
-
-    final obsPanel = _panelShell(
-      id: 'obs',
-      title: 'Estúdio OBS / Streamlabs / TikTok Live',
-      icon: Icons.videocam_rounded,
-      accent: const Color(0xFFA855F7),
-      badge: _activeObsScene,
-      compactBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Cena Ativa: $_activeObsScene', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-          const SizedBox(height: 4),
-          Text('Overlay Browser Source: $obsUrl', style: const TextStyle(fontSize: 11, color: Colors.white60), maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
-      ),
-      expandedBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SelectableText('Link Overlay (OBS / Streamlabs / TikTok Studio):\n$obsUrl', style: const TextStyle(fontSize: 12, color: Color(0xFF38BDF8))),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: ['Cena Principal (Jogo)', 'Just Chatting / Câmara', 'Intervalo / Pausa', 'Encerramento'].map((sc) => ChoiceChip(
-              label: Text(sc),
-              selected: _activeObsScene == sc,
-              onSelected: (_) => setState(() => _activeObsScene = sc),
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-
-    final statsPanel = _panelShell(
-      id: 'stats',
-      title: 'Telemetria, Metas & Streamdeck HELL',
-      icon: Icons.analytics_rounded,
-      accent: Colors.amberAccent,
-      badge: widget.isSecondScreenPaired ? '2.º ECRÃ ATIVO' : 'PRONTO',
-      compactBody: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('Plataformas: $activeCount/4', style: const TextStyle(fontSize: 12)),
-          Text('Segundo Ecrã: ${widget.isSecondScreenPaired ? 'Ligado' : 'Em espera'}', style: const TextStyle(fontSize: 12)),
-          const Text('Motor: 60 FPS', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
-        ],
-      ),
-      expandedBody: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Plataformas Conectadas'), trailing: Text('$activeCount de 4')),
-          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Mensagens Processadas na Sessão'), trailing: Text('${widget.chatFeed.length}')),
-          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Estado Streamdeck HELL & Segundo Ecrã'), trailing: Text(widget.isSecondScreenPaired ? 'Sincronizado' : 'Configurar na aba Streamdeck')),
-          ListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Servidor Local de Overlays'), trailing: Text('Porta ${LocalObsServer.port}')),
-        ],
-      ),
-    );
-
-    final allPanels = <String, Widget>{
-      'live': livePanel,
-      'chat': chatPanel,
-      'obs': obsPanel,
-      'stats': statsPanel,
-    };
-
-    if (_expandedPanelId != null && allPanels.containsKey(_expandedPanelId)) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Vista Expandida do Painel', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              TextButton.icon(
-                onPressed: () => setState(() => _expandedPanelId = null),
-                icon: const Icon(Icons.grid_view_rounded, size: 16),
-                label: const Text('Minimizar para Vista Completa'),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.45), blurRadius: 14)],
+                ),
+                child: Image.asset('icon.png', width: 34, height: 34, errorBuilder: (_, __, ___) => const Icon(Icons.bolt, color: Color(0xFF38BDF8), size: 30)),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          allPanels[_expandedPanelId]!,
-        ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('CENTRO DE CONTROLO · COCKPIT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
+                      Text(
+                        activeCount > 0 ? '$activeCount Plataformas em Direto · Sincronizado' : 'Modo Pré-Live & Simulação Offline Ativo',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: activeCount > 0 ? Colors.greenAccent : const Color(0xFF7DD3FC)),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: activeCount > 0 ? Colors.redAccent.withOpacity(0.2) : const Color(0xFF1E78FF).withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: activeCount > 0 ? Colors.redAccent : const Color(0xFF38BDF8)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.fiber_manual_record, size: 10, color: activeCount > 0 ? Colors.redAccent : const Color(0xFF38BDF8)),
+                      const SizedBox(width: 5),
+                      Text(activeCount > 0 ? 'AO VIVO' : 'SIMULAÇÃO', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: isWide ? 4 : 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 8,
+              childAspectRatio: isWide ? 3.4 : 2.9,
+              children: pills.map((p) {
+                final c = p['color'] as Color;
+                final on = widget.activePlatforms[p['id']] == true;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF04091A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: on ? c : c.withOpacity(0.45), width: on ? 1.6 : 1.1),
+                    boxShadow: [BoxShadow(color: c.withOpacity(on ? 0.28 : 0.12), blurRadius: 10)],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sensors_rounded, size: 16, color: c),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white), overflow: TextOverflow.ellipsis),
+                      ),
+                      Text(
+                        p['viewers'] as String,
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: on ? Colors.white : c),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  const Text('TESTAR EM OFFLINE: ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF7DD3FC), letterSpacing: 0.6)),
+                  const SizedBox(width: 6),
+                  _simChip('Simular Sub', const Color(0xFFA855F7), () => _triggerOfflineSim('sub')),
+                  const SizedBox(width: 6),
+                  _simChip('Simular Doação €10', const Color(0xFF10B981), () => _triggerOfflineSim('donation')),
+                  const SizedBox(width: 6),
+                  _simChip('Simular Leão VIP', const Color(0xFFF43F5E), () => _triggerOfflineSim('gift')),
+                  const SizedBox(width: 6),
+                  _simChip('Simular Seguidor', const Color(0xFF38BDF8), () => _triggerOfflineSim('follow')),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 780;
-        if (isWide) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+  Widget _simChip(String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(0.7)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.play_arrow_rounded, size: 14, color: color),
+            const SizedBox(width: 3),
+            Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatModule(bool expanded) {
+    final allMsgs = [...widget.chatFeed, ..._simChat];
+    final shown = expanded ? allMsgs : allMsgs.take(4).toList();
+    return _cockpitCard(
+      id: 'chat',
+      title: 'CHAT UNIFICADO & VOZ TTS',
+      icon: Icons.forum_rounded,
+      accent: const Color(0xFF38BDF8),
+      badge: _ttsEnabled ? 'TTS ON' : 'TTS OFF',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...shown.map((m) {
+            final plat = m['platform'] ?? 'tiktok';
+            final c = _platColor(plat);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF04091A).withOpacity(0.85),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: c.withOpacity(0.35)),
+              ),
+              child: Row(
+                children: [
+                  Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: c)),
+                  Expanded(child: Text(m['text'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white), overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis)),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: _quickReplyCtrl,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      hintText: 'Responder no chat ou falar no TTS...',
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      filled: true,
+                      fillColor: const Color(0xFF04091A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: Icon(_ttsEnabled ? Icons.record_voice_over : Icons.voice_over_off, color: _ttsEnabled ? Colors.greenAccent : Colors.white38, size: 20),
+                onPressed: () => setState(() => _ttsEnabled = !_ttsEnabled),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8), size: 20),
+                onPressed: () {
+                  final t = _quickReplyCtrl.text.trim();
+                  if (t.isEmpty) return;
+                  setState(() {
+                    _simChat.insert(0, {'platform': 'youtube', 'user': 'Streamer (Tu)', 'text': t});
+                    _quickReplyCtrl.clear();
+                  });
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertsModule(bool expanded) {
+    final items = expanded ? _recentAlerts : _recentAlerts.take(4).toList();
+    return _cockpitCard(
+      id: 'alerts',
+      title: 'ALERTAS & INTERAÇÕES',
+      icon: Icons.notifications_active_rounded,
+      accent: const Color(0xFFA855F7),
+      badge: '${_recentAlerts.length} EVENTOS',
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: items.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          mainAxisExtent: 64,
+        ),
+        itemBuilder: (_, i) {
+          final a = items[i];
+          final c = a['color'] as Color;
+          return Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: c.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: c.withOpacity(0.55)),
+            ),
+            child: Row(
               children: [
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: livePanel), const SizedBox(width: 14), Expanded(child: obsPanel)]),
-                const SizedBox(height: 14),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: chatPanel), const SizedBox(width: 14), Expanded(child: statsPanel)]),
+                Icon(a['icon'] as IconData, color: c, size: 20),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
+                      Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
-        }
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        },
+      ),
+    );
+  }
+
+  Widget _buildMixerModule(bool expanded) {
+    Widget bar(String label, double val, Color c, ValueChanged<double> onChanged) {
+      return Expanded(
+        child: Column(
           children: [
-            livePanel,
+            Container(
+              height: expanded ? 120 : 78,
+              width: 26,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF04091A),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: c.withOpacity(0.5)),
+              ),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: FractionallySizedBox(
+                  heightFactor: val.clamp(0.05, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [c.withOpacity(0.45), c]),
+                      borderRadius: BorderRadius.circular(7),
+                      boxShadow: [BoxShadow(color: c.withOpacity(0.45), blurRadius: 8)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text('${(val * 100).round()}%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c)),
+            Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white70)),
+            if (expanded)
+              Slider(value: val, activeColor: c, onChanged: onChanged),
+          ],
+        ),
+      );
+    }
+
+    return _cockpitCard(
+      id: 'mixer',
+      title: 'MIXER DE ÁUDIO & VOZ',
+      icon: Icons.equalizer_rounded,
+      accent: const Color(0xFF10B981),
+      badge: _micMuted ? 'MIC MUTADO' : 'ÁUDIO 48kHz',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              bar('Mic', _micMuted ? 0.0 : _micVol, const Color(0xFF38BDF8), (v) => setState(() => _micVol = v)),
+              bar('Jogo', _gameVol, const Color(0xFFA855F7), (v) => setState(() => _gameVol = v)),
+              bar('Música', _musicVol, const Color(0xFF10B981), (v) => setState(() => _musicVol = v)),
+              bar('Alertas', _alertVol, const Color(0xFFF59E0B), (v) => setState(() => _alertVol = v)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  onPressed: () => setState(() => _micMuted = !_micMuted),
+                  icon: Icon(_micMuted ? Icons.mic_off : Icons.mic, size: 16),
+                  label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildDirectorAndClipsModule(bool expanded) {
+    return _cockpitCard(
+      id: 'director',
+      title: 'DIRETOR IA & CLIPES 9:16',
+      icon: Icons.auto_awesome_rounded,
+      accent: const Color(0xFFF59E0B),
+      badge: 'IA ATIVA',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF04091A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.45)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.psychology_rounded, color: Color(0xFFF59E0B), size: 22),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Sugestão IA: Pico de mensagens no chat! Ideal para criar um Clipe Vertical 9:16 agora.',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E78FF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Clipe Vertical 9:16 marcado e enviado para a Fábrica de Conteúdos!'), backgroundColor: Colors.green),
+                );
+              },
+              icon: const Icon(Icons.movie_creation_rounded, size: 18),
+              label: const Text('CRIAR CLIPE 9:16 AGORA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.6)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF04091A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.music_note_rounded, color: Color(0xFF38BDF8), size: 18),
+                const SizedBox(width: 6),
+                const Expanded(child: Text('HELL Beats · Cyber Stream Lo-Fi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800), overflow: TextOverflow.ellipsis)),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(_isMusicPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: const Color(0xFF38BDF8), size: 24),
+                  onPressed: () => setState(() => _isMusicPlaying = !_isMusicPlaying),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHealthGraphModule(bool expanded) {
+    return _cockpitCard(
+      id: 'health',
+      title: 'SAÚDE DA LIVE & MÉTRICAS',
+      icon: Icons.show_chart_rounded,
+      accent: const Color(0xFF38BDF8),
+      badge: '60 FPS · ESTÁVEL',
+      child: Column(
+        children: [
+          SizedBox(
+            height: expanded ? 160 : 88,
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: true, border: Border.all(color: Colors.white12)),
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    color: const Color(0xFF38BDF8),
+                    barWidth: 3,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(show: true, color: const Color(0xFF38BDF8).withOpacity(0.22)),
+                    spots: List.generate(_bitrateSamples.length, (i) => FlSpot(i.toDouble(), _bitrateSamples[i])),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _metricPill('BITRATE', '6.5 Mbps', const Color(0xFF38BDF8)),
+              _metricPill('FPS', '60.0', Colors.greenAccent),
+              _metricPill('PERDA', '0.0%', const Color(0xFFA855F7)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricPill(String label, String value, Color c) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF04091A),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.withOpacity(0.45)),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white54)),
+          Text(value, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: c)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final isDesktop = w >= 1024;
+        final isTablet = w >= 650 && w < 1024;
+
+        if (_expandedPanelId != null) {
+          Widget fullPanel;
+          switch (_expandedPanelId) {
+            case 'chat':
+              fullPanel = _buildChatModule(true);
+              break;
+            case 'alerts':
+              fullPanel = _buildAlertsModule(true);
+              break;
+            case 'mixer':
+              fullPanel = _buildMixerModule(true);
+              break;
+            case 'director':
+              fullPanel = _buildDirectorAndClipsModule(true);
+              break;
+            default:
+              fullPanel = _buildHealthGraphModule(true);
+          }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildTopCockpitHeader(w >= 650),
+              const SizedBox(height: 14),
+              fullPanel,
+            ],
+          );
+        }
+
+        if (isDesktop) {
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              _buildTopCockpitHeader(true),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildChatModule(true)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        _buildAlertsModule(false),
+                        const SizedBox(height: 14),
+                        _buildDirectorAndClipsModule(false),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      children: [
+                        _buildMixerModule(false),
+                        const SizedBox(height: 14),
+                        _buildHealthGraphModule(false),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        if (isTablet) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildTopCockpitHeader(true),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildChatModule(false),
+                        const SizedBox(height: 14),
+                        _buildDirectorAndClipsModule(false),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _buildAlertsModule(false),
+                        const SizedBox(height: 14),
+                        _buildMixerModule(false),
+                        const SizedBox(height: 14),
+                        _buildHealthGraphModule(false),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            _buildTopCockpitHeader(false),
             const SizedBox(height: 12),
-            obsPanel,
+            _buildChatModule(false),
             const SizedBox(height: 12),
-            chatPanel,
+            _buildAlertsModule(false),
             const SizedBox(height: 12),
-            statsPanel,
+            _buildMixerModule(false),
+            const SizedBox(height: 12),
+            _buildDirectorAndClipsModule(false),
+            const SizedBox(height: 12),
+            _buildHealthGraphModule(false),
           ],
         );
       },
@@ -350,7 +837,6 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
   }
 }
 
- 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
 class SmartBrainScreen extends StatefulWidget {
   const SmartBrainScreen({super.key});
