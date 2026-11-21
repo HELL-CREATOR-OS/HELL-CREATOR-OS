@@ -102,7 +102,7 @@ class DefaultMediaLibrary {
     {'id': 'tk_leao', 'name': 'Leão Rei', 'coins': 29999, 'enabled': true, 'ttsThank': true, 'customVoicePath': null, 'png': '$_cdn/1f981.png', 'sound': '$_sfx/animals/lion_roar.ogg'},
   ];
 
-  static final List<Map<String, String>> builtinGifsAndPngs = [
+  static final List<Map<String, String>> builtInGifsAndPngs = [
     {'name': 'Festa & Confetes HD', 'cat': 'Alertas', 'url': '$_cdn/1f389.png'},
     {'name': 'Troféu Campeão Ouro', 'cat': 'Metas', 'url': '$_cdn/1f3c6.png'},
     {'name': 'Estrela Brilhante 4K', 'cat': 'Badges', 'url': '$_cdn/1f31f.png'},
@@ -129,7 +129,7 @@ class DefaultMediaLibrary {
     {'name': 'Robô IA Diretor', 'cat': 'Estúdio', 'url': '$_cdn/1f916.png'},
   ];
 
-  static final List<Map<String, String>> builtinSounds = [
+  static final List<Map<String, String>> builtInSounds = [
     {'name': 'Aplausos da Plateia', 'url': '$_sfx/crowds/applause.ogg'},
     {'name': 'Buzina MLG / Airhorn', 'url': '$_sfx/alarms/air_horn.ogg'},
     {'name': 'Alerta Espacial Sci-Fi', 'url': '$_sfx/alarms/spaceship_alarm.ogg'},
