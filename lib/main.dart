@@ -682,75 +682,75 @@ class _MainShellState extends State<MainShell> {
         final isWide = constraints.maxWidth >= 650;
         final cols = constraints.maxWidth >= 1050 ? 3 : (isWide ? 2 : 1);
 
-        final deckPanel = Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: isWide ? 440 : 360),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
-                ),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
-                  BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF04091A),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: const Text(
-                      'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
-                      style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF030714),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.black, width: 2),
-                      boxShadow: [
-                        BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.12), blurRadius: 8),
-                      ],
-                    ),
-                    child: GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.84,
-                      children: platforms.map((p) {
-                        final id = p['id']!;
-                        final name = p['name']!;
-                        return PlatformGlassTile(
-                          platform: id,
-                          label: name,
-                          isActive: _activePlatforms[id] == true,
-                          onTap: () => _handlePlatformTap(id, name),
-                          onLongPress: () => _openPlatformSetupDialog(id, name),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
+           final deckCard = Container(
+          padding: EdgeInsets.fromLTRB(isWide ? 18 : 12, 10, isWide ? 18 : 12, isWide ? 14 : 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
             ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
+              BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF04091A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: const Text(
+                  'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
+                  style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF030714),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.black, width: 2),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.12), blurRadius: 8),
+                  ],
+                ),
+                child: GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 4,
+                  crossAxisSpacing: isWide ? 14 : 8,
+                  mainAxisSpacing: isWide ? 14 : 8,
+                  childAspectRatio: isWide ? 2.4 : 0.84,
+                  children: platforms.map((p) {
+                    final id = p['id']!;
+                    final name = p['name']!;
+                    return PlatformGlassTile(
+                      platform: id,
+                      label: name,
+                      isActive: _activePlatforms[id] == true,
+                      onTap: () => _handlePlatformTap(id, name),
+                      onLongPress: () => _openPlatformSetupDialog(id, name),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
         );
+
+        final deckPanel = isWide
+            ? SizedBox(width: double.infinity, child: deckCard)
+            : Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 360), child: deckCard));
+
 
         return ListView(
           padding: EdgeInsets.fromLTRB(isWide ? 24 : 14, 14, isWide ? 24 : 14, 28),
