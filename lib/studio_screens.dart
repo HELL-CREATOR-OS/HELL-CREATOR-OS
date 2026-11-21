@@ -262,7 +262,6 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('CENTRO DE CONTROLO · COCKPIT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
                       Text(
