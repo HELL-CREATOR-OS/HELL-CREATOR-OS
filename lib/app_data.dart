@@ -129,7 +129,7 @@ class DefaultMediaLibrary {
     {'name': 'Robô IA Diretor', 'cat': 'Estúdio', 'url': '$_cdn/1f916.png'},
   ];
 
-  static final List<Map<String, String>> builtInSounds = [
+  static final List<Map<String, String>> builtinSounds = [
     {'name': 'Aplausos da Plateia', 'url': '$_sfx/crowds/applause.ogg'},
     {'name': 'Buzina MLG / Airhorn', 'url': '$_sfx/alarms/air_horn.ogg'},
     {'name': 'Alerta Espacial Sci-Fi', 'url': '$_sfx/alarms/spaceship_alarm.ogg'},
