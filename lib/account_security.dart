@@ -647,13 +647,38 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050B1E),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: AutofillGroup(
+           backgroundColor: const Color(0xFF050B1E),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.2,
+            colors: [Color(0xFF10204D), Color(0xFF050B1E)],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+                    stops: [0.0, 0.55, 1.0],
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5), width: 1.4),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 20, offset: const Offset(0, 8)),
+                    BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 22),
+                  ],
+                ),
+                child: AutofillGroup(
+
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
