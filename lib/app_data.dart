@@ -69,7 +69,7 @@ class DefaultMediaLibrary {
   static const String _sfx =
       'https://google.com';
 
-  static const String voiceCloneScript3Min =
+  static const String voiceCloneScript2Min =
       'Olá pessoal, bem-vindos à nossa transmissão no HELL CREATOR OS! '
       'Hoje vamos ter muita ação, desafios em direto e momentos épicos com toda a comunidade. '
       'Fiquem bem, que jogada incrível! Malta, se estão a curtir a live, deixem o vosso gosto e partilhem com os amigos. '
