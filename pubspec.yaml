@@ -52,3 +52,5 @@ flutter:
   assets:
     - icon.png
     - google-services.json
+    - assets/sounds/
+
