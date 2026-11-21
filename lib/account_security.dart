@@ -1004,7 +1004,8 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
           ),
         ),
       ),
-      ),    
+      ),
+      ),  
     );
   }
 }
