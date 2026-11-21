@@ -55,6 +55,8 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
   final FlutterTts _deckTts = FlutterTts();
   final AudioRecorder _deckRecorder = AudioRecorder();
     bool _tutorialChecked = false;
+    bool _isFullScreenDeck = false;
+
 
   @override
   void initState() {
@@ -792,14 +794,15 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
        return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+                gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isOn
-              ? [accent.withOpacity(0.75), accent.withOpacity(0.32), const Color(0xFF050B1E)]
-              : [const Color(0xFF15285E), accent.withOpacity(0.18), const Color(0xFF04091A)],
+              ? [accent.withOpacity(0.58), accent.withOpacity(0.24), const Color(0xFF050B1E).withOpacity(0.55)]
+              : [const Color(0xFF15285E).withOpacity(0.42), accent.withOpacity(0.14), const Color(0xFF04091A).withOpacity(0.48)],
           stops: const [0.0, 0.5, 1.0],
         ),
+
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isOn ? Colors.white : accent.withOpacity(0.65),
@@ -945,6 +948,22 @@ bool _testMode = false;
                         style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
                       ),
                       const Spacer(),
+                      IconButton(
+                        icon: Icon(
+                          _isFullScreenDeck ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                          color: _isFullScreenDeck ? const Color(0xFF38BDF8) : Colors.white,
+                          size: 23,
+                        ),
+                        tooltip: _isFullScreenDeck ? 'Reduzir Ecrã' : 'Ecrã Inteiro',
+                        onPressed: () {
+                          setState(() => _isFullScreenDeck = !_isFullScreenDeck);
+                          if (_isFullScreenDeck) {
+                            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+                          } else {
+                            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+                          }
+                        },
+                      ),
 
                                      IconButton(
                       icon: Icon(
@@ -1040,18 +1059,35 @@ bool _testMode = false;
 
                       alignment: Alignment.center,
                       children: [
-                        IgnorePointer(
-                          child: Opacity(
-                            opacity: 0.14,
-                            child: Image.asset(
-                              'icon.png',
-                              width: 240,
-                              height: 240,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 200, color: Color(0xFF38BDF8)),
+                                             IgnorePointer(
+                        child: Container(
+                          width: 310,
+                          height: 310,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF1E78FF).withOpacity(0.18),
+                                blurRadius: 65,
+                                spreadRadius: 15,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Opacity(
+                              opacity: 0.38,
+                              child: Image.asset(
+                                'icon.png',
+                                width: 285,
+                                height: 285,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 220, color: Color(0xFF38BDF8)),
+                              ),
                             ),
                           ),
                         ),
+                      ),
+
                         PageView.builder(
                           controller: _pageCtrl,
                           scrollDirection: Axis.horizontal,
