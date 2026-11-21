@@ -38,7 +38,8 @@ jobs:
           python3 -c "from PIL import Image, ImageDraw, ImageFilter; base = Image.new('RGBA', (1024, 1024), (5, 11, 30, 255)); glow = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0)); d = ImageDraw.Draw(glow); d.ellipse([140, 140, 884, 884], fill=(0, 195, 255, 165)); glow = glow.filter(ImageFilter.GaussianBlur(85)); base.alpha_composite(glow); icon = Image.open('icon.png').convert('RGBA').resize((780, 780)); base.alpha_composite(icon, (122, 122)); base.save('icon_neon.png')"
           sed -i 's/adaptive_icon_background: .*/adaptive_icon_background: "#050B1E"/g' pubspec.yaml
           sed -i 's/adaptive_icon_foreground: "icon.png"/adaptive_icon_foreground: "icon_neon.png"/g' pubspec.yaml
-                   python3 -c 'import os, wave, struct, math; os.makedirs("assets/sounds", exist_ok=True); sr=44100; dur=1.5; w=wave.open("assets/sounds/hell_startup.wav","w"); w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); frames=b"".join(struct.pack("<h", int(32767 * 0.42 * min(1.0, i/(sr*0.08)) * math.exp(-2.2*(i/(sr*dur))) * (0.55*math.sin(2*math.pi*(110 + 330*(i/(sr*dur)))*(i/sr)) + 0.30*math.sin(2*math.pi*(440 + 440*(i/(sr*dur)))*(i/sr)) + 0.15*math.sin(2*math.pi*1320*(i/sr))))) for i in range(int(sr*dur))); w.writeframes(frames); w.close()'
+                   python3 -c "import os, wave, struct, math; os.makedirs('assets/sounds', exist_ok=True); sr=44100; mk=lambda n,d,f: (lambda w: (w.setnchannels(2), w.setsampwidth(2), w.setframerate(sr), w.writeframes(b''.join(struct.pack('<hh', int(max(-32767,min(32767,32767*f(i/sr,d)))), int(max(-32767,min(32767,32767*f(i/sr,d))))) for i in range(int(sr*d)))), w.close()))(wave.open('assets/sounds/'+n,'w')); mk('hell_startup.wav',1.6,lambda t,d:0.45*min(1,t/0.08)*math.exp(-2.0*(t/d))*(0.55*math.sin(2*math.pi*(110+330*(t/d))*t)+0.3*math.sin(2*math.pi*(440+440*(t/d))*t)+0.15*math.sin(2*math.pi*1320*t))); mk('tap_cyber.wav',0.06,lambda t,d:0.35*math.exp(-45*t)*math.sin(2*math.pi*920*t)); mk('tap_glass.wav',0.05,lambda t,d:0.35*math.exp(-55*t)*math.sin(2*math.pi*1480*t)); mk('tap_pulse.wav',0.07,lambda t,d:0.38*math.exp(-38*t)*math.sin(2*math.pi*(320+400*t)*t)); mk('tap_zerog.wav',0.08,lambda t,d:0.32*math.exp(-30*t)*(0.6*math.sin(2*math.pi*660*t)+0.4*math.sin(2*math.pi*990*t))); mk('music_cyber.wav',8.0,lambda t,d:0.25*(0.5*math.sin(2*math.pi*(110 if int(t*2)%4<2 else 146.83)*t)+0.3*math.sin(2*math.pi*220*t)*(0.5+0.5*math.sin(2*math.pi*2*t)))); mk('music_lofi.wav',8.0,lambda t,d:0.24*(0.5*math.sin(2*math.pi*(130.81 if int(t)%4<2 else 164.81)*t)+0.25*math.sin(2*math.pi*261.63*t)))"
+
           flutter pub get
           dart run flutter_launcher_icons
           cp hell_release.jks android/app/hell_release.jks
@@ -70,7 +71,7 @@ jobs:
           Set-Content "windows/CMakeLists.txt" $cmake
                     python -c "import os, wave, struct, math; os.makedirs('assets/sounds', exist_ok=True); sr=44100; dur=1.5; w=wave.open('assets/sounds/hell_startup.wav','w'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); frames=b''.join(struct.pack('<h', int(32767 * 0.42 * min(1.0, i/(sr*0.08)) * math.exp(-2.2*(i/(sr*dur))) * (0.55*math.sin(2*math.pi*(110 + 330*(i/(sr*dur)))*(i/sr)) + 0.30*math.sin(2*math.pi*(440 + 440*(i/(sr*dur)))*(i/sr)) + 0.15*math.sin(2*math.pi*1320*(i/sr))))) for i in range(int(sr*dur))); w.writeframes(frames); w.close()"
              flutter build windows --release
-          flutter build windows --release
+    
 
 
       - name: Guardar Windows EXE para Download
