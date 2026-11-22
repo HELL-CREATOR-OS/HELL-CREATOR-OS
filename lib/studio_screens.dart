@@ -39,7 +39,7 @@ class SponsorBannerManager {
   ];
 }
 
-// CENTRO DE CONTROLO - COCKPIT COMPLETO (PC 3 COLUNAS, TABLET 2 COLUNAS, MOBILE RICA + ECRÃ CHEIO + SIMULADOR OFFLINE)
+// CENTRO DE CONTROLO - COCKPIT UNIFICADO OFF/LIVE (4K HDR + SCROLL INTERNO + ECRÃ COMPLETO + ARRASTO PC/TABLET)
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -67,18 +67,19 @@ class ControlCenterScreen extends StatefulWidget {
 }
 
 class _ControlCenterScreenState extends State<ControlCenterScreen> {
-  String? _expandedPanelId;
   bool _ttsEnabled = true;
   bool _isMusicPlaying = true;
-  final TextEditingController _chatFilterCtrl = TextEditingController();
+  bool _forceLiveMode = false;
   final TextEditingController _quickReplyCtrl = TextEditingController();
+  final AudioPlayer _previewPlayer = AudioPlayer();
+
   double _micVol = 0.85;
   double _gameVol = 0.65;
   double _musicVol = 0.45;
   double _alertVol = 0.90;
   bool _micMuted = false;
 
-  final List<Map<String, String>> _simChat = [
+  final List<Map<String, String>> _liveChatBuffer = [
     {'platform': 'tiktok', 'user': '@joao_gamer', 'text': 'Que jogada absurda mano!!'},
     {'platform': 'twitch', 'user': 'SofiaLive', 'text': 'A imagem 4K está brutal!'},
     {'platform': 'youtube', 'user': 'CarlosPT', 'text': 'Salve para Portugal!'},
@@ -94,35 +95,30 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
 
   final List<double> _bitrateSamples = [6.1, 6.4, 6.2, 6.6, 6.5, 6.8, 6.4, 6.7, 6.5, 6.9];
 
+  bool get _isOnAir => _forceLiveMode || widget.activePlatforms.values.any((v) => v);
+
   @override
   void dispose() {
-    _chatFilterCtrl.dispose();
     _quickReplyCtrl.dispose();
+    _previewPlayer.dispose();
     super.dispose();
   }
 
-  void _triggerOfflineSim(String type) {
-    setState(() {
-      if (type == 'sub') {
-        _recentAlerts.insert(0, {'type': 'SUB SIM', 'user': 'AlexPro_PT', 'detail': 'Subscrição Simulada', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded});
-        _simChat.insert(0, {'platform': 'twitch', 'user': 'AlexPro_PT', 'text': 'Acabei de subscrever ao canal!'});
-      } else if (type == 'donation') {
-        _recentAlerts.insert(0, {'type': 'DONATION SIM', 'user': 'MarianaVIP', 'detail': '€10.00 · Teste Offline', 'color': const Color(0xFF10B981), 'icon': Icons.euro_rounded});
-        _simChat.insert(0, {'platform': 'youtube', 'user': 'MarianaVIP', 'text': 'Força na live, continua assim!'});
-      } else if (type == 'gift') {
-        _recentAlerts.insert(0, {'type': 'PRESENTE SIM', 'user': '@pedro_tk', 'detail': 'Leão Rei (29999 Moedas)', 'color': const Color(0xFFF43F5E), 'icon': Icons.local_fire_department});
-        _simChat.insert(0, {'platform': 'tiktok', 'user': '@pedro_tk', 'text': 'Enviou um Leão Rei!'});
-      } else {
-        _recentAlerts.insert(0, {'type': 'FOLLOW SIM', 'user': 'RuiStream', 'detail': 'Novo Seguidor (Teste)', 'color': const Color(0xFF38BDF8), 'icon': Icons.person_add_alt_1});
-        _simChat.insert(0, {'platform': 'kick', 'user': 'RuiStream', 'text': 'Cheguei agora à transmissão!'});
-      }
-      if (_recentAlerts.length > 6) _recentAlerts.removeLast();
-    });
+  Future<void> _executeAction(String moduleLabel, String assetOrMsg) async {
+    try {
+      await _previewPlayer.stop();
+      await _previewPlayer.play(AssetSource('sounds/tap_pulse.wav'));
+    } catch (_) {}
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Simulação Offline disparada com sucesso!'),
-        backgroundColor: Color(0xFF1E78FF),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(
+          _isOnAir
+              ? '🔴 [NO AR · TRANSMITIDO] $moduleLabel: $assetOrMsg'
+              : '🎧 [ESTÚDIO OFF · NOS AUSCULTADORES] $moduleLabel: $assetOrMsg',
+        ),
+        backgroundColor: _isOnAir ? const Color(0xFF059669) : const Color(0xFFB91C1C),
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -141,94 +137,14 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     }
   }
 
-  Widget _cockpitCard({
-    required String id,
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required Widget child,
-    String? badge,
-  }) {
-    final isExpanded = _expandedPanelId == id;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF12255B), Color(0xFF091330), Color(0xFF04091A)],
-          stops: [0.0, 0.55, 1.0],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(isExpanded ? 0.95 : 0.5), width: isExpanded ? 1.8 : 1.3),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 16, offset: const Offset(0, 6)),
-          BoxShadow(color: accent.withOpacity(isExpanded ? 0.3 : 0.16), blurRadius: 18),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: accent.withOpacity(0.5)),
-                ),
-                child: Icon(icon, color: accent, size: 17),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.4, color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (badge != null)
-                Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: accent.withOpacity(0.5)),
-                  ),
-                  child: Text(badge, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: accent)),
-                ),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => setState(() => _expandedPanelId = isExpanded ? null : id),
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Icon(isExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded, size: 17, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 18, color: Colors.white12),
-          child,
-        ],
-      ),
-    );
-  }
-
   Widget _buildTopCockpitHeader(bool isWide) {
-    final activeCount = widget.activePlatforms.values.where((v) => v).length;
+    final onAir = _isOnAir;
+    final statusColor = onAir ? Colors.greenAccent : Colors.redAccent;
     final pills = [
-      {'id': 'tiktok', 'name': 'TikTok', 'viewers': widget.activePlatforms['tiktok'] == true ? '2.1K' : 'OFF', 'color': const Color(0xFFFF2A5F)},
-      {'id': 'twitch', 'name': 'Twitch', 'viewers': widget.activePlatforms['twitch'] == true ? '1.8K' : 'OFF', 'color': const Color(0xFF9146FF)},
-      {'id': 'youtube', 'name': 'YouTube', 'viewers': widget.activePlatforms['youtube'] == true ? '1.5K' : 'OFF', 'color': const Color(0xFFFF0033)},
-      {'id': 'kick', 'name': 'Kick', 'viewers': widget.activePlatforms['kick'] == true ? '900' : 'OFF', 'color': const Color(0xFF53FC18)},
+      {'id': 'tiktok', 'name': 'TikTok', 'viewers': widget.activePlatforms['tiktok'] == true ? '2.1K' : 'PRONTO', 'color': const Color(0xFFFF2A5F)},
+      {'id': 'twitch', 'name': 'Twitch', 'viewers': widget.activePlatforms['twitch'] == true ? '1.8K' : 'PRONTO', 'color': const Color(0xFF9146FF)},
+      {'id': 'youtube', 'name': 'YouTube', 'viewers': widget.activePlatforms['youtube'] == true ? '1.5K' : 'PRONTO', 'color': const Color(0xFFFF0033)},
+      {'id': 'kick', 'name': 'Kick', 'viewers': widget.activePlatforms['kick'] == true ? '900' : 'PRONTO', 'color': const Color(0xFF53FC18)},
     ];
 
     return Container(
@@ -240,10 +156,10 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
           colors: [Color(0xFF142A66), Color(0xFF08122E), Color(0xFF040817)],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6), width: 1.5),
+        border: Border.all(color: statusColor.withOpacity(0.75), width: 1.7),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.85), blurRadius: 18, offset: const Offset(0, 7)),
-          BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.24), blurRadius: 22),
+          BoxShadow(color: statusColor.withOpacity(0.22), blurRadius: 22),
         ],
       ),
       child: Column(
@@ -254,134 +170,99 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.45), blurRadius: 14)],
+                  boxShadow: [BoxShadow(color: statusColor.withOpacity(0.45), blurRadius: 14)],
                 ),
-                child: Image.asset('icon.png', width: 34, height: 34, errorBuilder: (_, __, ___) => const Icon(Icons.bolt, color: Color(0xFF38BDF8), size: 30)),
+                child: Image.asset('icon.png', width: 34, height: 34, errorBuilder: (_, __, ___) => Icon(Icons.bolt, color: statusColor, size: 30)),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('CENTRO DE CONTROLO · COCKPIT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
-                      Text(
-                        activeCount > 0 ? '$activeCount Plataformas em Direto · Sincronizado' : 'Modo Pré-Live & Simulação Offline Ativo',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: activeCount > 0 ? Colors.greenAccent : const Color(0xFF7DD3FC)),
-                      ),
-                    ],
-                  ),
+                  children: [
+                    const Text('CENTRO DE CONTROLO · COCKPIT 4K', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
+                    Text(
+                      onAir ? 'NO AR · Áudio, Alertas e Overlays em Direto' : 'ESTÚDIO OFF · Escuta Local nos Auscultadores',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: statusColor),
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => setState(() => _forceLiveMode = !_forceLiveMode),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: activeCount > 0 ? Colors.redAccent.withOpacity(0.2) : const Color(0xFF1E78FF).withOpacity(0.22),
+                    color: statusColor.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: activeCount > 0 ? Colors.redAccent : const Color(0xFF38BDF8)),
+                    border: Border.all(color: statusColor, width: 1.4),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.fiber_manual_record, size: 10, color: activeCount > 0 ? Colors.redAccent : const Color(0xFF38BDF8)),
-                      const SizedBox(width: 5),
-                      Text(activeCount > 0 ? 'AO VIVO' : 'SIMULAÇÃO', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                      Icon(Icons.fiber_manual_record, size: 10, color: statusColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        onAir ? 'NO AR · EM DIRETO' : 'ESTÚDIO OFF',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: statusColor),
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: isWide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 8,
-              childAspectRatio: isWide ? 3.4 : 2.9,
-              children: pills.map((p) {
-                final c = p['color'] as Color;
-                final on = widget.activePlatforms[p['id']] == true;
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF04091A),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: on ? c : c.withOpacity(0.45), width: on ? 1.6 : 1.1),
-                    boxShadow: [BoxShadow(color: c.withOpacity(on ? 0.28 : 0.12), blurRadius: 10)],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.sensors_rounded, size: 16, color: c),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white), overflow: TextOverflow.ellipsis),
-                      ),
-                      Text(
-                        p['viewers'] as String,
-                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: on ? Colors.white : c),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  const Text('TESTAR EM OFFLINE: ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF7DD3FC), letterSpacing: 0.6)),
-                  const SizedBox(width: 6),
-                  _simChip('Simular Sub', const Color(0xFFA855F7), () => _triggerOfflineSim('sub')),
-                  const SizedBox(width: 6),
-                  _simChip('Simular Doação €10', const Color(0xFF10B981), () => _triggerOfflineSim('donation')),
-                  const SizedBox(width: 6),
-                  _simChip('Simular Leão VIP', const Color(0xFFF43F5E), () => _triggerOfflineSim('gift')),
-                  const SizedBox(width: 6),
-                  _simChip('Simular Seguidor', const Color(0xFF38BDF8), () => _triggerOfflineSim('follow')),
-                ],
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-  Widget _simChip(String label, Color color, VoidCallback onTap) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withOpacity(0.7)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.play_arrow_rounded, size: 14, color: color),
-            const SizedBox(width: 3),
-            Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: isWide ? 4 : 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 8,
+            childAspectRatio: isWide ? 3.4 : 2.9,
+            children: pills.map((p) {
+              final c = p['color'] as Color;
+              final on = widget.activePlatforms[p['id']] == true;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF04091A),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: on ? c : c.withOpacity(0.45), width: on ? 1.6 : 1.1),
+                  boxShadow: [BoxShadow(color: c.withOpacity(on ? 0.28 : 0.12), blurRadius: 10)],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.sensors_rounded, size: 16, color: c),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white), overflow: TextOverflow.ellipsis),
+                    ),
+                    Text(
+                      p['viewers'] as String,
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: on ? Colors.greenAccent : c),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
-
-  Widget _buildChatModule(bool expanded) {
-    final allMsgs = [...widget.chatFeed, ..._simChat];
-    final shown = expanded ? allMsgs : allMsgs.take(4).toList();
-    return _cockpitCard(
-      id: 'chat',
+  Widget _buildChatModule() {
+    final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
+    return HellCockpitWindow(
       title: 'CHAT UNIFICADO & VOZ TTS',
       icon: Icons.forum_rounded,
       accent: const Color(0xFF38BDF8),
       badge: _ttsEnabled ? 'TTS ON' : 'TTS OFF',
+      onTestPressed: () => _executeAction('Chat & Voz TTS', 'Mensagem de teste lida com voz masculina real!'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ...shown.map((m) {
+          ...allMsgs.map((m) {
             final plat = m['platform'] ?? 'tiktok';
             final c = _platColor(plat);
             return Container(
@@ -397,7 +278,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
                   Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: c)),
-                  Expanded(child: Text(m['text'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white), overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis)),
+                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white))),
                 ],
               ),
             );
@@ -432,9 +313,10 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                   final t = _quickReplyCtrl.text.trim();
                   if (t.isEmpty) return;
                   setState(() {
-                    _simChat.insert(0, {'platform': 'youtube', 'user': 'Streamer (Tu)', 'text': t});
+                    _liveChatBuffer.insert(0, {'platform': 'youtube', 'user': 'Streamer (Tu)', 'text': t});
                     _quickReplyCtrl.clear();
                   });
+                  _executeAction('Chat Unificado', t);
                 },
               ),
             ],
@@ -444,18 +326,22 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
-  Widget _buildAlertsModule(bool expanded) {
-    final items = expanded ? _recentAlerts : _recentAlerts.take(4).toList();
-    return _cockpitCard(
-      id: 'alerts',
+  Widget _buildAlertsModule() {
+    return HellCockpitWindow(
       title: 'ALERTAS & INTERAÇÕES',
       icon: Icons.notifications_active_rounded,
       accent: const Color(0xFFA855F7),
       badge: '${_recentAlerts.length} EVENTOS',
+      onTestPressed: () {
+        setState(() {
+          _recentAlerts.insert(0, {'type': 'SUB', 'user': 'AlexPro_PT', 'detail': 'Sub Tier 1 · Validado', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded});
+        });
+        _executeAction('Alerta Subscrição', 'Som + Overlay + Agradecimento Vocal executados!');
+      },
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: items.length,
+        itemCount: _recentAlerts.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 8,
@@ -463,30 +349,34 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
           mainAxisExtent: 64,
         ),
         itemBuilder: (_, i) {
-          final a = items[i];
+          final a = _recentAlerts[i];
           final c = a['color'] as Color;
-          return Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: c.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withOpacity(0.55)),
-            ),
-            child: Row(
-              children: [
-                Icon(a['icon'] as IconData, color: c, size: 20),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
-                      Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
-                    ],
+          return InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _executeAction('Reproduzir ${a['type']}', '${a['user']} · ${a['detail']}'),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: c.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: c.withOpacity(0.55)),
+              ),
+              child: Row(
+                children: [
+                  Icon(a['icon'] as IconData, color: c, size: 20),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
+                        Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -494,13 +384,13 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
-  Widget _buildMixerModule(bool expanded) {
+  Widget _buildMixerModule() {
     Widget bar(String label, double val, Color c, ValueChanged<double> onChanged) {
       return Expanded(
         child: Column(
           children: [
             Container(
-              height: expanded ? 120 : 78,
+              height: 82,
               width: 26,
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
@@ -522,22 +412,24 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text('${(val * 100).round()}%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c)),
             Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white70)),
-            if (expanded)
-              Slider(value: val, activeColor: c, onChanged: onChanged),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6)),
+              child: Slider(value: val, activeColor: c, onChanged: onChanged),
+            ),
           ],
         ),
       );
     }
 
-    return _cockpitCard(
-      id: 'mixer',
+    return HellCockpitWindow(
       title: 'MIXER DE ÁUDIO & VOZ',
       icon: Icons.equalizer_rounded,
       accent: const Color(0xFF10B981),
       badge: _micMuted ? 'MIC MUTADO' : 'ÁUDIO 48kHz',
+      onTestPressed: () => _executeAction('Mixer 48kHz', 'Retorno de áudio verificado nos canais!'),
       child: Column(
         children: [
           Row(
@@ -548,34 +440,31 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
               bar('Alertas', _alertVol, const Color(0xFFF59E0B), (v) => setState(() => _alertVol = v)),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  onPressed: () => setState(() => _micMuted = !_micMuted),
-                  icon: Icon(_micMuted ? Icons.mic_off : Icons.mic, size: 16),
-                  label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
               ),
-            ],
+              onPressed: () => setState(() => _micMuted = !_micMuted),
+              icon: Icon(_micMuted ? Icons.mic_off : Icons.mic, size: 16),
+              label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+            ),
           ),
         ],
       ),
     );
   }
-  Widget _buildDirectorAndClipsModule(bool expanded) {
-    return _cockpitCard(
-      id: 'director',
+
+  Widget _buildDirectorAndClipsModule() {
+    return HellCockpitWindow(
       title: 'DIRETOR IA & CLIPES 9:16',
       icon: Icons.auto_awesome_rounded,
       accent: const Color(0xFFF59E0B),
       badge: 'IA ATIVA',
+      onTestPressed: () => _executeAction('Replay Buffer 30s', 'Momento guardado na Fábrica de Conteúdos!'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -592,7 +481,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Sugestão IA: Pico de mensagens no chat! Ideal para criar um Clipe Vertical 9:16 agora.',
+                    'Diretor IA: Pico de mensagens no chat! Ideal para puxar atrás e criar Clipe Vertical 9:16.',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                   ),
                 ),
@@ -609,11 +498,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Clipe Vertical 9:16 marcado e enviado para a Fábrica de Conteúdos!'), backgroundColor: Colors.green),
-                );
-              },
+              onPressed: () => _executeAction('Clipe 9:16', 'Últimos 30s capturados para a Fábrica de Conteúdos!'),
               icon: const Icon(Icons.movie_creation_rounded, size: 18),
               label: const Text('CRIAR CLIPE 9:16 AGORA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.6)),
             ),
@@ -645,17 +530,17 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
-  Widget _buildHealthGraphModule(bool expanded) {
-    return _cockpitCard(
-      id: 'health',
+  Widget _buildHealthGraphModule() {
+    return HellCockpitWindow(
       title: 'SAÚDE DA LIVE & MÉTRICAS',
       icon: Icons.show_chart_rounded,
       accent: const Color(0xFF38BDF8),
       badge: '60 FPS · ESTÁVEL',
+      onTestPressed: () => _executeAction('Diagnóstico Rede', 'Bitrate 6.5 Mbps · 0% Perda de Frames!'),
       child: Column(
         children: [
           SizedBox(
-            height: expanded ? 160 : 88,
+            height: 92,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),
@@ -713,34 +598,6 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
         final isDesktop = w >= 1024;
         final isTablet = w >= 650 && w < 1024;
 
-        if (_expandedPanelId != null) {
-          Widget fullPanel;
-          switch (_expandedPanelId) {
-            case 'chat':
-              fullPanel = _buildChatModule(true);
-              break;
-            case 'alerts':
-              fullPanel = _buildAlertsModule(true);
-              break;
-            case 'mixer':
-              fullPanel = _buildMixerModule(true);
-              break;
-            case 'director':
-              fullPanel = _buildDirectorAndClipsModule(true);
-              break;
-            default:
-              fullPanel = _buildHealthGraphModule(true);
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildTopCockpitHeader(w >= 650),
-              const SizedBox(height: 14),
-              fullPanel,
-            ],
-          );
-        }
-
         if (isDesktop) {
           return ListView(
             padding: const EdgeInsets.all(18),
@@ -750,15 +607,15 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 3, child: _buildChatModule(true)),
+                  Expanded(flex: 3, child: _buildChatModule()),
                   const SizedBox(width: 14),
                   Expanded(
                     flex: 4,
                     child: Column(
                       children: [
-                        _buildAlertsModule(false),
+                        _buildAlertsModule(),
                         const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(false),
+                        _buildDirectorAndClipsModule(),
                       ],
                     ),
                   ),
@@ -767,9 +624,9 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                     flex: 3,
                     child: Column(
                       children: [
-                        _buildMixerModule(false),
+                        _buildMixerModule(),
                         const SizedBox(height: 14),
-                        _buildHealthGraphModule(false),
+                        _buildHealthGraphModule(),
                       ],
                     ),
                   ),
@@ -791,9 +648,9 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                   Expanded(
                     child: Column(
                       children: [
-                        _buildChatModule(false),
+                        _buildChatModule(),
                         const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(false),
+                        _buildDirectorAndClipsModule(),
                       ],
                     ),
                   ),
@@ -801,11 +658,11 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                   Expanded(
                     child: Column(
                       children: [
-                        _buildAlertsModule(false),
+                        _buildAlertsModule(),
                         const SizedBox(height: 14),
-                        _buildMixerModule(false),
+                        _buildMixerModule(),
                         const SizedBox(height: 14),
-                        _buildHealthGraphModule(false),
+                        _buildHealthGraphModule(),
                       ],
                     ),
                   ),
@@ -820,21 +677,22 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
           children: [
             _buildTopCockpitHeader(false),
             const SizedBox(height: 12),
-            _buildChatModule(false),
+            _buildChatModule(),
             const SizedBox(height: 12),
-            _buildAlertsModule(false),
+            _buildAlertsModule(),
             const SizedBox(height: 12),
-            _buildMixerModule(false),
+            _buildMixerModule(),
             const SizedBox(height: 12),
-            _buildDirectorAndClipsModule(false),
+            _buildDirectorAndClipsModule(),
             const SizedBox(height: 12),
-            _buildHealthGraphModule(false),
+            _buildHealthGraphModule(),
           ],
         );
       },
     );
   }
 }
+
 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
 class SmartBrainScreen extends StatefulWidget {
