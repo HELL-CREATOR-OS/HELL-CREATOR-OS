@@ -64,7 +64,11 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+       return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => HellFeedbackEngine.triggerTap(),
+      child: MaterialApp(
+
       title: 'HELL CREATOR OS',
             locale: const Locale('pt', 'PT'),
       supportedLocales: const [
@@ -80,9 +84,10 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: SplashScreen(currentTheme: _themeMode, onThemeChanged: _changeTheme),
+        ),
     );
   }
-}
+
 
 class SplashScreen extends StatefulWidget {
   final String currentTheme;
@@ -103,6 +108,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+        Future.delayed(const Duration(milliseconds: 350), () async {
+      try {
+        final p = AudioPlayer();
+        await p.setVolume(0.85);
+        await p.play(AssetSource('sounds/hell_startup.wav'));
+      } catch (_) {}
+    });
+
     _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
 
