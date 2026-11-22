@@ -695,7 +695,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
 }
 
 
-// ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE)
+// ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE 4K HDR)
 class SmartBrainScreen extends StatefulWidget {
   const SmartBrainScreen({super.key});
 
@@ -704,32 +704,54 @@ class SmartBrainScreen extends StatefulWidget {
 }
 
 class _SmartBrainScreenState extends State<SmartBrainScreen> {
-  final _promptCtrl = TextEditingController();
-  final List<String> _directorFeed = [
-    '🎯 AI Stream Director: Pico de atividade no chat nos últimos 4 minutos. Boa altura para lançar a Roleta 3D!',
-    '📈 Growth Recommendation: As tuas lives entre as 21h00 e as 23h30 têm +38% de retenção média.',
-    '👥 Audience Intelligence: 64% da audiência interage mais durante desafios interativos.',
-    '📋 Automatic Report: Última live gerou +42 novos seguidores e 1.250 gostos.',
+  final TextEditingController _promptCtrl = TextEditingController();
+  final List<Map<String, String>> _directorFeed = [
+    {'tag': 'DIRETOR AO VIVO', 'msg': 'Pico de atividade no chat nos últimos 4 minutos. Boa altura para lançar a Roleta 3D!'},
+    {'tag': 'HORÁRIO NOBRE', 'msg': 'As tuas lives entre as 21h00 e as 23h30 têm +38% de retenção média.'},
+    {'tag': 'ENGAJAMENTO', 'msg': '64% da audiência interage mais durante desafios interativos e agradecimentos por voz.'},
+    {'tag': 'RELATÓRIO IA', 'msg': 'Última live gerou +42 novos seguidores e 1.250 gostos.'},
   ];
+
+  @override
+  void dispose() {
+    _promptCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _neonBox(),
+        HellCockpitWindow(
+          title: 'HELL GESTÃO IA · AI STREAM DIRECTOR 4K',
+          icon: Icons.psychology_rounded,
+          accent: const Color(0xFF8B5CF6),
+          badge: 'CÉREBRO ATIVO',
+          onTestPressed: () {
+            setState(() {
+              _directorFeed.insert(0, {'tag': 'DIAGNÓSTICO IA', 'msg': 'Retenção 94% · Recomendação: Ativar meta relâmpago nos próximos 5 minutos!'});
+            });
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('🧠 HELL Gestão IA · AI Stream Director', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 10),
               ..._directorFeed.map((item) => Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: const Color(0xFF050B1E), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
-                    child: Text(item, style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF04091A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.45)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item['tag'] ?? '', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                        const SizedBox(height: 3),
+                        Text(item['msg'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white)),
+                      ],
+                    ),
                   )),
               const SizedBox(height: 8),
               Row(
@@ -737,17 +759,22 @@ class _SmartBrainScreenState extends State<SmartBrainScreen> {
                   Expanded(
                     child: TextField(
                       controller: _promptCtrl,
-                      decoration: const InputDecoration(hintText: 'Pedir análise de horário, título ou ideia de live...', isDense: true, border: OutlineInputBorder()),
+                      style: const TextStyle(fontSize: 12),
+                      decoration: const InputDecoration(
+                        hintText: 'Pedir análise de horário, título ou ideia de live...',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
+                    icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
                     onPressed: () {
                       final q = _promptCtrl.text.trim();
                       if (q.isEmpty) return;
                       setState(() {
-                        _directorFeed.insert(0, '🤖 Resposta IA para "$q": Foca os primeiros 10 minutos num desafio rápido com o chat para maximizar o algoritmo.');
+                        _directorFeed.insert(0, {'tag': 'RESPOSTA IA', 'msg': 'Para "$q": Foca os primeiros 10 minutos num desafio rápido com o chat para maximizar o algoritmo.'});
                         _promptCtrl.clear();
                       });
                     },
@@ -761,8 +788,7 @@ class _SmartBrainScreenState extends State<SmartBrainScreen> {
     );
   }
 }
-
-// ABA 8: HELL FÁBRICA DE CONTEÚDOS
+// ABA 8: HELL FÁBRICA DE CONTEÚDOS IA (EDITOR TIMELINE 9:16/16:9 + ESTILOS + ENGAJAMENTO + EXPORTAÇÃO)
 class ContentFactoryScreen extends StatefulWidget {
   const ContentFactoryScreen({super.key});
 
@@ -772,85 +798,203 @@ class ContentFactoryScreen extends StatefulWidget {
 
 class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
   String _captionLang = 'Português (PT-PT)';
-  final _thumbTitleCtrl = TextEditingController(text: 'JOGADA ÉPICA AO VIVO!');
+  String _selectedFormat = '9:16 Vertical (TikTok / Reels / Shorts)';
+  String _selectedMood = 'Épico / Cinematográfico';
+  String _selectedFilter = 'HDR Cyber Neon (Grátis)';
+  double _trimStart = 0.15;
+  double _trimEnd = 0.85;
+  int _viralScore = 92;
+  final TextEditingController _thumbTitleCtrl = TextEditingController(text: 'JOGADA ÉPICA AO VIVO!');
+  final TextEditingController _hashtagsCtrl = TextEditingController(text: '#gaming #portugal #livestream #viral #fyp');
+
   final List<Map<String, String>> _clipsQueue = [
-    {'title': 'Clip #1 · Pico de Reações no Chat (00:42)', 'format': 'Vertical 9:16 · TikTok / Shorts', 'status': 'Pronto'},
-    {'title': 'Clip #2 · Vitória no Desafio da Roleta (00:58)', 'format': 'Vertical 9:16 · Reels', 'status': 'Legendado'},
+    {'title': 'Clipe #1 · Puxar Atrás 30s (Reação Chat)', 'format': '9:16 Vertical', 'mood': 'Divertido', 'score': '94%'},
+    {'title': 'Clipe #2 · Vitória no Desafio Final', 'format': '9:16 Vertical', 'mood': 'Épico', 'score': '96%'},
+    {'title': 'Clipe #3 · Momento Presente Galáxia', 'format': '16:9 YouTube', 'mood': 'Alegre', 'score': '89%'},
   ];
+
+  @override
+  void dispose() {
+    _thumbTitleCtrl.dispose();
+    _hashtagsCtrl.dispose();
+    super.dispose();
+  }
+
+  void _runAiAnalysis() {
+    setState(() {
+      _viralScore = 88 + (_thumbTitleCtrl.text.length % 11);
+      if (_selectedMood.contains('Épico')) {
+        _thumbTitleCtrl.text = 'NINGUÉM ACREDITOU NISTO AO VIVO! 🔥';
+        _hashtagsCtrl.text = '#epico #gamingpt #twitch #tiktoklive #viral';
+      } else if (_selectedMood.contains('Divertido')) {
+        _thumbTitleCtrl.text = 'O MOMENTO MAIS ENGRAÇADO DA LIVE 😂';
+        _hashtagsCtrl.text = '#humor #live #clipes #funny #fyp';
+      } else if (_selectedMood.contains('Gaming')) {
+        _thumbTitleCtrl.text = 'CLUTCH IMPOSSÍVEL NO ÚLTIMO SEGUNDO! 🎯';
+        _hashtagsCtrl.text = '#gamer #clutch #highlights #proplay #shorts';
+      } else {
+        _thumbTitleCtrl.text = 'A VERDADE SOBRE ISTO EM DIRETO 🎙️';
+        _hashtagsCtrl.text = '#conversa #podcast #opiniao #livept #reels';
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('🤖 Análise IA concluída! Potencial Viral: $_viralScore/100'), behavior: SnackBarBehavior.floating),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _neonBox(),
+        HellCockpitWindow(
+          title: 'ESTÚDIO DE EDIÇÃO & TIMELINE IA 4K HDR',
+          icon: Icons.movie_filter_rounded,
+          accent: const Color(0xFFF43F5E),
+          badge: 'BASE GRÁTIS · PRO VIP',
+          onTestPressed: _runAiAnalysis,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('🎬 Automatic Clips & Vertical Video (9:16)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 8),
-              ..._clipsQueue.map((c) => ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.movie_creation_outlined, color: Color(0xFF38BDF8)),
-                    title: Text(c['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-                    subtitle: Text(c['format']!, style: const TextStyle(fontSize: 11, color: Colors.white60)),
-                    trailing: Text(c['status']!, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11.5)),
-                  )),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                onPressed: () {
-                  setState(() {
-                    _clipsQueue.insert(0, {
-                      'title': 'Clip #${_clipsQueue.length + 1} · Momento Marcado Agora',
-                      'format': 'Vertical 9:16 · Legendas $_captionLang',
-                      'status': 'Exportado',
-                    });
-                  });
-                },
-                icon: const Icon(Icons.cut, size: 17, color: Colors.white),
-                label: const Text('Marcar & Gerar Clip Vertical 9:16', style: TextStyle(color: Colors.white)),
+              Container(
+                height: 92,
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF0A1433), Color(0xFF7C3AED)]),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF38BDF8)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_thumbTitleCtrl.text.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.1, color: Colors.white)),
+                    const SizedBox(height: 4),
+                    Text('$_selectedFormat · $_selectedMood · $_selectedFilter', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF7DD3FC))),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _neonBox(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('📝 Legendas Automáticas, Tradução & Thumbnail Creator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8))),
+              const SizedBox(height: 10),
+              const Text('Corte Timeline (Início / Fim do Clipe):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white70)),
+              RangeSlider(
+                values: RangeValues(_trimStart, _trimEnd),
+                activeColor: const Color(0xFFF43F5E),
+                onChanged: (v) => setState(() {
+                  _trimStart = v.start;
+                  _trimEnd = v.end;
+                }),
+              ),
+              DropdownButtonFormField<String>(
+                value: _selectedFormat,
+                decoration: const InputDecoration(labelText: 'Formato de Entrega nas Redes', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: '9:16 Vertical (TikTok / Reels / Shorts)', child: Text('9:16 Vertical (TikTok / Reels / Shorts)')),
+                  DropdownMenuItem(value: '16:9 Widescreen (YouTube 4K)', child: Text('16:9 Widescreen (YouTube 4K)')),
+                  DropdownMenuItem(value: '1:1 Quadrado (Feed Instagram / X)', child: Text('1:1 Quadrado (Feed Instagram / X)')),
+                ],
+                onChanged: (v) => setState(() => _selectedFormat = v ?? _selectedFormat),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedMood,
+                decoration: const InputDecoration(labelText: 'Estilo de Edição Automática IA', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'Épico / Cinematográfico', child: Text('🔥 Épico / Cinematográfico')),
+                  DropdownMenuItem(value: 'Divertido / Memes & Zoom', child: Text('😂 Divertido / Memes & Zoom')),
+                  DropdownMenuItem(value: 'Gaming / Highlights Rápidos', child: Text('🎮 Gaming / Highlights Rápidos')),
+                  DropdownMenuItem(value: 'Sério / Conversa & Podcast', child: Text('🎙️ Sério / Conversa & Podcast')),
+                  DropdownMenuItem(value: 'Alegre / Vlogs & Presentes', child: Text('✨ Alegre / Vlogs & Presentes')),
+                ],
+                onChanged: (v) => setState(() => _selectedMood = v ?? _selectedMood),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedFilter,
+                decoration: const InputDecoration(labelText: 'Filtro & LUT de Cor (Grátis vs. VIP)', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'HDR Cyber Neon (Grátis)', child: Text('HDR Cyber Neon (Grátis)')),
+                  DropdownMenuItem(value: 'Clean Broadcast 4K (Grátis)', child: Text('Clean Broadcast 4K (Grátis)')),
+                  DropdownMenuItem(value: '👑 Cinema Dolby Vision LUT (VIP)', child: Text('👑 Cinema Dolby Vision LUT (VIP)')),
+                  DropdownMenuItem(value: '👑 IA Auto-Zoom & Efeitos 3D (VIP)', child: Text('👑 IA Auto-Zoom & Efeitos 3D (VIP)')),
+                ],
+                onChanged: (v) => setState(() => _selectedFilter = v ?? _selectedFilter),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _captionLang,
-                dropdownColor: const Color(0xFF0B1636),
-                decoration: const InputDecoration(labelText: 'Idioma das Legendas & Tradução', isDense: true),
+                decoration: const InputDecoration(labelText: 'Legendas Automáticas & Tradução', isDense: true, border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'Português (PT-PT)', child: Text('Português (PT-PT)')),
                   DropdownMenuItem(value: 'English (EN)', child: Text('English (EN)')),
                   DropdownMenuItem(value: 'Español (ES)', child: Text('Español (ES)')),
                 ],
-                onChanged: (v) => setState(() => _captionLang = v ?? 'Português (PT-PT)'),
+                onChanged: (v) => setState(() => _captionLang = v ?? _captionLang),
               ),
-              const SizedBox(height: 8),
-              TextField(controller: _thumbTitleCtrl, decoration: const InputDecoration(labelText: 'Texto da Thumbnail HD', isDense: true)),
-              const SizedBox(height: 8),
-              Container(
-                height: 75,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF050B1E)]),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF38BDF8)),
-                ),
-                alignment: Alignment.center,
-                child: Text(_thumbTitleCtrl.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.5, color: Colors.white)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('🎬 Renderizado em $_selectedFormat e pronto para publicar!'), behavior: SnackBarBehavior.floating),
+                        );
+                      },
+                      icon: const Icon(Icons.publish_rounded, size: 17),
+                      label: const Text('Exportar & Publicar', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('💾 Ficheiro MP4 guardado na galeria para edição externa!'), behavior: SnackBarBehavior.floating),
+                      );
+                    },
+                    icon: const Icon(Icons.download_rounded, size: 17),
+                    label: const Text('Guardar MP4', style: TextStyle(fontSize: 11.5)),
+                  ),
+                ],
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        HellCockpitWindow(
+          title: 'AVALIAÇÃO DE ENGAJAMENTO IA & HASHTAGS',
+          icon: Icons.insights_rounded,
+          accent: const Color(0xFF38BDF8),
+          badge: 'SCORE $_viralScore/100',
+          onTestPressed: _runAiAnalysis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(controller: _thumbTitleCtrl, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: 'Título Otimizado por IA', isDense: true, border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: _hashtagsCtrl, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: 'Hashtags Recomendadas IA', isDense: true, border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              ..._clipsQueue.map((c) => Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.movie_creation_outlined, color: Color(0xFF38BDF8), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(c['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                              Text('${c['format']} · Estilo ${c['mood']}', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
+                            ],
+                          ),
+                        ),
+                        Text('Viral ${c['score']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.greenAccent)),
+                      ],
+                    ),
+                  )),
             ],
           ),
         ),
@@ -858,6 +1002,7 @@ class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
     );
   }
 }
+
 // ABA 10: HELL CRESCIMENTO E NEGÓCIO (GRÁFICOS REAIS FL_CHART)
 class GrowthAnalyticsScreen extends StatelessWidget {
   const GrowthAnalyticsScreen({super.key});
