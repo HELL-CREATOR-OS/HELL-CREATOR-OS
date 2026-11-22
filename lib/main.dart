@@ -84,9 +84,11 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: SplashScreen(currentTheme: _themeMode, onThemeChanged: _changeTheme),
-      ),
+           ),
     );
   }
+}
+
 
 class SplashScreen extends StatefulWidget {
   final String currentTheme;
