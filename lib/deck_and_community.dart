@@ -976,7 +976,7 @@ bool _testMode = false;
                       Expanded(
                         child: Center(
                           child: Text(
-                            'STREAM DECK HELL (${_currentPage + 1}/${_deckPages.length},
+                            'STREAM DECK HELL (${_currentPage + 1}/${_deckPages.length})',
                             style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 12.5, color: Colors.white),
                             overflow: TextOverflow.ellipsis,
                           ),
