@@ -344,3 +344,418 @@ class _MainShellState extends State<MainShell> {
       _showSnack('Sons e alertas ativos.');
     }
   }
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
+  }
+
+  void _handlePlatformTap(String platformId, String platformName) {
+    setState(() => _selectedPlatform = platformId);
+    final isCurrentlyOn = _activePlatforms[platformId] == true;
+    if (isCurrentlyOn) {
+      setState(() => _activePlatforms[platformId] = false);
+      _liveConnector.disconnect();
+      _showSnack('$platformName desligado (Estúdio OFF).');
+      return;
+    }
+    final user = _channelCtrl.text.trim();
+    if (user.isEmpty) {
+      _openPlatformSetupDialog(platformId, platformName);
+      return;
+    }
+    setState(() => _activePlatforms[platformId] = true);
+    _liveConnector.connect(platform: platformId, channelUser: user, streamKey: _streamKeyCtrl.text.trim());
+  }
+
+  void _openPlatformSetupDialog(String platformId, String platformName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        title: Text('Configurar $platformName'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _channelCtrl,
+              decoration: InputDecoration(
+                labelText: 'Nome do Canal / @Utilizador ($platformName)',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _streamKeyCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Stream Key (Opcional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: _selectedEncoder,
+              decoration: const InputDecoration(labelText: 'Origem da Transmissão', border: OutlineInputBorder()),
+              items: ['Direto no Telemóvel / Tablet', 'OBS Studio (PC)', 'TikTok Live Studio', 'Streamlabs Desktop']
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13))))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _selectedEncoder = v);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              await _saveSettings();
+              if (!mounted) return;
+              Navigator.pop(ctx);
+              if (_channelCtrl.text.trim().isNotEmpty) {
+                setState(() => _activePlatforms[platformId] = true);
+                _liveConnector.connect(platform: platformId, channelUser: _channelCtrl.text.trim(), streamKey: _streamKeyCtrl.text.trim());
+              }
+            },
+            child: const Text('Ligar & Transmitir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openMenuItem(int index) {
+    setState(() => _selectedIndex = index);
+  }
+
+  Widget _buildActiveScreen() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildHomeDashboard();
+      case 1:
+        return ControlCenterScreen(
+          user: widget.user,
+          onUserUpdated: widget.onUserUpdated,
+          onLogout: widget.onLogout,
+          activePlatforms: _activePlatforms,
+          chatFeed: _chatFeed,
+          syncCode: _syncCode,
+          isSecondScreenPaired: _isSecondScreenPaired,
+          onValidateSyncCode: (code) {
+            if (code.trim().toUpperCase() == _syncCode) {
+              setState(() => _isSecondScreenPaired = true);
+              _showSnack('Segundo ecrã emparelhado com sucesso!');
+            } else {
+              _showSnack('Código inválido.');
+            }
+          },
+        );
+      case 2:
+        return StreamDeckScreen(
+          activePlatforms: _activePlatforms,
+          onTogglePlatform: _handlePlatformTap,
+          onTriggerSound: (url) async {
+            if (_isMuted) return;
+            await sfxAudioPlayer.stop();
+            if (url.startsWith('http')) {
+              await sfxAudioPlayer.play(UrlSource(url));
+            } else {
+              await sfxAudioPlayer.play(AssetSource(url));
+            }
+          },
+          onSpeakTts: _speakRealVoice,
+          syncCode: _syncCode,
+          isPaired: _isSecondScreenPaired,
+          onValidateSync: (c) => setState(() => _isSecondScreenPaired = c.trim().toUpperCase() == _syncCode),
+        );
+      case 3:
+        return ActionsStudioScreen(
+          alertsList: _alertsList,
+          goalsList: _goalsList,
+          sounds: _sounds,
+          allGiftsEnabled: _allGiftsEnabled,
+          onToggleAllGifts: (v) => setState(() => _allGiftsEnabled = v),
+          onSpeakTts: _speakRealVoice,
+          sfxPlayer: sfxAudioPlayer,
+        );
+      case 4:
+        return ChatAndVoiceScreen(
+          chatFeed: _chatFeed,
+          ttsEnabled: _ttsEnabled,
+          speechRate: _speechRate,
+          voicePitch: _voicePitch,
+          voiceVolume: _voiceVolume,
+          onToggleTts: (v) {
+            setState(() => _ttsEnabled = v);
+            _saveSettings();
+          },
+          onChangedRate: (v) {
+            setState(() => _speechRate = v);
+            _saveSettings();
+          },
+          onChangedPitch: (v) {
+            setState(() => _voicePitch = v);
+            _saveSettings();
+          },
+          onChangedVolume: (v) {
+            setState(() => _voiceVolume = v);
+            _saveSettings();
+          },
+          onTestSpeak: _speakRealVoice,
+          voiceRecorder: _voiceRecorder,
+        );
+      case 5:
+        return MusicStudioScreen(bgPlayer: bgMusicPlayer);
+      case 6:
+        return ContentFactoryScreen(user: widget.user);
+      case 7:
+        return CommunityHubScreen(user: widget.user);
+      case 8:
+        return AiManagementScreen(user: widget.user);
+      case 9:
+        return InfoAndSettingsScreen(
+          user: widget.user,
+          onUserUpdated: widget.onUserUpdated,
+          onLogout: widget.onLogout,
+          currentTheme: widget.currentTheme,
+          onThemeChanged: widget.onThemeChanged,
+          appLang: _appLang,
+          onLangChanged: (l) {
+            setState(() => _appLang = l);
+            _saveSettings();
+          },
+        );
+      default:
+        return _buildHomeDashboard();
+    }
+  }
+  Widget _buildHomeDashboard() {
+    final platforms = [
+      {'id': 'tiktok', 'name': 'TikTok'},
+      {'id': 'twitch', 'name': 'Twitch'},
+      {'id': 'youtube', 'name': 'YouTube'},
+      {'id': 'kick', 'name': 'Kick'},
+    ];
+
+    final menuItems = [
+      {'idx': 1, 'title': 'Centro de Controlo', 'sub': 'Cockpit 4K · Chat · Mixer · Live', 'icon': Icons.dashboard_customize_rounded, 'color': const Color(0xFF38BDF8)},
+      {'idx': 2, 'title': 'Stream Deck HELL', 'sub': 'Teclas Translúcidas · Ecrã Inteiro', 'icon': Icons.grid_view_rounded, 'color': const Color(0xFF1E78FF)},
+      {'idx': 3, 'title': 'Automações & Alertas', 'sub': 'Presentes · Doações · Metas · Regras', 'icon': Icons.bolt_rounded, 'color': const Color(0xFFA855F7)},
+      {'idx': 4, 'title': 'Chat & Voz Masculina', 'sub': 'TTS Real · Clonagem de Voz', 'icon': Icons.record_voice_over_rounded, 'color': const Color(0xFF10B981)},
+      {'idx': 5, 'title': 'Música & Rádio 4K', 'sub': 'Faixas Offline · Sem Copyright', 'icon': Icons.music_note_rounded, 'color': const Color(0xFFF59E0B)},
+      {'idx': 6, 'title': 'Fábrica de Conteúdos IA', 'sub': 'Clipes 9:16 · Editor · Engajamento', 'icon': Icons.movie_filter_rounded, 'color': const Color(0xFFF43F5E)},
+      {'idx': 7, 'title': 'Comunidade & Globo NASA', 'sub': 'Mapa Global VIP · Marketplace', 'icon': Icons.public_rounded, 'color': const Color(0xFF06B6D4)},
+      {'idx': 8, 'title': 'HELL Gestão IA', 'sub': 'Diretor Inteligente · Sugestões', 'icon': Icons.psychology_rounded, 'color': const Color(0xFF8B5CF6)},
+      {'idx': 9, 'title': 'Informações & Definições', 'sub': 'Ecrã & Toque · Temas · Conta', 'icon': Icons.settings_rounded, 'color': const Color(0xFF94A3B8)},
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final isWide = w >= 650;
+        final cols = w >= 1024 ? 3 : (w >= 650 ? 2 : 1);
+
+        final deckCard = Container(
+          padding: EdgeInsets.fromLTRB(isWide ? 18 : 12, 10, isWide ? 18 : 12, isWide ? 14 : 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF10204D), Color(0xFF070E24), Color(0xFF030712)],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 18, offset: const Offset(0, 8)),
+              BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 20, spreadRadius: 1),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF04091A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: const Text(
+                  'MULTIPLATAFORMAS · TRANSMISSÃO DIRETA',
+                  style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFF7DD3FC)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF030714),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+                child: GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 4,
+                  crossAxisSpacing: isWide ? 14 : 8,
+                  mainAxisSpacing: isWide ? 14 : 8,
+                  childAspectRatio: isWide ? 2.4 : 0.84,
+                  children: platforms.map((p) {
+                    final id = p['id']!;
+                    final name = p['name']!;
+                    return PlatformGlassTile(
+                      platform: id,
+                      label: name,
+                      isActive: _activePlatforms[id] == true,
+                      onTap: () => _handlePlatformTap(id, name),
+                      onLongPress: () => _openPlatformSetupDialog(id, name),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        final deckPanel = isWide
+            ? SizedBox(width: double.infinity, child: deckCard)
+            : Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 360), child: deckCard));
+
+        return ListView(
+          padding: EdgeInsets.all(isWide ? 18 : 14),
+          children: [
+            deckPanel,
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: menuItems.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 82,
+              ),
+              itemBuilder: (_, i) {
+                final m = menuItems[i];
+                final c = m['color'] as Color;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => _openMenuItem(m['idx'] as int),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: c.withOpacity(0.55), width: 1.3),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.75), blurRadius: 14, offset: const Offset(0, 6)),
+                        BoxShadow(color: c.withOpacity(0.18), blurRadius: 16),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: c.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: c.withOpacity(0.5)),
+                          ),
+                          child: Icon(m['icon'] as IconData, color: c, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(m['title'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.white), overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 3),
+                              Text(m['sub'] as String, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white60), overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: c),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = _activePlatforms.values.where((v) => v).length;
+    return Scaffold(
+      appBar: AppBar(
+        leading: _selectedIndex != 0
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF38BDF8)),
+                onPressed: () => setState(() => _selectedIndex = 0),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Image.asset('icon.png', errorBuilder: (_, __, ___) => const Icon(Icons.bolt, color: Color(0xFF38BDF8))),
+              ),
+        title: Text(
+          _selectedIndex == 0 ? 'HELL CREATOR OS' : 'VOLTAR AO MENU PRINCIPAL',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.1),
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: activeCount > 0 ? Colors.greenAccent.withOpacity(0.18) : Colors.redAccent.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: activeCount > 0 ? Colors.greenAccent : Colors.redAccent),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.fiber_manual_record, size: 9, color: activeCount > 0 ? Colors.greenAccent : Colors.redAccent),
+                const SizedBox(width: 5),
+                Text(
+                  activeCount > 0 ? 'NO AR' : 'ESTÚDIO OFF',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: activeCount > 0 ? Colors.greenAccent : Colors.redAccent),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(_isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: _isMuted ? Colors.redAccent : const Color(0xFF38BDF8)),
+            tooltip: _isMuted ? 'Ativar Sons' : 'Silenciar Tudo',
+            onPressed: _toggleMuteState,
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle_rounded, color: Colors.white),
+            tooltip: 'Perfil & VIP',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserProfileScreen(
+                    user: widget.user,
+                    onUserUpdated: widget.onUserUpdated,
+                    onLogout: widget.onLogout,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: _buildActiveScreen(),
+    );
+  }
+}
