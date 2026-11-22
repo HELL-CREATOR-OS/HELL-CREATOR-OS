@@ -56,6 +56,9 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
   final AudioRecorder _deckRecorder = AudioRecorder();
     bool _tutorialChecked = false;
     bool _isFullScreenDeck = false;
+  bool _showTopBarInFull = false;
+  bool _orientationLocked = false;
+  bool _forcedLandscape = false;
 
 
   @override
@@ -930,33 +933,97 @@ bool _testMode = false;
       body: SafeArea(
         child: Column(
           children: [
+                      if (_isFullScreenDeck && !_showTopBarInFull)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _showTopBarInFull = true),
+              onVerticalDragUpdate: (d) {
+                if (d.delta.dy > 3) setState(() => _showTopBarInFull = true);
+              },
+              child: Container(
+                width: double.infinity,
+                height: 22,
+                color: Colors.transparent,
+                alignment: Alignment.center,
+                child: Container(
+                  width: 58,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF38BDF8).withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.6), blurRadius: 8)],
+                  ),
+                ),
+              ),
+            )
+          else
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF09122C),
+                color: const Color(0xFF0A122C),
                 border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)),
-                    tooltip: 'Retroceder / Minimizar',
-                    onPressed: widget.onMinimizeDeck,
-                  ),
-                                        Text(
-                        'STREAM DECK HELL (${_currentPage + 1}/$pageCount)',
-                        style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0, fontSize: 12),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)),
+                        tooltip: 'Retroceder / Minimizar',
+                        onPressed: widget.onMinimizeDeck,
                       ),
-                      const Spacer(),
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            'STREAM DECK HELL (${_currentPage + 1}/$_pageCount)',
+                            style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 12.5, color: Colors.white),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _forcedLandscape ? Icons.stay_current_portrait_rounded : Icons.stay_current_landscape_rounded,
+                          color: const Color(0xFF38BDF8),
+                          size: 20,
+                        ),
+                        tooltip: _forcedLandscape ? 'Orientar Vertical' : 'Orientar Horizontal',
+                        onPressed: () {
+                          setState(() => _forcedLandscape = !_forcedLandscape);
+                          if (_forcedLandscape) {
+                            SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+                          } else {
+                            SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _orientationLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                          color: _orientationLocked ? Colors.amberAccent : Colors.white60,
+                          size: 19,
+                        ),
+                        tooltip: _orientationLocked ? 'Desbloquear Rotação' : 'Bloquear Rotação',
+                        onPressed: () {
+                          setState(() => _orientationLocked = !_orientationLocked);
+                          if (!_orientationLocked) {
+                            SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+                          }
+                        },
+                      ),
                       IconButton(
                         icon: Icon(
                           _isFullScreenDeck ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
                           color: _isFullScreenDeck ? const Color(0xFF38BDF8) : Colors.white,
-                          size: 23,
+                          size: 22,
                         ),
                         tooltip: _isFullScreenDeck ? 'Reduzir Ecrã' : 'Ecrã Inteiro',
                         onPressed: () {
-                          setState(() => _isFullScreenDeck = !_isFullScreenDeck);
+                          setState(() {
+                            _isFullScreenDeck = !_isFullScreenDeck;
+                            _showTopBarInFull = false;
+                          });
                           if (_isFullScreenDeck) {
                             SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
                           } else {
@@ -964,6 +1031,19 @@ bool _testMode = false;
                           }
                         },
                       ),
+                    ],
+                  ),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        if (_isFullScreenDeck)
+                          TextButton.icon(
+                            onPressed: () => setState(() => _showTopBarInFull = false),
+                            icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18, color: Color(0xFF38BDF8)),
+                            label: const Text('Ocultar Barra', style: TextStyle(fontSize: 11, color: Color(0xFF38BDF8), fontWeight: FontWeight.w800)),
+                          ),
+
 
                                      IconButton(
                       icon: Icon(
@@ -1053,6 +1133,11 @@ bool _testMode = false;
                     ),
                 ],
               ),
+                                      ),
+                  ],
+                ),
+              ),
+  
             ),
             Expanded(
                                    child: Stack(
