@@ -472,7 +472,7 @@ class _MainShellState extends State<MainShell> {
     } else {
       _showSnack('Sons e alertas ativos.');
     }
-  }
+
 
   void _showSnack(String text) {
     if (!mounted) return;
