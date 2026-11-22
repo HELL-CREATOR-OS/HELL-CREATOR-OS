@@ -52,6 +52,8 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
   // Alertas Padrão
   bool _defaultAlertsEnabled = true;
   bool _defaultAlertsVoice = true;
+    String _defaultAlertSound = 'sounds/tap_glass.wav';
+
   final TextEditingController _defaultAlertMsgCtrl = TextEditingController(text: 'Bem-vindo à família {user}! Obrigado pelo apoio!');
 
   // Doações 4K HDR
