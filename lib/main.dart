@@ -64,7 +64,11 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+       return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => HellFeedbackEngine.triggerTap(),
+      child: MaterialApp(
+
       title: 'HELL CREATOR OS',
             locale: const Locale('pt', 'PT'),
       supportedLocales: const [
@@ -80,9 +84,9 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: SplashScreen(currentTheme: _themeMode, onThemeChanged: _changeTheme),
+      ),
     );
   }
-}
 
 class SplashScreen extends StatefulWidget {
   final String currentTheme;
