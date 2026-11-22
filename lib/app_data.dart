@@ -1,3 +1,9 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
+
 class AppTranslations {
   static String t(String lang, String key) {
     final map = {
@@ -64,10 +70,11 @@ class AppTranslations {
 }
 
 class DefaultMediaLibrary {
-  static const String _cdn =
+    static const String _cdn =
       'https://jsdelivr.net';
   static const String _sfx =
       'https://google.com';
+
 
   static const String voiceCloneScript2Min =
       'Olá pessoal, bem-vindos à nossa transmissão no HELL CREATOR OS! '
@@ -196,4 +203,240 @@ class DefaultMediaLibrary {
       ],
     },
   ];
+}
+
+class HellFeedbackEngine {
+  static bool soundEnabled = true;
+  static bool vibrationEnabled = true;
+  static String tapSoundAsset = 'sounds/tap_cyber.wav';
+  static double tapVolume = 0.55;
+  static final List<AudioPlayer> _pool = [AudioPlayer(), AudioPlayer(), AudioPlayer()];
+  static int _idx = 0;
+
+  static bool get isMobileDevice {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
+  static Future<void> triggerTap() async {
+    if (!isMobileDevice) return;
+    if (vibrationEnabled) {
+      HapticFeedback.lightImpact();
+    }
+    if (soundEnabled && tapSoundAsset.isNotEmpty) {
+      try {
+        final p = _pool[_idx % _pool.length];
+        _idx++;
+        await p.setVolume(tapVolume);
+        await p.stop();
+        await p.play(AssetSource(tapSoundAsset));
+      } catch (_) {}
+    }
+  }
+}
+
+class HellCockpitWindow extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final Widget child;
+  final String? badge;
+  final VoidCallback? onTestPressed;
+  final String testLabel;
+  final double initialHeight;
+
+  const HellCockpitWindow({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.child,
+    this.badge,
+    this.onTestPressed,
+    this.testLabel = 'Testar Agora',
+    this.initialHeight = 290,
+  });
+
+  @override
+  State<HellCockpitWindow> createState() => _HellCockpitWindowState();
+}
+
+class _HellCockpitWindowState extends State<HellCockpitWindow> {
+  late double _height;
+
+  @override
+  void initState() {
+    super.initState();
+    _height = widget.initialHeight;
+  }
+
+  void _openFullScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: const Color(0xFF04091A),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF08122E),
+            elevation: 0,
+            title: Row(
+              children: [
+                Icon(widget.icon, color: widget.accent, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))),
+              ],
+            ),
+            actions: [
+              if (widget.onTestPressed != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton.icon(
+                    onPressed: widget.onTestPressed,
+                    icon: const Icon(Icons.play_arrow_rounded, color: Colors.greenAccent, size: 18),
+                    label: Text(widget.testLabel, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w900, fontSize: 12)),
+                  ),
+                ),
+            ],
+          ),
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF10204D), Color(0xFF050B1E)],
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isWide = MediaQuery.of(context).size.width >= 650;
+    return Container(
+      height: isWide ? _height : null,
+      constraints: isWide ? const BoxConstraints(minHeight: 190, maxHeight: 760) : const BoxConstraints(maxHeight: 360),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF12255B), Color(0xFF091330), Color(0xFF04091A)],
+          stops: [0.0, 0.55, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: widget.accent.withOpacity(0.55), width: 1.4),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(color: widget.accent.withOpacity(0.18), blurRadius: 18),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: widget.accent.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: widget.accent.withOpacity(0.5)),
+                ),
+                child: Icon(widget.icon, color: widget.accent, size: 17),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.4, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (widget.onTestPressed != null)
+                InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: widget.onTestPressed,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.greenAccent.withOpacity(0.7)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.play_arrow_rounded, size: 14, color: Colors.greenAccent),
+                        const SizedBox(width: 2),
+                        Text(widget.testLabel, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.greenAccent)),
+                      ],
+                    ),
+                  ),
+                ),
+              if (widget.badge != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: widget.accent.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: widget.accent.withOpacity(0.5)),
+                  ),
+                  child: Text(widget.badge!, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: widget.accent)),
+                ),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _openFullScreen(context),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Icon(Icons.fullscreen_rounded, size: 17, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 14, color: Colors.white12),
+          Flexible(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: widget.child,
+            ),
+          ),
+          if (isWide)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (d) {
+                setState(() {
+                  _height = (_height + d.delta.dy).clamp(190.0, 760.0);
+                });
+              },
+              child: Container(
+                height: 14,
+                alignment: Alignment.center,
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: widget.accent.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
