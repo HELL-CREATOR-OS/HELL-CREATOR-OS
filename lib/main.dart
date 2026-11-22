@@ -395,7 +395,6 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     _sponsorTimer?.cancel();
     super.dispose();
-  }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
