@@ -630,7 +630,7 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(
         children: [
           const TabBar(
@@ -638,14 +638,88 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
             labelColor: Color(0xFF38BDF8),
             unselectedLabelColor: Colors.white54,
             tabs: [
+              Tab(text: '📱 Ecrã & Toque'),
               Tab(text: 'ℹ️ Quem Somos'),
               Tab(text: '🤖 Ajuda (Robô IA)'),
-              Tab(text: '📜 FAQ & Regras'),
+              Tab(text: '📖 FAQ & Regras'),
             ],
           ),
           Expanded(
             child: TabBarView(
               children: [
+                            // 0. ECRÃ & TOQUE (FEEDBACK HÁPTICO & SONORO MOBILE)
+            ListView(
+              padding: const EdgeInsets.all(14),
+              children: [
+                HellCockpitWindow(
+                  title: 'ECRÃ & TOQUE · FEEDBACK MOBILE',
+                  icon: Icons.touch_app_rounded,
+                  accent: const Color(0xFF38BDF8),
+                  badge: HellFeedbackEngine.isMobileDevice ? 'MOBILE ATIVO' : 'MODO PC (SILENCIOSO)',
+                  onTestPressed: () async {
+                    final prev = HellFeedbackEngine.soundEnabled;
+                    HellFeedbackEngine.soundEnabled = true;
+                    try {
+                      final p = AudioPlayer();
+                      await p.setVolume(HellFeedbackEngine.tapVolume);
+                      await p.play(AssetSource(HellFeedbackEngine.tapSoundAsset));
+                    } catch (_) {}
+                    HellFeedbackEngine.soundEnabled = prev;
+                    HapticFeedback.mediumImpact();
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: const Color(0xFF38BDF8),
+                        title: const Text('Som de Clique ao Tocar nos Botões (Mobile)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                        subtitle: const Text('Ativo no Android/Tablet e automaticamente silencioso no Windows.', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                        value: HellFeedbackEngine.soundEnabled,
+                        onChanged: (v) => setState(() => HellFeedbackEngine.soundEnabled = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: const Color(0xFF38BDF8),
+                        title: const Text('Vibração Háptica nos Toques (Mobile)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                        subtitle: const Text('Resposta tátil suave ao pressionar teclas e menus.', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                        value: HellFeedbackEngine.vibrationEnabled,
+                        onChanged: (v) => setState(() => HellFeedbackEngine.vibrationEnabled = v),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: HellFeedbackEngine.tapSoundAsset,
+                        decoration: const InputDecoration(labelText: 'Tipo de Som de Toque', border: OutlineInputBorder(), isDense: true),
+                        items: const [
+                          DropdownMenuItem(value: 'sounds/tap_cyber.wav', child: Text('Cyber Mech (Futurista)')),
+                          DropdownMenuItem(value: 'sounds/tap_glass.wav', child: Text('Cristal HD (Suave)')),
+                          DropdownMenuItem(value: 'sounds/tap_pulse.wav', child: Text('Pulso Néon (Energético)')),
+                          DropdownMenuItem(value: 'sounds/tap_zerog.wav', child: Text('Zero-G Synth (Espacial)')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => HellFeedbackEngine.tapSoundAsset = v);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.volume_up_rounded, size: 18, color: Color(0xFF38BDF8)),
+                          Expanded(
+                            child: Slider(
+                              value: HellFeedbackEngine.tapVolume,
+                              activeColor: const Color(0xFF38BDF8),
+                              onChanged: (v) => setState(() => HellFeedbackEngine.tapVolume = v),
+                            ),
+                          ),
+                          Text('${(HellFeedbackEngine.tapVolume * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Color(0xFF38BDF8))),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
                 // 1. QUEM SOMOS
                 ListView(
                   padding: const EdgeInsets.all(16),
