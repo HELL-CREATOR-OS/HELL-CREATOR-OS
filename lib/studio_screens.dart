@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'platform_logos.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:file_picker/file_picker.dart';
