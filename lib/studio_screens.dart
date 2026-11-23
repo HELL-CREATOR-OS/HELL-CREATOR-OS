@@ -1167,7 +1167,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
       },
     );
   }
-
+}
 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE 4K HDR)
 class SmartBrainScreen extends StatefulWidget {
@@ -1533,7 +1533,7 @@ class GrowthAnalyticsScreen extends StatelessWidget {
           ),
         ),
        }
-}
+
 // ABA 11: HELL GESTÃO DO NEGÓCIO + PATROCÍNIOS & PUBLICIDADES PAGAS
 class CreatorBusinessScreen extends StatefulWidget {
   final bool isOwner;
