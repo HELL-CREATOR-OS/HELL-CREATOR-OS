@@ -1532,45 +1532,7 @@ class GrowthAnalyticsScreen extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _neonBox(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('📊 Métricas Individuais por Plataforma', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 4),
-              const Text(
-                'Nota: Os espectadores simultâneos são apresentados separadamente por canal e nunca somados como pessoas únicas.',
-                style: TextStyle(fontSize: 11, color: Colors.white60),
-              ),
-              const SizedBox(height: 10),
-              _platformStatRow('TikTok LIVE', '142 simultâneos', '+84 seguidores', const Color(0xFF25F4EE)),
-              _platformStatRow('Twitch', '68 simultâneos', '+29 seguidores', const Color(0xFF9146FF)),
-              _platformStatRow('YouTube LIVE', '54 simultâneos', '+21 seguidores', const Color(0xFFFF4444)),
-              _platformStatRow('Kick', '41 simultâneos', '+18 seguidores', const Color(0xFF53FC18)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _platformStatRow(String name, String concurrent, String followers, Color c) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: c)),
-          Text(concurrent, style: const TextStyle(fontSize: 12, color: Colors.white)),
-          Text(followers, style: const TextStyle(fontSize: 12, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-}
+       
 
 // ABA 11: HELL GESTÃO DO NEGÓCIO + PATROCÍNIOS & PUBLICIDADES PAGAS
 class CreatorBusinessScreen extends StatefulWidget {
