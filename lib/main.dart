@@ -642,16 +642,7 @@ class _MainShellState extends State<MainShell> {
         final isWide = constraints.maxWidth >= 650;
         final cols = constraints.maxWidth >= 1050 ? 3 : (isWide ? 2 : 1);
 
-           final Map<String, int> platformViewers = {
-      'tiktok': _activePlatforms['tiktok'] == true ? 142 : 0,
-      'twitch': _activePlatforms['twitch'] == true ? 68 : 0,
-      'youtube': _activePlatforms['youtube'] == true ? 95 : 0,
-      'kick': _activePlatforms['kick'] == true ? 41 : 0,
-    };
-
-    final int totalLiveViewers = platformViewers.values.fold(0, (a, b) => a + b);
-
-    final deckCard = Container(
+      final deckCard = Container(
       padding: EdgeInsets.fromLTRB(isWide ? 18 : 12, 12, isWide ? 18 : 12, isWide ? 14 : 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -660,138 +651,43 @@ class _MainShellState extends State<MainShell> {
           colors: [Color(0xFF132B68), Color(0xFF0B193D), Color(0xFF04091A)],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6), width: 1.5),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.65), blurRadius: 18, offset: const Offset(0, 8)),
-          BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.25), blurRadius: 22, spreadRadius: 1),
+          BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.22), blurRadius: 22, spreadRadius: 1),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF04091A),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.sensors_rounded, size: 13, color: Color(0xFF38BDF8)),
-                    SizedBox(width: 5),
-                    Text('MULTIPLATAFORMAS · TRANSMISSÃO DIRETA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Color(0xFF7DD3FC))),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              // Contador Geral de Espectadores (Exportável como Overlay/Banner na Live)
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: 'http://127.0.0'));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('👁️ Contador Geral ($totalLiveViewers espectadores) copiado como Overlay/Banner para a Live!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: totalLiveViewers > 0
-                          ? [const Color(0xFFEF4444), const Color(0xFFB91C1C)]
-                          : [const Color(0xFF1E293B), const Color(0xFF0F172A)],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.visibility_rounded, size: 12, color: totalLiveViewers > 0 ? Colors.white : Colors.white60),
-                      const SizedBox(width: 5),
-                      Text('TOTAL: $totalLiveViewers', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.cast_connected_rounded, size: 11, color: Colors.white70),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF050D24),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.black, width: 2),
-              boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.14), blurRadius: 8)],
-            ),
-            child: GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 4,
-              crossAxisSpacing: isWide ? 14 : 8,
-              mainAxisSpacing: isWide ? 14 : 8,
-              childAspectRatio: isWide ? 2.1 : 0.74,
-              children: platforms.map((p) {
-                final id = p['id']!;
-                final name = p['name']!;
-                                   final isOnline = _activePlatforms[id] == true;
-
-                final viewers = platformViewers[id] ?? 0;
-                return Column(
-                  children: [
-                    Expanded(
-                      child: PlatformGlassTile(
-                        platform: id,
-                        label: name,
-                        isActive: isOnline,
-                        onTap: () => _handlePlatformTap(id, name),
-                        onLongPress: () => _openPlatformSetupDialog(id, name),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isOnline ? Colors.green.withOpacity(0.18) : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: isOnline ? Colors.greenAccent.withOpacity(0.6) : Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 5,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: isOnline ? Colors.greenAccent : Colors.white38,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isOnline ? 'ON · $viewers' : 'OFF · 0',
-                            style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: isOnline ? Colors.greenAccent : Colors.white54),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
-        ],
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF050D24),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black, width: 2),
+          boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.14), blurRadius: 8)],
+        ),
+        child: GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 4,
+          crossAxisSpacing: isWide ? 14 : 8,
+          mainAxisSpacing: isWide ? 14 : 8,
+          childAspectRatio: isWide ? 2.6 : 0.92,
+          children: platforms.map((p) {
+            final id = p['id']!;
+            final name = p['name']!;
+            final isOnline = _activePlatforms[id] == true;
+            return PlatformGlassTile(
+              platform: id,
+              label: name,
+              isActive: isOnline,
+              onTap: () => _handlePlatformTap(id, name),
+              onLongPress: () => _openPlatformSetupDialog(id, name),
+            );
+          }).toList(),
+        ),
       ),
     );
+
 
     final deckPanel = isWide
         ? SizedBox(width: double.infinity, child: deckCard)
@@ -800,13 +696,7 @@ class _MainShellState extends State<MainShell> {
     return ListView(
       padding: EdgeInsets.fromLTRB(isWide ? 24 : 14, 12, isWide ? 24 : 14, 24),
       children: [
-        HellVisualBanner(
-          title: 'ESTÚDIO BROADCAST · ${widget.user['nickname'] ?? 'CRIADOR'}',
-          subtitle: 'Controlo multi-plataforma, áudio 48kHz, automações IA e overlays 4K em tempo real.',
-          icon: Icons.live_tv_rounded,
-          accent: const Color(0xFF38BDF8),
-          badge: totalLiveViewers > 0 ? 'AO VIVO · $totalLiveViewers ESPECTADORES' : 'ESTÚDIO PRONTO · 4K HDR',
-        ),
+      
         deckPanel,
         const SizedBox(height: 12),
         if (cols == 1)
