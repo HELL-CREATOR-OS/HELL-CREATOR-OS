@@ -1532,7 +1532,7 @@ class GrowthAnalyticsScreen extends StatelessWidget {
             ],
           ),
         ),
-       
+       }
 
 // ABA 11: HELL GESTÃO DO NEGÓCIO + PATROCÍNIOS & PUBLICIDADES PAGAS
 class CreatorBusinessScreen extends StatefulWidget {
