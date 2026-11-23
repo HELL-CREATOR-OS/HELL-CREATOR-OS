@@ -947,6 +947,81 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
       ),
     );
   }
+  bool _defaultGiftsActive = true;
+  bool _followAlertsActive = true;
+  bool _goalsOverlayActive = true;
+  bool _donationsActive = true;
+
+  Widget _buildAutomationsControlModule() {
+    return HellCockpitWindow(
+      title: 'CONTROLO DE AUTOMAÇÕES · PRESENTES, ALERTAS & CC0',
+      icon: Icons.bolt_rounded,
+      accent: const Color(0xFFF59E0B),
+      badge: _defaultGiftsActive ? 'PRESENTES PADRÃO ON' : 'MANUAL',
+      onTestPressed: () => _executeAction('Teste Automação', 'Presente Padrão + Voz + Overlay testados em off!'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Ativar Presentes Padrão (Som Global + Voz Dinâmica)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
+            subtitle: const Text('Aplica reação imediata a todos os presentes sem regra individual', style: TextStyle(fontSize: 10.5, color: Colors.white60)),
+            value: _defaultGiftsActive,
+            activeColor: Colors.amberAccent,
+            onChanged: (v) => setState(() => _defaultGiftsActive = v),
+          ),
+          const Divider(height: 10, color: Colors.white12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              FilterChip(
+                label: const Text('Alertas Padrão', style: TextStyle(fontSize: 11)),
+                selected: _followAlertsActive,
+                selectedColor: const Color(0xFF1E78FF),
+                onSelected: (v) => setState(() => _followAlertsActive = v),
+              ),
+              FilterChip(
+                label: const Text('Metas & Desafios', style: TextStyle(fontSize: 11)),
+                selected: _goalsOverlayActive,
+                selectedColor: const Color(0xFF1E78FF),
+                onSelected: (v) => setState(() => _goalsOverlayActive = v),
+              ),
+              FilterChip(
+                label: const Text('Doações (MB WAY / PIX / PayPal)', style: TextStyle(fontSize: 11)),
+                selected: _donationsActive,
+                selectedColor: const Color(0xFF1E78FF),
+                onSelected: (v) => setState(() => _donationsActive = v),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF04091A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amberAccent.withOpacity(0.35)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.library_music_rounded, color: Colors.amberAccent, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Biblioteca Gratuita CC0 & Personalização Individual: disponível aqui e na aba Automações do Menu Principal.', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
+                ),
+                TextButton(
+                  onPressed: () => _executeAction('Presente Individual', 'Regra individual aplicada ao overlay!'),
+                  child: const Text('Testar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.amberAccent)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -974,6 +1049,8 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                         _buildAlertsModule(),
                         const SizedBox(height: 14),
                         _buildDirectorAndClipsModule(),
+                        const SizedBox(height: 14),
+_buildAutomationsControlModule(),
                       ],
                     ),
                   ),
@@ -1009,6 +1086,9 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                         _buildChatModule(),
                         const SizedBox(height: 14),
                         _buildDirectorAndClipsModule(),
+                        const SizedBox(height: 14),
+_buildAutomationsControlModule(),
+
                       ],
                     ),
                   ),
@@ -1038,6 +1118,9 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
             _buildChatModule(),
             const SizedBox(height: 12),
             _buildAlertsModule(),
+            const SizedBox(height: 12),
+_buildAutomationsControlModule(),
+
             const SizedBox(height: 12),
             _buildMixerModule(),
             const SizedBox(height: 12),
