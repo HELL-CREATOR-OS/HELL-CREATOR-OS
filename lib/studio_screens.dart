@@ -301,91 +301,60 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     final int calculatedTotal = basePlatforms.fold<int>(0, (sum, p) => sum + ((p['active'] == true) ? (p['viewers'] as int? ?? 0) : 0));
     final int displayTotal = _customTotalViewers ?? calculatedTotal;
 
+      final bool hasAnyPlatform = basePlatforms.any((p) => p['active'] == true);
+
     return HellCockpitWindow(
       title: 'MULTIPLATAFORMAS · TRANSMISSÃO EM TEMPO REAL',
       icon: Icons.sensors_rounded,
       accent: const Color(0xFF38BDF8),
-      badge: 'TOTAL: $displayTotal ESPECTADORES',
-      onTestPressed: () {
+      badge: 'TOTAL: $displayTotal',
+      onTestPressed: () async {
+        if (!hasAnyPlatform) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Seleciona uma plataforma para testar'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        try {
+          final p = AudioPlayer();
+          await p.play(UrlSource('https://google.com'));
+        } catch (_) {}
+        if (!mounted) return;
         Clipboard.setData(ClipboardData(text: 'http://127.0.0'));
-        _executeAction('Overlay Contador Geral ($displayTotal espectadores)', 'copiado para OBS / Live');
+        _executeAction('Pré-visualização Ativa ($displayTotal espectadores)', 'Áudio e Overlay testados em tempo real!');
       },
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF04091A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.visibility_rounded, size: 17, color: Color(0xFF38BDF8)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Contador Geral ao Vivo: $displayTotal espectadores',
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Colors.white),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          final ctrl = TextEditingController(text: displayTotal.toString());
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              backgroundColor: const Color(0xFF0A1433),
-                              title: const Text('Personalizar Contador Geral', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                              content: TextField(
-                                controller: ctrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: 'Número de espectadores (vazio = automático)', border: OutlineInputBorder()),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() => _customTotalViewers = null);
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text('Automático'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    setState(() => _customTotalViewers = int.tryParse(ctrl.text.trim()));
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text('Aplicar'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        child: const Text('Personalizar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
-                      ),
-                    ],
-                  ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: _openAddPlatformDialog,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E78FF).withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 15, color: Color(0xFF38BDF8)),
+                    SizedBox(width: 4),
+                    Text('Adicionar Plataforma', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E78FF),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _openAddPlatformDialog,
-                icon: const Icon(Icons.add_rounded, size: 17),
-                label: const Text('Plataforma', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
           GridView.builder(
+            
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: basePlatforms.length,
