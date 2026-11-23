@@ -466,17 +466,159 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
+  bool _algoBotActive = true;
+  Color _chatCustomColor = const Color(0xFF38BDF8);
+  double _chatFontSize = 11.5;
+  int _algoBotSeconds = 60;
+  final List<String> _algoBotMessages = [
+    '👋 Sejam muito bem-vindos à live! Digam de onde estão a assistir!',
+    '🔔 Segue-nos nas redes vizinhas para não perderes as próximas lives!',
+    '🔥 Deixa o teu gosto e comenta no chat para ajudar o algoritmo a recomendar a live!',
+  ];
+
+  void _triggerAlgoBotNow() {
+    if (_algoBotMessages.isEmpty) return;
+    final msg = _algoBotMessages[DateTime.now().second % _algoBotMessages.length];
+    setState(() {
+      _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL BOT', 'text': msg});
+    });
+    _executeAction('Bot Algoritmo', 'Mensagem enviada no chat da live');
+  }
+
   Widget _buildChatModule() {
     final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
     return HellCockpitWindow(
-      title: 'CHAT UNIFICADO & VOZ TTS',
+      title: 'CHAT UNIFICADO · PERSONALIZAÇÃO & BOT ALGORITMO',
       icon: Icons.forum_rounded,
-      accent: const Color(0xFF38BDF8),
-      badge: _ttsEnabled ? 'TTS ON' : 'TTS OFF',
-      onTestPressed: () => _executeAction('Chat & Voz TTS', 'Mensagem de teste lida com voz masculina real!'),
+      accent: _chatCustomColor,
+      badge: _algoBotActive ? 'BOT ALGORITMO ON' : 'TTS ${_ttsEnabled ? "ON" : "OFF"}',
+      onTestPressed: _triggerAlgoBotNow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Barra de Personalização de Cores/Letra & Bot Algoritmo
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF04091A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _chatCustomColor.withOpacity(0.45)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('Cor:', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white70)),
+                    const SizedBox(width: 6),
+                    ...[
+                      const Color(0xFF38BDF8),
+                      const Color(0xFF22C55E),
+                      const Color(0xFFF59E0B),
+                      const Color(0xFFA855F7),
+                      const Color(0xFFEF4444),
+                    ].map((col) => GestureDetector(
+                          onTap: () => setState(() => _chatCustomColor = col),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: col,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _chatCustomColor == col ? Colors.white : Colors.transparent, width: 2),
+                            ),
+                          ),
+                        )),
+                    const Spacer(),
+                    const Text('Letra:', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
+                    const SizedBox(width: 4),
+                    DropdownButton<double>(
+                      value: _chatFontSize,
+                      dropdownColor: const Color(0xFF0A1433),
+                      underline: const SizedBox.shrink(),
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Colors.white),
+                      items: const [
+                        DropdownMenuItem(value: 11.5, child: Text('Normal')),
+                        DropdownMenuItem(value: 13.0, child: Text('Grande')),
+                        DropdownMenuItem(value: 14.5, child: Text('XL')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _chatFontSize = v);
+                      },
+                    ),
+                  ],
+                ),
+                const Divider(height: 10, color: Colors.white12),
+                Row(
+                  children: [
+                    Icon(Icons.smart_toy_rounded, size: 15, color: _algoBotActive ? Colors.greenAccent : Colors.white54),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Bot Algoritmo (${_algoBotSeconds}s): ${_algoBotActive ? "Ativo" : "Pausado"}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white),
+                      ),
+                    ),
+                    Switch(
+                      value: _algoBotActive,
+                      activeColor: Colors.greenAccent,
+                      onChanged: (v) => setState(() => _algoBotActive = v),
+                    ),
+                    TextButton(
+                      onPressed: _triggerAlgoBotNow,
+                      child: const Text('Disparar Já', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Colors.greenAccent)),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    ..._algoBotMessages.asMap().entries.map((e) => InputChip(
+                          label: Text(e.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5)),
+                          backgroundColor: const Color(0xFF0E1D47),
+                          onPressed: () {
+                            setState(() => _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL BOT', 'text': e.value}));
+                          },
+                          onDeleted: () => setState(() => _algoBotMessages.removeAt(e.key)),
+                        )),
+                    ActionChip(
+                      label: const Text('+ Mensagem Bot', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                      backgroundColor: const Color(0xFF0E1D47),
+                      onPressed: () {
+                        final msgCtrl = TextEditingController();
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            backgroundColor: const Color(0xFF0A1433),
+                            title: const Text('Nova Mensagem Automática do Bot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                            content: TextField(
+                              controller: msgCtrl,
+                              decoration: const InputDecoration(hintText: 'Ex.: Segue o canal e deixa o like!', border: OutlineInputBorder()),
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (msgCtrl.text.trim().isNotEmpty) {
+                                    setState(() => _algoBotMessages.add(msgCtrl.text.trim()));
+                                  }
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Guardar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           ...allMsgs.map((m) {
             final plat = m['platform'] ?? 'tiktok';
             final c = _platColor(plat);
@@ -484,16 +626,16 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFF04091A).withOpacity(0.85),
+                color: const Color(0xFF04091A).withOpacity(0.88),
                 borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: c.withOpacity(0.35)),
+                border: Border.all(color: c.withOpacity(0.45)),
               ),
               child: Row(
                 children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
-                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: c)),
-                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white))),
+                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: _chatFontSize, color: c)),
+                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: TextStyle(fontSize: _chatFontSize, color: Colors.white))),
                 ],
               ),
             );
@@ -523,7 +665,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 onPressed: () => setState(() => _ttsEnabled = !_ttsEnabled),
               ),
               IconButton(
-                icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8), size: 20),
+                icon: Icon(Icons.send_rounded, color: _chatCustomColor, size: 20),
                 onPressed: () {
                   final t = _quickReplyCtrl.text.trim();
                   if (t.isEmpty) return;
@@ -540,6 +682,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
       ),
     );
   }
+
 
   Widget _buildAlertsModule() {
     return HellCockpitWindow(
