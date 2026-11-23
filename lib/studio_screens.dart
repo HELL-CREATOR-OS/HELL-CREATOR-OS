@@ -991,73 +991,153 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
       ),
     );
   }
+  
+  final Set<String> _visiblePanels = {
+    'multi',
+    'chat',
+    'alerts',
+    'automations',
+    'mixer',
+    'director',
+    'health',
+  };
+
+  void _openWindowManagerDialog() {
+    final labels = {
+      'multi': 'Multiplataformas & Espectadores',
+      'chat': 'Chat Unificado & Bot Algoritmo',
+      'alerts': 'Alertas & Eventos em Tempo Real',
+      'automations': 'Controlo de Automações & Presentes',
+      'mixer': 'Mixer de Áudio 48kHz & VU',
+      'director': 'Diretor IA & Clipes Rápidos',
+      'health': 'Saúde da Live & Bitrate',
+    };
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1433),
+          title: const Text('Adicionar / Remover Janelas', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+          content: SizedBox(
+            width: 340,
+            child: ListView(
+              shrinkWrap: true,
+              children: labels.entries.map((e) {
+                final active = _visiblePanels.contains(e.key);
+                return SwitchListTile(
+                  dense: true,
+                  title: Text(e.value, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  value: active,
+                  activeColor: const Color(0xFF38BDF8),
+                  onChanged: (v) {
+                    setState(() {
+                      if (v) {
+                        _visiblePanels.add(e.key);
+                      } else {
+                        _visiblePanels.remove(e.key);
+                      }
+                    });
+                    setDlg(() {});
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Concluir'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanelToolbar() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.dashboard_customize_rounded, size: 16, color: Color(0xFF38BDF8)),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text('CENTRO DE CONTROLO', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Color(0xFF7DD3FC))),
+          ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF38BDF8),
+              side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.55)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: _openWindowManagerDialog,
+            icon: const Icon(Icons.add_box_outlined, size: 15),
+            label: const Text('Gerir Janelas', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
-        final isDesktop = w >= 1024;
-        final isTablet = w >= 650 && w < 1024;
+        final isDesktop = w > 1024;
+        final isTablet = w >= 650 && w <= 1024;
 
-        if (isDesktop) {
-          return ListView(
-            padding: const EdgeInsets.all(18),
-            children: [
-              _buildTopCockpitHeader(true),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: _buildChatModule()),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      children: [
-                        _buildAlertsModule(),
-                        const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(),
-                        const SizedBox(height: 14),
-_buildAutomationsControlModule(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      children: [
-                        _buildMixerModule(),
-                        const SizedBox(height: 14),
-                        _buildHealthGraphModule(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        }
+        final allCards = <Widget>[
+          if (_visiblePanels.contains('multi')) ...[
+            _buildTopCockpitHeader(isDesktop || isTablet),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('chat')) ...[
+            _buildChatModule(),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('automations')) ...[
+            _buildAutomationsControlModule(),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('alerts')) ...[
+            _buildAlertsModule(),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('mixer')) ...[
+            _buildMixerModule(),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('director')) ...[
+            _buildDirectorAndClipsModule(),
+            const SizedBox(height: 12),
+          ],
+          if (_visiblePanels.contains('health')) ...[
+            _buildHealthGraphModule(),
+            const SizedBox(height: 12),
+          ],
+        ];
 
-        if (isTablet) {
+        if (isDesktop || isTablet) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildTopCockpitHeader(true),
-              const SizedBox(height: 14),
+              _buildPanelToolbar(),
+              if (_visiblePanels.contains('multi')) ...[
+                _buildTopCockpitHeader(true),
+                const SizedBox(height: 14),
+              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
                       children: [
-                        _buildChatModule(),
-                        const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(),
-                        const SizedBox(height: 14),
-_buildAutomationsControlModule(),
-
+                        if (_visiblePanels.contains('chat')) ...[_buildChatModule(), const SizedBox(height: 14)],
+                        if (_visiblePanels.contains('automations')) ...[_buildAutomationsControlModule(), const SizedBox(height: 14)],
+                        if (_visiblePanels.contains('director')) _buildDirectorAndClipsModule(),
                       ],
                     ),
                   ),
@@ -1065,11 +1145,9 @@ _buildAutomationsControlModule(),
                   Expanded(
                     child: Column(
                       children: [
-                        _buildAlertsModule(),
-                        const SizedBox(height: 14),
-                        _buildMixerModule(),
-                        const SizedBox(height: 14),
-                        _buildHealthGraphModule(),
+                        if (_visiblePanels.contains('alerts')) ...[_buildAlertsModule(), const SizedBox(height: 14)],
+                        if (_visiblePanels.contains('mixer')) ...[_buildMixerModule(), const SizedBox(height: 14)],
+                        if (_visiblePanels.contains('health')) _buildHealthGraphModule(),
                       ],
                     ),
                   ),
@@ -1082,26 +1160,14 @@ _buildAutomationsControlModule(),
         return ListView(
           padding: const EdgeInsets.all(14),
           children: [
-            _buildTopCockpitHeader(false),
-            const SizedBox(height: 12),
-            _buildChatModule(),
-            const SizedBox(height: 12),
-            _buildAlertsModule(),
-            const SizedBox(height: 12),
-_buildAutomationsControlModule(),
-
-            const SizedBox(height: 12),
-            _buildMixerModule(),
-            const SizedBox(height: 12),
-            _buildDirectorAndClipsModule(),
-            const SizedBox(height: 12),
-            _buildHealthGraphModule(),
+            _buildPanelToolbar(),
+            ...allCards,
           ],
         );
       },
     );
   }
-}
+
 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE 4K HDR)
 class SmartBrainScreen extends StatefulWidget {
