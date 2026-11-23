@@ -1522,14 +1522,18 @@ class GrowthAnalyticsScreen extends StatelessWidget {
                           FlSpot(4, 310),
                           FlSpot(5, 420),
                           FlSpot(6, 510),
-                          FlSpot(7, 645),
-                        ],
-                      ),
+                                               FlSpot(7, 645),
                     ],
                   ),
-                ),
                 ],
-  );
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ],
+);
 }
 
 // ABA 11: HELL GESTÃO DO NEGÓCIO + PATROCÍNIOS & PUBLICIDADES PAGAS
