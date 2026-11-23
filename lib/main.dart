@@ -642,12 +642,13 @@ class _MainShellState extends State<MainShell> {
         final isWide = constraints.maxWidth >= 650;
         final cols = constraints.maxWidth >= 1050 ? 3 : (isWide ? 2 : 1);
 
-       final Map<String, int> platformViewers = {
-      'tiktok': activePlatforms['tiktok'] == true ? 142 : 0,
-      'twitch': activePlatforms['twitch'] == true ? 68 : 0,
-      'youtube': activePlatforms['youtube'] == true ? 95 : 0,
-      'kick': activePlatforms['kick'] == true ? 41 : 0,
+           final Map<String, int> platformViewers = {
+      'tiktok': _activePlatforms['tiktok'] == true ? 142 : 0,
+      'twitch': _activePlatforms['twitch'] == true ? 68 : 0,
+      'youtube': _activePlatforms['youtube'] == true ? 95 : 0,
+      'kick': _activePlatforms['kick'] == true ? 41 : 0,
     };
+
     final int totalLiveViewers = platformViewers.values.fold(0, (a, b) => a + b);
 
     final deckCard = Container(
@@ -742,7 +743,8 @@ class _MainShellState extends State<MainShell> {
               children: platforms.map((p) {
                 final id = p['id']!;
                 final name = p['name']!;
-                final isOnline = activePlatforms[id] == true;
+                                   final isOnline = _activePlatforms[id] == true;
+
                 final viewers = platformViewers[id] ?? 0;
                 return Column(
                   children: [
