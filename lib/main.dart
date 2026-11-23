@@ -64,10 +64,7 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
 
   @override
   Widget build(BuildContext context) {
-       return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => HellFeedbackEngine.triggerTap(),
-      child: MaterialApp(
+        return MaterialApp(
 
       title: 'HELL CREATOR OS',
             locale: const Locale('pt', 'PT'),
@@ -99,6 +96,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  final AudioPlayer _startupPlayer = AudioPlayer();
   late AnimationController _logoController;
   late AnimationController _pulseController;
   late Animation<double> _scaleAnim;
@@ -109,6 +107,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+        _playStartupAudio();
     _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
 
@@ -152,7 +151,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   void dispose() {
     _logoController.dispose();
     _pulseController.dispose();
+    _startupPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _playStartupAudio() async {
+    try {
+      await _startupPlayer.setReleaseMode(ReleaseMode.stop);
+      await _startupPlayer.setVolume(1.0);
+      await _startupPlayer.play(AssetSource('sounds/hell_startup.wav'));
+    } catch (_) {}
   }
 
   @override
@@ -672,7 +680,6 @@ class _MainShellState extends State<MainShell> {
     final menuItems = [
       _menuTile(Icons.dashboard_customize_outlined, 'Centro de Controlo', () => setState(() => _selectedIndex = 1), badge: 'LIVE & PAINEL'),
       _menuTile(Icons.grid_view_rounded, 'Stream Deck HELL', () => setState(() => _selectedIndex = 2), badge: _isSecondScreenPaired ? 'SYNC ON' : 'EMPARELHAR'),
-      _menuTile(Icons.bolt_outlined, 'Automações', () => setState(() => _selectedIndex = 3), badge: 'AÇÕES & REGRAS'),
       _menuTile(Icons.record_voice_over_outlined, 'Chat e Voz TTS', () => setState(() => _selectedIndex = 4), badge: 'VOZES & CHAT'),
       _menuTile(Icons.music_note_outlined, 'Música', () => setState(() => _selectedIndex = 5), badge: 'PLAYER'),
       _menuTile(Icons.movie_filter_outlined, 'Fábrica de Conteúdos', () => setState(() => _selectedIndex = 6), badge: 'CLIPES 9:16'),
@@ -945,55 +952,20 @@ class _MainShellState extends State<MainShell> {
       ),
       MusicBackgroundScreen(bgPlayer: bgMusicPlayer),
       const ContentFactoryScreen(),
-      DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            const TabBar(
-              indicatorColor: Color(0xFF38BDF8),
-              labelColor: Color(0xFF38BDF8),
-              unselectedLabelColor: Colors.white54,
-              tabs: [Tab(text: 'Globo 3D Real'), Tab(text: 'Comunidade & Chat')],
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                                                CommunityGlobeScreen(serverUrl: 'http://127.0.0.1:8080', isOwner: isOwner),
-               CommunitySocialScreen(serverUrl: 'http://127.0.0.1:8080', currentUser: widget.user),
+                CommunitySocialScreen(serverUrl: 'http://127.0.0.1:8080', currentUser: widget.user),
 
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
       MarketplacePublicScreen(hasFreeOwnerOrStaffAccess: isOwner),
-      DefaultTabController(
-        length: 3,
-        child: Column(
-          children: [
-            const TabBar(
-              indicatorColor: Color(0xFF38BDF8),
-              labelColor: Color(0xFF38BDF8),
-              unselectedLabelColor: Colors.white54,
-              tabs: [
-                Tab(text: 'AI Diretor Stream'),
-                Tab(text: 'Crescimento'),
-                Tab(text: 'Gestão de Negócio'),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
+                    ListView(
+                padding: const EdgeInsets.all(14),
                 children: [
-                  const SmartBrainScreen(),
-                  const GrowthAnalyticsScreen(),
-                  CreatorBusinessScreen(isOwner: isOwner),
+                  SizedBox(height: 360, child: const SmartBrainScreen()),
+                  const SizedBox(height: 12),
+                  SizedBox(height: 360, child: const GrowthAnalyticsScreen()),
+                  const SizedBox(height: 12),
+                  SizedBox(height: 380, child: CreatorBusinessScreen(isOwner: isOwner)),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
+
       const HellInfoHubScreen(),
       _buildSettingsTab(),
     ];
