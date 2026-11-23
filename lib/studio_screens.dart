@@ -40,7 +40,7 @@ class SponsorBannerManager {
   ];
 }
 
-// CENTRO DE CONTROLO - COCKPIT UNIFICADO OFF/LIVE (4K HDR + SCROLL INTERNO + ECRÃ COMPLETO + ARRASTO PC/TABLET)
+// CENTRO DE CONTROLO BROADCAST 4K (SEM COCKPIT INÚTIL + CHAT BOT ALGORITMO + TODAS AS AUTOMAÇÕES + VOZES HÉLDER/ENZO/FLÁVIO/LÚCIA/NOA/SANDRA)
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -67,64 +67,144 @@ class ControlCenterScreen extends StatefulWidget {
   State<ControlCenterScreen> createState() => _ControlCenterScreenState();
 }
 
-class _ControlCenterScreenState extends State<ControlCenterScreen> {
-  bool _ttsEnabled = true;
-  bool _isMusicPlaying = true;
-  bool _forceLiveMode = false;
+class _ControlCenterScreenState extends State<ControlCenterScreen> with SingleTickerProviderStateMixin {
+  final AudioPlayer _studioPlayer = AudioPlayer();
+  final FlutterTts _neuralTts = FlutterTts();
   final TextEditingController _quickReplyCtrl = TextEditingController();
-  final AudioPlayer _previewPlayer = AudioPlayer();
+  final TextEditingController _botMsgCtrl = TextEditingController(text: 'Bem-vindos à live! Deixem o gosto e sigam nas redes para não perderem os desafios!');
+  final TextEditingController _libSearchCtrl = TextEditingController();
 
-  double _micVol = 0.85;
-  double _gameVol = 0.65;
-  double _musicVol = 0.45;
-  double _alertVol = 0.90;
-  bool _micMuted = false;
-
+  // Chat Unificado & Bot Algoritmo (Ponto 4.1)
+  Color _chatAccentColor = const Color(0xFF38BDF8);
+  double _chatFontSize = 12.5;
+  bool _algoBotEnabled = true;
+  int _algoIntervalSec = 180;
+  final List<String> _algoAutoMessages = [
+    '👋 Bem-vindos a todos os que acabaram de entrar! Deixem o gosto para ajudar o algoritmo!',
+    '🔥 Rumo à próxima meta! Comentem no chat para participar no próximo desafio!',
+    '📲 Sigam-nos nas redes sociais e ativem as notificações para receberem avisos de live!',
+  ];
   final List<Map<String, String>> _liveChatBuffer = [
     {'platform': 'tiktok', 'user': '@joao_gamer', 'text': 'Que jogada absurda mano!!'},
-    {'platform': 'twitch', 'user': 'SofiaLive', 'text': 'A imagem 4K está brutal!'},
+    {'platform': 'twitch', 'user': 'SofiaLive', 'text': 'Som e imagem cristalinos!'},
     {'platform': 'youtube', 'user': 'CarlosPT', 'text': 'Salve para Portugal!'},
-    {'platform': 'kick', 'user': 'Nitro_99', 'text': 'Rumo à meta de hoje!'},
   ];
 
-  final List<Map<String, dynamic>> _recentAlerts = [
-    {'type': 'SUB', 'user': 'SofiaLive', 'detail': 'Sub Tier 1 · 3 Meses', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded},
-    {'type': 'DONATION', 'user': 'CarlosPT', 'detail': '€15.00 · MB WAY', 'color': const Color(0xFF10B981), 'icon': Icons.euro_rounded},
-    {'type': 'PRESENTE', 'user': '@joao_gamer', 'detail': 'Galáxia (1000 Moedas)', 'color': const Color(0xFFF43F5E), 'icon': Icons.auto_awesome},
-    {'type': 'FOLLOW', 'user': 'Nitro_99', 'detail': 'Novo Seguidor Kick', 'color': const Color(0xFF38BDF8), 'icon': Icons.person_add_alt_1},
+  // Automações Integradas no Centro de Controlo (Ponto 4.2 + Bibliotecas Reais CC0)
+  bool _defaultGiftsEnabled = true;
+  String _defaultGiftSound = 'sounds/tap_pulse.wav';
+  String _defaultGiftVoiceTpl = 'Muito obrigado {user} pelo presente {presente}!';
+  bool _defaultAlertsEnabled = true;
+  String _defaultAlertSound = 'sounds/tap_glass.wav';
+  String _selectedLibraryCategory = 'Sons CC0';
+
+  final List<Map<String, dynamic>> _studioGiftsCatalog = [
+    {'name': 'Rosa Néon', 'coins': 1, 'sound': 'sounds/tap_pulse.wav', 'visual': '🌹 Aura Néon 4K', 'custom': false},
+    {'name': 'Coração Cristal', 'coins': 10, 'sound': 'sounds/tap_glass.wav', 'visual': '💎 Pulso Diamante', 'custom': false},
+    {'name': 'Óculos Cyber', 'coins': 99, 'sound': 'sounds/tap_cyber.wav', 'visual': '🕶️ Visor Holográfico', 'custom': true},
+    {'name': 'Corgi Turbo', 'coins': 299, 'sound': 'sounds/tap_zerog.wav', 'visual': '🐕 Rasto Elétrico', 'custom': true},
+    {'name': 'Galáxia Cósmica', 'coins': 1000, 'sound': 'sounds/hell_startup.wav', 'visual': '🌌 Nebulosa 360°', 'custom': true},
+    {'name': 'Leão Imperial', 'coins': 29999, 'sound': 'sounds/hell_startup.wav', 'visual': '🦁 Rugido Arena HDR', 'custom': true},
   ];
 
-  final List<double> _bitrateSamples = [6.1, 6.4, 6.2, 6.6, 6.5, 6.8, 6.4, 6.7, 6.5, 6.9];
+  final List<Map<String, String>> _onlineFreeLibrary = [
+    {'type': 'Som CC0', 'name': 'Fanfarra Vitória Arena', 'source': 'Freesound CC0', 'asset': 'sounds/hell_startup.wav'},
+    {'type': 'Som CC0', 'name': 'Pulso Cristal HD', 'source': 'HELL Studio Pack', 'asset': 'sounds/tap_glass.wav'},
+    {'type': 'Som CC0', 'name': 'Laser Cyber Estéreo', 'source': 'OpenGameArt CC0', 'asset': 'sounds/tap_cyber.wav'},
+    {'type': 'Som CC0', 'name': 'Sintetizador Zero-G', 'source': 'HELL Studio Pack', 'asset': 'sounds/tap_zerog.wav'},
+    {'type': 'Imagem HD', 'name': 'Terra à Noite (NASA)', 'source': 'NASA Open Media', 'url': 'https://wikimedia.org'},
+    {'type': 'Imagem HD', 'name': 'Nebulosa Orion 4K', 'source': 'NASA / ESA Public', 'url': 'https://wikimedia.org'},
+  ];
 
-  bool get _isOnAir => _forceLiveMode || widget.activePlatforms.values.any((v) => v);
+  // Vozes Neurais IA Reais (Ponto 5: Hélder, Enzo, Flávio, Lúcia, Noa, Sandra + Idioma Automático & Instalável)
+  String _detectedLanguage = 'Português (PT-PT)';
+  final List<Map<String, dynamic>> _languagePacks = [
+    {'lang': 'Português (PT-PT)', 'installed': true, 'auto': true},
+    {'lang': 'Português (PT-BR)', 'installed': true, 'auto': false},
+    {'lang': 'English (EN-US)', 'installed': true, 'auto': false},
+    {'lang': 'Español (ES-ES)', 'installed': false, 'auto': false},
+    {'lang': 'Français (FR-FR)', 'installed': false, 'auto': false},
+  ];
+  String _selectedVoiceName = 'Hélder';
+  double _voicePitch = 0.78;
+  double _voiceRate = 0.50;
+  final List<Map<String, dynamic>> _neuralVoices = [
+    {'name': 'Hélder', 'gender': 'Masculina · Grave Locutor', 'pitch': 0.74, 'rate': 0.48, 'color': const Color(0xFF38BDF8)},
+    {'name': 'Enzo', 'gender': 'Masculina · Energética Gaming', 'pitch': 0.86, 'rate': 0.54, 'color': const Color(0xFF1E78FF)},
+    {'name': 'Flávio', 'gender': 'Masculina · Natural Estúdio', 'pitch': 0.80, 'rate': 0.50, 'color': const Color(0xFF10B981)},
+    {'name': 'Lúcia', 'gender': 'Feminina · Clara Broadcast', 'pitch': 1.06, 'rate': 0.51, 'color': const Color(0xFFA855F7)},
+    {'name': 'Noa', 'gender': 'Feminina · Jovem Dinâmica', 'pitch': 1.14, 'rate': 0.55, 'color': const Color(0xFFF43F5E)},
+    {'name': 'Sandra', 'gender': 'Feminina · Suave Institucional', 'pitch': 1.00, 'rate': 0.48, 'color': const Color(0xFFF59E0B)},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final sysLang = WidgetsBinding.instance.platformDispatcher.locale.toLanguageTag().toLowerCase();
+    if (sysLang.contains('br')) {
+      _detectedLanguage = 'Português (PT-BR)';
+    } else if (sysLang.startsWith('en')) {
+      _detectedLanguage = 'English (EN-US)';
+    } else if (sysLang.startsWith('es')) {
+      _detectedLanguage = 'Español (ES-ES)';
+    } else {
+      _detectedLanguage = 'Português (PT-PT)';
+    }
+  }
 
   @override
   void dispose() {
+    _studioPlayer.dispose();
+    _neuralTts.stop();
     _quickReplyCtrl.dispose();
-    _previewPlayer.dispose();
+    _botMsgCtrl.dispose();
+    _libSearchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _executeAction(String moduleLabel, String assetOrMsg) async {
+  Future<void> _playStudioSound(String asset) async {
     try {
-      await _previewPlayer.stop();
-      await _previewPlayer.play(AssetSource('sounds/tap_pulse.wav'));
+      await _studioPlayer.stop();
+      await _studioPlayer.setVolume(1.0);
+      await _studioPlayer.play(AssetSource(asset));
     } catch (_) {}
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isOnAir
-              ? '🔴 [NO AR · TRANSMITIDO] $moduleLabel: $assetOrMsg'
-              : '🎧 [ESTÚDIO OFF · NOS AUSCULTADORES] $moduleLabel: $assetOrMsg',
-        ),
-        backgroundColor: _isOnAir ? const Color(0xFF059669) : const Color(0xFFB91C1C),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
+  Future<void> _speakWithVoice(String text, {String? forceVoice}) async {
+    final vName = forceVoice ?? _selectedVoiceName;
+    final voiceCfg = _neuralVoices.firstWhere((v) => v['name'] == vName, orElse: () => _neuralVoices.first);
+    final isMale = (voiceCfg['gender'] as String).startsWith('Masculina');
+    try {
+      await _neuralTts.stop();
+      final langCode = _detectedLanguage.contains('BR')
+          ? 'pt-BR'
+          : _detectedLanguage.contains('EN')
+              ? 'en-US'
+              : _detectedLanguage.contains('ES')
+                  ? 'es-ES'
+                  : 'pt-PT';
+      await _neuralTts.setLanguage(langCode);
+      final voices = await _neuralTts.getVoices;
+      if (voices is List) {
+        final match = voices.cast<Map>().firstWhere(
+          (v) {
+            final n = (v['name'] ?? '').toString().toLowerCase();
+            final l = (v['locale'] ?? '').toString().toLowerCase();
+            final langOk = l.contains(langCode.split('-').first);
+            if (!langOk) return false;
+            return isMale ? (n.contains('male') || n.contains('man') || n.contains('duarte') || n.contains('antonio') || n.contains('ptd') || n.contains('daniel')) : (n.contains('female') || n.contains('woman') || n.contains('raquel') || n.contains('francisca'));
+          },
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          await _neuralTts.setVoice({'name': match['name'], 'locale': match['locale']});
+        }
+      }
+      await _neuralTts.setPitch((voiceCfg['pitch'] as double));
+      await _neuralTts.setSpeechRate((voiceCfg['rate'] as double));
+      await _neuralTts.speak(text);
+    } catch (_) {}
+  }
   Color _platColor(String p) {
     switch (p.toLowerCase()) {
       case 'tiktok':
@@ -138,561 +218,452 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     }
   }
 
-  Widget _buildTopCockpitHeader(bool isWide) {
-    final onAir = _isOnAir;
-    final statusColor = onAir ? Colors.greenAccent : Colors.redAccent;
-    final pills = [
-      {'id': 'tiktok', 'name': 'TikTok', 'viewers': widget.activePlatforms['tiktok'] == true ? '2.1K' : 'PRONTO', 'color': const Color(0xFFFF2A5F)},
-      {'id': 'twitch', 'name': 'Twitch', 'viewers': widget.activePlatforms['twitch'] == true ? '1.8K' : 'PRONTO', 'color': const Color(0xFF9146FF)},
-      {'id': 'youtube', 'name': 'YouTube', 'viewers': widget.activePlatforms['youtube'] == true ? '1.5K' : 'PRONTO', 'color': const Color(0xFFFF0033)},
-      {'id': 'kick', 'name': 'Kick', 'viewers': widget.activePlatforms['kick'] == true ? '900' : 'PRONTO', 'color': const Color(0xFF53FC18)},
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF142A66), Color(0xFF08122E), Color(0xFF040817)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: statusColor.withOpacity(0.75), width: 1.7),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.85), blurRadius: 18, offset: const Offset(0, 7)),
-          BoxShadow(color: statusColor.withOpacity(0.22), blurRadius: 22),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: statusColor.withOpacity(0.45), blurRadius: 14)],
-                ),
-                child: Image.asset('icon.png', width: 34, height: 34, errorBuilder: (_, __, ___) => Icon(Icons.bolt, color: statusColor, size: 30)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('CENTRO DE CONTROLO · COCKPIT 4K', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
-                    Text(
-                      onAir ? 'NO AR · Áudio, Alertas e Overlays em Direto' : 'ESTÚDIO OFF · Escuta Local nos Auscultadores',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: statusColor),
-                    ),
-                  ],
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => setState(() => _forceLiveMode = !_forceLiveMode),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: statusColor, width: 1.4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.fiber_manual_record, size: 10, color: statusColor),
-                      const SizedBox(width: 6),
-                      Text(
-                        onAir ? 'NO AR · EM DIRETO' : 'ESTÚDIO OFF',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: statusColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: isWide ? 4 : 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 8,
-            childAspectRatio: isWide ? 3.4 : 2.9,
-            children: pills.map((p) {
-              final c = p['color'] as Color;
-              final on = widget.activePlatforms[p['id']] == true;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF04091A),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: on ? c : c.withOpacity(0.45), width: on ? 1.6 : 1.1),
-                  boxShadow: [BoxShadow(color: c.withOpacity(on ? 0.28 : 0.12), blurRadius: 10)],
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.sensors_rounded, size: 16, color: c),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white), overflow: TextOverflow.ellipsis),
-                    ),
-                    Text(
-                      p['viewers'] as String,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: on ? Colors.greenAccent : c),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildChatModule() {
-    final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
-    return HellCockpitWindow(
-      title: 'CHAT UNIFICADO & VOZ TTS',
-      icon: Icons.forum_rounded,
-      accent: const Color(0xFF38BDF8),
-      badge: _ttsEnabled ? 'TTS ON' : 'TTS OFF',
-      onTestPressed: () => _executeAction('Chat & Voz TTS', 'Mensagem de teste lida com voz masculina real!'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...allMsgs.map((m) {
-            final plat = m['platform'] ?? 'tiktok';
-            final c = _platColor(plat);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF04091A).withOpacity(0.85),
-                borderRadius: BorderRadius.circular(11),
-                border: Border.all(color: c.withOpacity(0.35)),
-              ),
-              child: Row(
-                children: [
-                  Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
-                  const SizedBox(width: 8),
-                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: c)),
-                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white))),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 36,
-                  child: TextField(
-                    controller: _quickReplyCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'Responder no chat ou falar no TTS...',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      filled: true,
-                      fillColor: const Color(0xFF04091A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                icon: Icon(_ttsEnabled ? Icons.record_voice_over : Icons.voice_over_off, color: _ttsEnabled ? Colors.greenAccent : Colors.white38, size: 20),
-                onPressed: () => setState(() => _ttsEnabled = !_ttsEnabled),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8), size: 20),
-                onPressed: () {
-                  final t = _quickReplyCtrl.text.trim();
-                  if (t.isEmpty) return;
-                  setState(() {
-                    _liveChatBuffer.insert(0, {'platform': 'youtube', 'user': 'Streamer (Tu)', 'text': t});
-                    _quickReplyCtrl.clear();
-                  });
-                  _executeAction('Chat Unificado', t);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAlertsModule() {
-    return HellCockpitWindow(
-      title: 'ALERTAS & INTERAÇÕES',
-      icon: Icons.notifications_active_rounded,
-      accent: const Color(0xFFA855F7),
-      badge: '${_recentAlerts.length} EVENTOS',
-      onTestPressed: () {
-        setState(() {
-          _recentAlerts.insert(0, {'type': 'SUB', 'user': 'AlexPro_PT', 'detail': 'Sub Tier 1 · Validado', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded});
-        });
-        _executeAction('Alerta Subscrição', 'Som + Overlay + Agradecimento Vocal executados!');
-      },
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _recentAlerts.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          mainAxisExtent: 64,
-        ),
-        itemBuilder: (_, i) {
-          final a = _recentAlerts[i];
-          final c = a['color'] as Color;
-          return InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _executeAction('Reproduzir ${a['type']}', '${a['user']} · ${a['detail']}'),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: c.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: c.withOpacity(0.55)),
-              ),
-              child: Row(
-                children: [
-                  Icon(a['icon'] as IconData, color: c, size: 20),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
-                        Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMixerModule() {
-    Widget bar(String label, double val, Color c, ValueChanged<double> onChanged) {
-      return Expanded(
-        child: Column(
-          children: [
-            Container(
-              height: 82,
-              width: 26,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF04091A),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: c.withOpacity(0.5)),
-              ),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: FractionallySizedBox(
-                  heightFactor: val.clamp(0.05, 1.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [c.withOpacity(0.45), c]),
-                      borderRadius: BorderRadius.circular(7),
-                      boxShadow: [BoxShadow(color: c.withOpacity(0.45), blurRadius: 8)],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text('${(val * 100).round()}%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c)),
-            Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white70)),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6)),
-              child: Slider(value: val, activeColor: c, onChanged: onChanged),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return HellCockpitWindow(
-      title: 'MIXER DE ÁUDIO & VOZ',
-      icon: Icons.equalizer_rounded,
-      accent: const Color(0xFF10B981),
-      badge: _micMuted ? 'MIC MUTADO' : 'ÁUDIO 48kHz',
-      onTestPressed: () => _executeAction('Mixer 48kHz', 'Retorno de áudio verificado nos canais!'),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              bar('Mic', _micMuted ? 0.0 : _micVol, const Color(0xFF38BDF8), (v) => setState(() => _micVol = v)),
-              bar('Jogo', _gameVol, const Color(0xFFA855F7), (v) => setState(() => _gameVol = v)),
-              bar('Música', _musicVol, const Color(0xFF10B981), (v) => setState(() => _musicVol = v)),
-              bar('Alertas', _alertVol, const Color(0xFFF59E0B), (v) => setState(() => _alertVol = v)),
-            ],
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-              ),
-              onPressed: () => setState(() => _micMuted = !_micMuted),
-              icon: Icon(_micMuted ? Icons.mic_off : Icons.mic, size: 16),
-              label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDirectorAndClipsModule() {
-    return HellCockpitWindow(
-      title: 'DIRETOR IA & CLIPES 9:16',
-      icon: Icons.auto_awesome_rounded,
-      accent: const Color(0xFFF59E0B),
-      badge: 'IA ATIVA',
-      onTestPressed: () => _executeAction('Replay Buffer 30s', 'Momento guardado na Fábrica de Conteúdos!'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.45)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.psychology_rounded, color: Color(0xFFF59E0B), size: 22),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Diretor IA: Pico de mensagens no chat! Ideal para puxar atrás e criar Clipe Vertical 9:16.',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E78FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => _executeAction('Clipe 9:16', 'Últimos 30s capturados para a Fábrica de Conteúdos!'),
-              icon: const Icon(Icons.movie_creation_rounded, size: 18),
-              label: const Text('CRIAR CLIPE 9:16 AGORA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.6)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.music_note_rounded, color: Color(0xFF38BDF8), size: 18),
-                const SizedBox(width: 6),
-                const Expanded(child: Text('HELL Beats · Cyber Stream Lo-Fi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800), overflow: TextOverflow.ellipsis)),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(_isMusicPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: const Color(0xFF38BDF8), size: 24),
-                  onPressed: () => setState(() => _isMusicPlaying = !_isMusicPlaying),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHealthGraphModule() {
-    return HellCockpitWindow(
-      title: 'SAÚDE DA LIVE & MÉTRICAS',
-      icon: Icons.show_chart_rounded,
-      accent: const Color(0xFF38BDF8),
-      badge: '60 FPS · ESTÁVEL',
-      onTestPressed: () => _executeAction('Diagnóstico Rede', 'Bitrate 6.5 Mbps · 0% Perda de Frames!'),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 92,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: true, border: Border.all(color: Colors.white12)),
-                lineBarsData: [
-                  LineChartBarData(
-                    isCurved: true,
-                    color: const Color(0xFF38BDF8),
-                    barWidth: 3,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: const Color(0xFF38BDF8).withOpacity(0.22)),
-                    spots: List.generate(_bitrateSamples.length, (i) => FlSpot(i.toDouble(), _bitrateSamples[i])),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _metricPill('BITRATE', '6.5 Mbps', const Color(0xFF38BDF8)),
-              _metricPill('FPS', '60.0', Colors.greenAccent),
-              _metricPill('PERDA', '0.0%', const Color(0xFFA855F7)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _metricPill(String label, String value, Color c) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF04091A),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c.withOpacity(0.45)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white54)),
-          Text(value, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: c)),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final isDesktop = w >= 1024;
-        final isTablet = w >= 650 && w < 1024;
+    final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
 
-        if (isDesktop) {
-          return ListView(
-            padding: const EdgeInsets.all(18),
-            children: [
-              _buildTopCockpitHeader(true),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: _buildChatModule()),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      children: [
-                        _buildAlertsModule(),
-                        const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      children: [
-                        _buildMixerModule(),
-                        const SizedBox(height: 14),
-                        _buildHealthGraphModule(),
-                      ],
-                    ),
-                  ),
-                ],
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          // BANNER VISUAL PANORÂMICO DE ESTÚDIO BROADCAST (SEM COCKPIT INÚTIL)
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF142A66), Color(0xFF0A1433), Color(0xFF1E1B4B)],
               ),
-            ],
-          );
-        }
-
-        if (isTablet) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildTopCockpitHeader(true),
-              const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _buildChatModule(),
-                        const SizedBox(height: 14),
-                        _buildDirectorAndClipsModule(),
-                      ],
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.4),
+              boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.18), blurRadius: 16)],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset('icon.png', width: 32, height: 32, errorBuilder: (_, __, ___) => const Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8), size: 28)),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _buildAlertsModule(),
-                        const SizedBox(height: 14),
-                        _buildMixerModule(),
-                        const SizedBox(height: 14),
-                        _buildHealthGraphModule(),
-                      ],
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ESTÚDIO DE PRODUÇÃO & AUTOMAÇÕES', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.7, color: Colors.white)),
+                          Text('Chat Bot Algoritmo · Presentes · Vozes Neurais IA · Bibliotecas Reais', style: TextStyle(fontSize: 10.5, color: Color(0xFF7DD3FC), fontWeight: FontWeight.w700)),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  indicator: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF38BDF8)]),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
-              ),
-            ],
-          );
-        }
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white60,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+                  tabs: const [
+                    Tab(text: '💬 Chat & Bot Algoritmo'),
+                    Tab(text: '🎁 Presentes & Alertas'),
+                    Tab(text: '🎙️ Vozes IA (Hélder/Enzo/Lúcia)'),
+                    Tab(text: '📚 Biblioteca Online CC0'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 1. CHAT UNIFICADO PERSONALIZÁVEL + BOT ALGORITMO AUTOMÁTICO
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'CHAT UNIFICADO & PERSONALIZAÇÃO VISUAL',
+                      icon: Icons.forum_rounded,
+                      accent: _chatAccentColor,
+                      badge: '${allMsgs.length} MENSAGENS',
+                      onTestPressed: () {
+                        setState(() {
+                          _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': 'HELL_Bot', 'text': _algoAutoMessages.first});
+                        });
+                        _playStudioSound('sounds/tap_glass.wav');
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Cor do Tema:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                              const SizedBox(width: 8),
+                              ...[const Color(0xFF38BDF8), const Color(0xFFA855F7), const Color(0xFF10B981), const Color(0xFFF43F5E), const Color(0xFFF59E0B)].map((c) => GestureDetector(
+                                    onTap: () => setState(() => _chatAccentColor = c),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 6),
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: _chatAccentColor == c ? Colors.white : Colors.transparent, width: 2)),
+                                    ),
+                                  )),
+                              const Spacer(),
+                              Text('Letra: ${_chatFontSize.round()}px', style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                            ],
+                          ),
+                          Slider(
+                            value: _chatFontSize,
+                            min: 11,
+                            max: 16,
+                            activeColor: _chatAccentColor,
+                            onChanged: (v) => setState(() => _chatFontSize = v),
+                          ),
+                          ...allMsgs.map((m) {
+                            final c = _platColor(m['platform'] ?? 'tiktok');
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF04091A),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(color: _chatAccentColor.withOpacity(0.35)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+                                  const SizedBox(width: 8),
+                                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: _chatFontSize, color: c)),
+                                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: TextStyle(fontSize: _chatFontSize, color: Colors.white))),
+                                ],
+                              ),
+                            );
+                          }),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _quickReplyCtrl,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: const InputDecoration(hintText: 'Enviar mensagem no chat unificado...', isDense: true, border: OutlineInputBorder()),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                icon: Icon(Icons.send_rounded, color: _chatAccentColor),
+                                onPressed: () {
+                                  final t = _quickReplyCtrl.text.trim();
+                                  if (t.isEmpty) return;
+                                  setState(() {
+                                    _liveChatBuffer.insert(0, {'platform': 'youtube', 'user': 'Criador (Tu)', 'text': t});
+                                    _quickReplyCtrl.clear();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    HellCockpitWindow(
+                      title: 'CHAT BOT IMPULSIONADOR DE ALGORITMO',
+                      icon: Icons.rocket_launch_rounded,
+                      accent: const Color(0xFF10B981),
+                      badge: _algoBotEnabled ? 'ATIVO (${_algoIntervalSec}s)' : 'PAUSADO',
+                      onTestPressed: () {
+                        final msg = _botMsgCtrl.text.trim().isEmpty ? _algoAutoMessages.first : _botMsgCtrl.text.trim();
+                        setState(() => _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL_Bot', 'text': msg}));
+                        _playStudioSound('sounds/tap_pulse.wav');
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: const Color(0xFF10B981),
+                            title: const Text('Disparo Automático para Mexer com o Algoritmo', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                            subtitle: const Text('Envia convites automáticos para gostos, comentários e redes sociais a quem passa na live.', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                            value: _algoBotEnabled,
+                            onChanged: (v) => setState(() => _algoBotEnabled = v),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _botMsgCtrl,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: const InputDecoration(labelText: 'Nova Mensagem Automática do Bot', isDense: true, border: OutlineInputBorder()),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.black),
+                                onPressed: () {
+                                  if (_botMsgCtrl.text.trim().isEmpty) return;
+                                  setState(() {
+                                    _algoAutoMessages.insert(0, _botMsgCtrl.text.trim());
+                                    _botMsgCtrl.clear();
+                                  });
+                                },
+                                child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.w900)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ..._algoAutoMessages.map((m) => Container(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4))),
+                                child: Row(
+                                  children: [
+                                    Expanded(child: Text(m, style: const TextStyle(fontSize: 11.5, color: Colors.white))),
+                                    IconButton(
+                                      icon: const Icon(Icons.send_rounded, size: 18, color: Color(0xFF10B981)),
+                                      onPressed: () {
+                                        setState(() => _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL_Bot', 'text': m}));
+                                        _playStudioSound('sounds/tap_pulse.wav');
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-        return ListView(
-          padding: const EdgeInsets.all(14),
-          children: [
-            _buildTopCockpitHeader(false),
-            const SizedBox(height: 12),
-            _buildChatModule(),
-            const SizedBox(height: 12),
-            _buildAlertsModule(),
-            const SizedBox(height: 12),
-            _buildMixerModule(),
-            const SizedBox(height: 12),
-            _buildDirectorAndClipsModule(),
-            const SizedBox(height: 12),
-            _buildHealthGraphModule(),
-          ],
-        );
-      },
+                // 2. TODAS AS AUTOMAÇÕES INTEGRADAS (PRESENTES PADRÃO & INDIVIDUAIS + ALERTAS)
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'ATIVAR PRESENTES PADRÃO · REGRA GLOBAL',
+                      icon: Icons.card_giftcard_rounded,
+                      accent: const Color(0xFFF43F5E),
+                      badge: _defaultGiftsEnabled ? 'ATIVO' : 'OFF',
+                      onTestPressed: () async {
+                        await _playStudioSound(_defaultGiftSound);
+                        await _speakWithVoice(_defaultGiftVoiceTpl.replaceAll('{user}', 'SofiaLive').replaceAll('{presente}', 'Rosa Néon'));
+                      },
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: const Color(0xFFF43F5E),
+                            title: const Text('Ativar Presentes Padrão (Som + Voz Automática)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                            value: _defaultGiftsEnabled,
+                            onChanged: (v) => setState(() => _defaultGiftsEnabled = v),
+                          ),
+                          DropdownButtonFormField<String>(
+                            value: _defaultGiftSound,
+                            decoration: const InputDecoration(labelText: 'Som Global dos Presentes', isDense: true, border: OutlineInputBorder()),
+                            items: const [
+                              DropdownMenuItem(value: 'sounds/tap_pulse.wav', child: Text('Pulso Néon Estéreo')),
+                              DropdownMenuItem(value: 'sounds/tap_glass.wav', child: Text('Cristal HD Estéreo')),
+                              DropdownMenuItem(value: 'sounds/tap_cyber.wav', child: Text('Cyber Mech Estéreo')),
+                              DropdownMenuItem(value: 'sounds/hell_startup.wav', child: Text('Fanfarra Arena 4K')),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) setState(() => _defaultGiftSound = v);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ..._studioGiftsCatalog.map((g) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: HellCockpitWindow(
+                            title: '${g['name'].toString().toUpperCase()} · ${g['coins']} MOEDAS',
+                            icon: Icons.auto_awesome_rounded,
+                            accent: const Color(0xFFA855F7),
+                            badge: g['visual'] as String,
+                            onTestPressed: () async {
+                              await _playStudioSound(g['sound'] as String);
+                              await _speakWithVoice('Obrigado CarlosPT pelo presente ${g['name']}!');
+                            },
+                            child: SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: const Color(0xFFA855F7),
+                              title: Text('Regra Individual · ${g['visual']}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                              value: g['custom'] == true,
+                              onChanged: (v) => setState(() => g['custom'] = v),
+                            ),
+                          ),
+                        )),
+                  ],
+                ),
+
+                // 3. VOZES NEURAIS IA REAIS (HÉLDER, ENZO, FLÁVIO, LÚCIA, NOA, SANDRA + IDIOMA AUTOMÁTICO & INSTALÁVEL)
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'IDIOMA DO APARELHO & PACOTES PARA BAIXAR',
+                      icon: Icons.language_rounded,
+                      accent: const Color(0xFF38BDF8),
+                      badge: _detectedLanguage,
+                      onTestPressed: () => _speakWithVoice('Idioma $_detectedLanguage ativo e calibrado no motor neural.'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Reconhecido automaticamente pelo aparelho: $_detectedLanguage', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF7DD3FC))),
+                          const SizedBox(height: 8),
+                          ..._languagePacks.map((lp) {
+                            final installed = lp['installed'] == true;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(lp['lang'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))),
+                                  if (installed)
+                                    TextButton(
+                                      onPressed: () => setState(() => _detectedLanguage = lp['lang'] as String),
+                                      child: Text(_detectedLanguage == lp['lang'] ? '✓ Selecionado' : 'Usar', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w900)),
+                                    )
+                                  else
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+                                      onPressed: () {
+                                        setState(() {
+                                          lp['installed'] = true;
+                                          _detectedLanguage = lp['lang'] as String;
+                                        });
+                                      },
+                                      icon: const Icon(Icons.download_rounded, size: 15),
+                                      label: const Text('Baixar & Instalar', style: TextStyle(fontSize: 11)),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    HellCockpitWindow(
+                      title: 'ESTÚDIO DE VOZES IA · HÉLDER, ENZO, FLÁVIO, LÚCIA, NOA, SANDRA',
+                      icon: Icons.record_voice_over_rounded,
+                      accent: const Color(0xFFA855F7),
+                      badge: 'VOZ ATIVA: $_selectedVoiceName',
+                      onTestPressed: () => _speakWithVoice('Olá! Eu sou a voz $_selectedVoiceName da HELL CREATOR OS em alta definição!'),
+                      child: Column(
+                        children: _neuralVoices.map((v) {
+                          final selected = _selectedVoiceName == v['name'];
+                          final c = v['color'] as Color;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: selected ? c.withOpacity(0.18) : const Color(0xFF04091A),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: selected ? c : Colors.white12, width: selected ? 1.6 : 1),
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              leading: CircleAvatar(backgroundColor: c.withOpacity(0.25), child: Icon(Icons.graphic_eq_rounded, color: c, size: 20)),
+                              title: Text(v['name'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Colors.white)),
+                              subtitle: Text(v['gender'] as String, style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w700)),
+                              trailing: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                                onPressed: () async {
+                                  setState(() => _selectedVoiceName = v['name'] as String);
+                                  await _speakWithVoice('Olá! Eu sou ${v['name']}, pronto para narrar a tua live!', forceVoice: v['name'] as String);
+                                },
+                                icon: const Icon(Icons.play_arrow_rounded, size: 17),
+                                label: const Text('Ouvir & Aplicar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 4. BIBLIOTECA REAL DE SONS & IMAGENS ONLINE GRATUITAS (CC0 / NASA / ROYALTY-FREE)
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'GALERIA ONLINE GRATUITA (SONS CC0 & IMAGENS NASA/HD)',
+                      icon: Icons.perm_media_rounded,
+                      accent: const Color(0xFFF59E0B),
+                      badge: 'OUVIR / VER & APLICAR',
+                      onTestPressed: () => _playStudioSound('sounds/hell_startup.wav'),
+                      child: Column(
+                        children: _onlineFreeLibrary.map((item) {
+                          final isSound = item['type'] == 'Som CC0';
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white12)),
+                            child: Row(
+                              children: [
+                                if (isSound)
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(color: const Color(0xFF38BDF8).withOpacity(0.18), borderRadius: BorderRadius.circular(10)),
+                                    child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8)),
+                                  )
+                                else
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(item['url'] ?? '', width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 36)),
+                                  ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                                      Text('${item['type']} · ${item['source']}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF7DD3FC))),
+                                    ],
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                                  onPressed: () async {
+                                    if (isSound) {
+                                      setState(() => _defaultGiftSound = item['asset'] ?? 'sounds/tap_pulse.wav');
+                                      await _playStudioSound(_defaultGiftSound);
+                                    }
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('✅ "${item['name']}" aplicado na tua biblioteca de automações!'), behavior: SnackBarBehavior.floating),
+                                    );
+                                  },
+                                  child: Text(isSound ? 'Ouvir & Aplicar' : 'Ver & Aplicar', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
 
 
 // ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE 4K HDR)
@@ -807,11 +778,18 @@ class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
   final TextEditingController _thumbTitleCtrl = TextEditingController(text: 'JOGADA ÉPICA AO VIVO!');
   final TextEditingController _hashtagsCtrl = TextEditingController(text: '#gaming #portugal #livestream #viral #fyp');
 
-  final List<Map<String, String>> _clipsQueue = [
-    {'title': 'Clipe #1 · Puxar Atrás 30s (Reação Chat)', 'format': '9:16 Vertical', 'mood': 'Divertido', 'score': '94%'},
-    {'title': 'Clipe #2 · Vitória no Desafio Final', 'format': '9:16 Vertical', 'mood': 'Épico', 'score': '96%'},
-    {'title': 'Clipe #3 · Momento Presente Galáxia', 'format': '16:9 YouTube', 'mood': 'Alegre', 'score': '89%'},
+    final List<Map<String, dynamic>> _clipsQueue = [
+    {'title': 'Clipe #1 · Pico de Chat ao Vivo', 'format': '9:16 Vertical', 'mood': 'Divertido', 'score': '94%', 'createdAt': DateTime.now().subtract(const Duration(minutes: 25)), 'saved': false},
+    {'title': 'Clipe #2 · Vitória no Desafio Final', 'format': '9:16 Vertical', 'mood': 'Épico', 'score': '96%', 'createdAt': DateTime.now().subtract(const Duration(hours: 2)), 'saved': false},
+    {'title': 'Clipe #3 · Momento Galáxia Cósmica', 'format': '16:9 YouTube', 'mood': 'Alegre', 'score': '89%', 'createdAt': DateTime.now().subtract(const Duration(hours: 25)), 'saved': false},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _clipsQueue.removeWhere((c) => c['saved'] != true && DateTime.now().difference(c['createdAt'] as DateTime).inHours >= 24);
+  }
+
 
   @override
   void dispose() {
