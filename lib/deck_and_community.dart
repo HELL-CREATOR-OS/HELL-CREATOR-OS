@@ -1544,139 +1544,162 @@ class _MarketplacePublicScreenState extends State<MarketplacePublicScreen> {
 
     final plans = [
       {'name': 'HELL STARTER', 'price': '0 € / mês', 'desc': 'Ferramentas essenciais, Dashboard básico e alertas iniciais.'},
-      {'name': 'HELL CREATOR PRO', 'price': '9,99 € / mês', 'desc': 'Chat avançado, HELL VOICE personalizado, alertas avançados, automações e estatísticas.'},
+      {'name': 'HELL CREATOR PRO', 'price': '9,99 € / mês', 'desc': 'Chat avançado, HELL VOICE personalizado, automações e estatísticas.'},
       {'name': 'HELL CREATOR ELITE', 'price': '19,99 € / mês', 'desc': 'IA avançada, Fábrica de Conteúdos, Analytics avançados e ferramentas de comunidade.'},
-      {'name': 'HELL AGENCY / STUDIO', 'price': '49,99 €+ / mês', 'desc': 'Vários criadores, gestão de equipa, permissões, relatórios e dashboard de agência.'},
+      {'name': 'HELL AGENCY / STUDIO', 'price': '49,99 € / mês', 'desc': 'Vários criadores, gestão de equipa, permissões, relatórios e dashboard de agência.'},
     ];
 
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        children: [
-          const TabBar(
-            indicatorColor: Color(0xFF38BDF8),
-            labelColor: Color(0xFF38BDF8),
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              Tab(text: '🛒 Market Place'),
-              Tab(text: '🔌 Plugins & API'),
-              Tab(text: '💎 Planos'),
-            ],
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        // CATEGORIA 1: MARKET PLACE (OVERLAYS, PLUGINS & PACKS)
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFF142A66), Color(0xFF0A1433)]),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55)),
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                // 1. MARKET PLACE
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      children: ['Todos', 'Grátis', 'PRO'].map((f) => ChoiceChip(
-                        label: Text(f),
-                        selected: _filter == f,
-                        selectedColor: const Color(0xFF1E78FF),
-                        onSelected: (_) => setState(() => _filter = f),
-                      )).toList(),
-                    ),
-                    const SizedBox(height: 10),
-                    ...visible.map((item) {
-                      final double net = (item['netPrice'] as num).toDouble();
-                      final double consumerPrice = widget.hasFreeOwnerOrStaffAccess ? 0.0 : (net == 0.0 ? 0.0 : net * 1.30);
-                      final bool owned = item['owned'] == true || widget.hasFreeOwnerOrStaffAccess;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1E429F))),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(child: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
-                                Text(
-                                  consumerPrice == 0.0 ? 'GRÁTIS' : '${consumerPrice.toStringAsFixed(2)} €',
-                                  style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text('Por ${item['creator']} · ${item['category']}', style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
-                            const SizedBox(height: 6),
-                            Text(item['desc'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: owned ? Colors.green : const Color(0xFF1E78FF)),
-                                onPressed: () => setState(() => item['owned'] = true),
-                                child: Text(owned ? 'Ativo na Conta' : 'Transferir / Adquirir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-
-                // 2. PLUGINS, API & WHITE-LABEL
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF38BDF8))),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.storefront_rounded, color: Color(0xFF38BDF8), size: 22),
+                  SizedBox(width: 8),
+                  Text('1. MARKET PLACE · RECURSOS DE ESTÚDIO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: ['Todos', 'Grátis', 'PRO'].map((f) => ChoiceChip(
+                      label: Text(f),
+                      selected: _filter == f,
+                      selectedColor: const Color(0xFF1E78FF),
+                      onSelected: (_) => setState(() => _filter = f),
+                    )).toList(),
+              ),
+              const SizedBox(height: 10),
+              ...visible.map((item) {
+                final double net = (item['netPrice'] as num).toDouble();
+                final double consumerPrice = widget.hasFreeOwnerOrStaffAccess ? 0.0 : (net == 0.0 ? 0.0 : net * 1.30);
+                final bool owned = item['owned'] == true || widget.hasFreeOwnerOrStaffAccess;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF04091A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF1E429F)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('🔌 Ecossistema de Extensões & API', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-                          SizedBox(height: 8),
-                          Text('• Plugins de Terceiros com permissões controladas e regras claras de segurança.\n• Extensões de alertas, áudio, vídeo e ferramentas de comunidade.\n• API oficial para programadores e soluções White-Label para agências.', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.45)),
+                          Expanded(child: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5))),
+                          Text(consumerPrice == 0.0 ? 'GRÁTIS' : '${consumerPrice.toStringAsFixed(2)} €', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent)),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-
-                // 3. PLANOS & SUBSCRIÇÕES
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (widget.hasFreeOwnerOrStaffAccess)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent)),
-                        child: const Text('👑 Acesso Livre Total Ativo (Conta Dono / Equipa STAFF)', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 3),
+                      Text('Por ${item['creator']} · ${item['category']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                      const SizedBox(height: 4),
+                      Text(item['desc'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: owned ? Colors.green : const Color(0xFF1E78FF)),
+                          onPressed: () => setState(() => item['owned'] = true),
+                          child: Text(owned ? '✓ Ativo na Conta' : 'Transferir / Adquirir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
                       ),
-                    ...plans.map((p) => Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1E429F))),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(p['name']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Color(0xFF38BDF8))),
-                                  Text(widget.hasFreeOwnerOrStaffAccess ? '0,00 € (Livre)' : p['price']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(p['desc']!, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                            ],
-                          ),
-                        )),
-                  ],
-                ),
-              ],
-            ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 14),
+
+        // CATEGORIA 2: PLUGINS, API & WHITE LABEL
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1636),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFA855F7).withOpacity(0.55)),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.extension_rounded, color: Color(0xFFA855F7), size: 22),
+                  SizedBox(width: 8),
+                  Text('2. PLUGINS, API & WHITE LABEL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFA855F7))),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text('• Plugins de terceiros com permissões controladas e regras claras de segurança.\n• Extensões de alertas, áudio, vídeo e ferramentas de comunidade.\n• API oficial para programadores e soluções White Label para agências.', style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.45)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // CATEGORIA 3: PLANOS & SUBSCRIÇÕES
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1636),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.55)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.workspace_premium_rounded, color: Color(0xFFF59E0B), size: 22),
+                  SizedBox(width: 8),
+                  Text('3. PLANOS & SUBSCRIÇÕES', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFF59E0B))),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (widget.hasFreeOwnerOrStaffAccess)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent)),
+                  child: const Text('✓ Acesso Livre Total Ativo (Conta Dono / Equipa STAFF)', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ...plans.map((p) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E429F))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(p['name']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
+                            Text(widget.hasFreeOwnerOrStaffAccess ? '0,00 € (Livre)' : p['price']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(p['desc']!, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
+
