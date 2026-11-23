@@ -238,120 +238,233 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     }
   }
 
-  Widget _buildTopCockpitHeader(bool isWide) {
-    final onAir = _isOnAir;
-    final statusColor = onAir ? Colors.greenAccent : Colors.redAccent;
-    final pills = [
-      {'id': 'tiktok', 'name': 'TikTok', 'viewers': widget.activePlatforms['tiktok'] == true ? '2.1K' : 'PRONTO', 'color': const Color(0xFFFF2A5F)},
-      {'id': 'twitch', 'name': 'Twitch', 'viewers': widget.activePlatforms['twitch'] == true ? '1.8K' : 'PRONTO', 'color': const Color(0xFF9146FF)},
-      {'id': 'youtube', 'name': 'YouTube', 'viewers': widget.activePlatforms['youtube'] == true ? '1.5K' : 'PRONTO', 'color': const Color(0xFFFF0033)},
-      {'id': 'kick', 'name': 'Kick', 'viewers': widget.activePlatforms['kick'] == true ? '900' : 'PRONTO', 'color': const Color(0xFF53FC18)},
-    ];
+  final List<Map<String, dynamic>> _extraStreamPlatforms = [];
+  int? _customTotalViewers;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF142A66), Color(0xFF08122E), Color(0xFF040817)],
+  void _openAddPlatformDialog() {
+    final nameCtrl = TextEditingController();
+    final rtmpCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        title: const Text('Adicionar Plataforma de Streaming', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: 'Nome (ex.: Instagram, Facebook, Trovo)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: rtmpCtrl,
+              decoration: const InputDecoration(labelText: 'Servidor RTMP / Stream Key', border: OutlineInputBorder()),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: statusColor.withOpacity(0.75), width: 1.7),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.85), blurRadius: 18, offset: const Offset(0, 7)),
-          BoxShadow(color: statusColor.withOpacity(0.22), blurRadius: 22),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: statusColor.withOpacity(0.45), blurRadius: 14)],
-                ),
-                child: Image.asset('icon.png', width: 34, height: 34, errorBuilder: (_, __, ___) => Icon(Icons.bolt, color: statusColor, size: 30)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('CENTRO DE CONTROLO · COCKPIT 4K', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.8, color: Colors.white)),
-                    Text(
-                      onAir ? 'NO AR · Áudio, Alertas e Overlays em Direto' : 'ESTÚDIO OFF · Escuta Local nos Auscultadores',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: statusColor),
-                    ),
-                  ],
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => setState(() => _forceLiveMode = !_forceLiveMode),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: statusColor, width: 1.4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.fiber_manual_record, size: 10, color: statusColor),
-                      const SizedBox(width: 6),
-                      Text(
-                        onAir ? 'NO AR · EM DIRETO' : 'ESTÚDIO OFF',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: statusColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: isWide ? 4 : 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 8,
-            childAspectRatio: isWide ? 3.4 : 2.9,
-            children: pills.map((p) {
-              final c = p['color'] as Color;
-              final on = widget.activePlatforms[p['id']] == true;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF04091A),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: on ? c : c.withOpacity(0.45), width: on ? 1.6 : 1.1),
-                  boxShadow: [BoxShadow(color: c.withOpacity(on ? 0.28 : 0.12), blurRadius: 10)],
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.sensors_rounded, size: 16, color: c),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(p['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white), overflow: TextOverflow.ellipsis),
-                    ),
-                    Text(
-                      p['viewers'] as String,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: on ? Colors.greenAccent : c),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+            onPressed: () {
+              final n = nameCtrl.text.trim();
+              if (n.isNotEmpty) {
+                setState(() {
+                  _extraStreamPlatforms.add({
+                    'id': n.toLowerCase().replaceAll(' ', '_'),
+                    'name': n,
+                    'active': true,
+                    'viewers': 0,
+                  });
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Adicionar'),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildTopCockpitHeader(bool isWide) {
+    final basePlatforms = [
+      {'id': 'tiktok', 'name': 'TikTok', 'active': widget.activePlatforms['tiktok'] == true, 'viewers': widget.activePlatforms['tiktok'] == true ? 142 : 0},
+      {'id': 'twitch', 'name': 'Twitch', 'active': widget.activePlatforms['twitch'] == true, 'viewers': widget.activePlatforms['twitch'] == true ? 68 : 0},
+      {'id': 'youtube', 'name': 'YouTube', 'active': widget.activePlatforms['youtube'] == true, 'viewers': widget.activePlatforms['youtube'] == true ? 95 : 0},
+      {'id': 'kick', 'name': 'Kick', 'active': widget.activePlatforms['kick'] == true, 'viewers': widget.activePlatforms['kick'] == true ? 41 : 0},
+      ..._extraStreamPlatforms,
+    ];
+
+    final int calculatedTotal = basePlatforms.fold<int>(0, (sum, p) => sum + ((p['active'] == true) ? (p['viewers'] as int? ?? 0) : 0));
+    final int displayTotal = _customTotalViewers ?? calculatedTotal;
+
+    return HellCockpitWindow(
+      title: 'MULTIPLATAFORMAS · TRANSMISSÃO EM TEMPO REAL',
+      icon: Icons.sensors_rounded,
+      accent: const Color(0xFF38BDF8),
+      badge: 'TOTAL: $displayTotal ESPECTADORES',
+      onTestPressed: () {
+        Clipboard.setData(ClipboardData(text: 'http://127.0.0'));
+        _executeAction('Overlay Contador Geral ($displayTotal espectadores)', 'copiado para OBS / Live');
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF04091A),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.visibility_rounded, size: 17, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Contador Geral ao Vivo: $displayTotal espectadores',
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Colors.white),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          final ctrl = TextEditingController(text: displayTotal.toString());
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              backgroundColor: const Color(0xFF0A1433),
+                              title: const Text('Personalizar Contador Geral', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                              content: TextField(
+                                controller: ctrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Número de espectadores (vazio = automático)', border: OutlineInputBorder()),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() => _customTotalViewers = null);
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Automático'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() => _customTotalViewers = int.tryParse(ctrl.text.trim()));
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Aplicar'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        child: const Text('Personalizar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E78FF),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _openAddPlatformDialog,
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('Plataforma', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: basePlatforms.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isWide ? 4 : 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: isWide ? 1.55 : 1.35,
+            ),
+            itemBuilder: (_, idx) {
+              final p = basePlatforms[idx];
+              final id = p['id'] as String;
+              final name = p['name'] as String;
+              final isOnline = p['active'] == true;
+              final viewers = isOnline ? (p['viewers'] as int? ?? 0) : 0;
+
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: PlatformGlassTile(
+                      platform: id,
+                      label: name,
+                      isActive: isOnline,
+                      onTap: () {
+                        setState(() {
+                          if (widget.activePlatforms.containsKey(id)) {
+                            widget.activePlatforms[id] = !isOnline;
+                          } else {
+                            p['active'] = !isOnline;
+                          }
+                        });
+                      },
+                      onLongPress: () => _executeAction(name, 'Configurações RTMP abertas'),
+                    ),
+                  ),
+                  // Quando em live: aparece "EM LIVE" a verde no canto superior direito; quando off: não aparece nada
+                  if (isOnline)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF16A34A),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [BoxShadow(color: Colors.greenAccent.withOpacity(0.5), blurRadius: 8)],
+                        ),
+                        child: const Text('EM LIVE', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5)),
+                      ),
+                    ),
+                  // Contador de espectadores em tempo real na parte inferior da tecla
+                  Positioned(
+                    bottom: 6,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.68),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.visibility_rounded, size: 10, color: isOnline ? Colors.greenAccent : Colors.white54),
+                          const SizedBox(width: 3),
+                          Text('$viewers', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: isOnline ? Colors.white : Colors.white60)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChatModule() {
     final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
     return HellCockpitWindow(
