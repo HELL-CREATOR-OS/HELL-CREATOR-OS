@@ -40,6 +40,105 @@ class SponsorBannerManager {
     },
   ];
 }
+class HellVisualBanner extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+  final String badge;
+  final Widget? trailing;
+
+  const HellVisualBanner({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.accent = const Color(0xFF38BDF8),
+    this.badge = 'STUDIO 4K HDR',
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withOpacity(0.28),
+            const Color(0xFF0E1D47),
+            const Color(0xFF04091A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withOpacity(0.65), width: 1.4),
+        boxShadow: [
+          BoxShadow(color: accent.withOpacity(0.22), blurRadius: 20, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -24,
+              top: -24,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [accent.withOpacity(0.35), Colors.transparent]),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: accent.withOpacity(0.6)),
+                    ),
+                    child: Icon(icon, color: accent, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: accent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: accent.withOpacity(0.5)),
+                          ),
+                          child: Text(badge, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: accent)),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.4)),
+                        const SizedBox(height: 2),
+                        Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) trailing!,
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // CENTRO DE CONTROLO - COCKPIT UNIFICADO OFF/LIVE (4K HDR + SCROLL INTERNO + ECRÃ COMPLETO + ARRASTO PC/TABLET)
 class ControlCenterScreen extends StatefulWidget {
