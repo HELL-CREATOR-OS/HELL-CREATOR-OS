@@ -677,6 +677,8 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
         return ListView(
           padding: const EdgeInsets.all(14),
           children: [
+            _buildTopCockpitHeader(false),
+            const SizedBox(height: 12),
             _buildChatModule(),
             const SizedBox(height: 12),
             _buildAlertsModule(),
