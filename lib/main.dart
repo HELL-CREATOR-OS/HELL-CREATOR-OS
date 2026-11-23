@@ -96,60 +96,43 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
   final AudioPlayer _startupPlayer = AudioPlayer();
-  late AnimationController _logoController;
-  late AnimationController _pulseController;
-  late Animation<double> _scaleAnim;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideTitleAnim;
-  late Animation<double> _progressAnim;
+  late AnimationController _introController;
+  late AnimationController _turbineController;
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
-        _playStartupAudio();
-    _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+    _playStartupAudio();
+    _introController = AnimationController(vsync: this, duration: const Duration(milliseconds: 10000));
+    _turbineController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..repeat();
 
-    _scaleAnim = Tween<double>(begin: 0.65, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: const Interval(0.0, 0.55, curve: Curves.easeOutBack)),
-    );
-    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: const Interval(0.0, 0.45, curve: Curves.easeIn)),
-    );
-    _slideTitleAnim = Tween<Offset>(begin: const Offset(0, 0.35), end: Offset.zero).animate(
-      CurvedAnimation(parent: _logoController, curve: const Interval(0.25, 0.70, curve: Curves.easeOutCubic)),
-    );
-    _progressAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: const Interval(0.20, 1.0, curve: Curves.easeInOut)),
-    );
+    _introController.forward();
+    Timer(const Duration(milliseconds: 10000), _finishIntro);
+  }
 
-    _logoController.forward();
-
-    Timer(const Duration(milliseconds: 2700), () async {
-      if (!mounted) return;
-      final savedUser = await UserAccountManager.getSavedUser();
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 550),
-          pageBuilder: (_, __, ___) => AuthGateScreen(
-            initialUser: savedUser,
-            currentTheme: widget.currentTheme,
-            onThemeChanged: widget.onThemeChanged,
-          ),
-          transitionsBuilder: (_, anim, __, child) {
-            final slide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(anim);
-            return FadeTransition(opacity: anim, child: SlideTransition(position: slide, child: child));
-          },
+  Future<void> _finishIntro() async {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    final savedUser = await UserAccountManager.getSavedUser();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (_, __, ___) => AuthGateScreen(
+          initialUser: savedUser,
+          currentTheme: widget.currentTheme,
+          onThemeChanged: widget.onThemeChanged,
         ),
-      );
-    });
+        transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _logoController.dispose();
-    _pulseController.dispose();
+    _introController.dispose();
+    _turbineController.dispose();
     _startupPlayer.dispose();
     super.dispose();
   }
@@ -165,81 +148,171 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.15),
-            radius: 1.05,
-            colors: [Color(0xFF132E73), Color(0xFF07112E), Color(0xFF040817)],
-          ),
-        ),
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ScaleTransition(
-                scale: _scaleAnim,
-                child: AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (_, child) => Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF38BDF8).withOpacity(0.22 + (_pulseController.value * 0.28)),
-                          blurRadius: 28 + (_pulseController.value * 16),
-                          spreadRadius: 2,
+      body: AnimatedBuilder(
+        animation: Listenable.merge([_introController, _turbineController]),
+        builder: (context, _) {
+          final t = _introController.value; // 0.0 -> 1.0 (10 segundos)
+          final isImpactFlash = t >= 0.25 && t <= 0.42;
+          final isVoicePhase = t >= 0.42 && t <= 0.70;
+          final logoScale = t < 0.25 ? (0.4 + t * 2.4) : (isImpactFlash ? 1.08 - ((t - 0.25) * 0.45) : 1.0);
+          final phaseLabel = t < 0.25
+              ? 'A INICIALIZAR TURBINA DE ESTÚDIO...'
+              : t < 0.42
+                  ? 'SISTEMAS MECÂNICOS BLOQUEADOS'
+                  : t < 0.70
+                      ? 'HELL CREATOR OS · MOTOR IA ATIVO'
+                      : 'PRONTO PARA TRANSMISSÃO 4K HDR';
+
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.1),
+                radius: 1.15,
+                colors: [
+                  isImpactFlash ? const Color(0xFF2563EB) : const Color(0xFF132E73),
+                  const Color(0xFF07112E),
+                  const Color(0xFF02040A),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Anéis orbitais de turbina em rotação contínua (0.0s - 10.0s)
+                  Transform.rotate(
+                    angle: _turbineController.value * 6.28318,
+                    child: Container(
+                      width: 260,
+                      height: 260,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF38BDF8).withOpacity(isImpactFlash ? 0.85 : 0.32),
+                          width: isImpactFlash ? 3.5 : 1.6,
                         ),
-                      ],
-                    ),
-                    child: child,
-                  ),
-                  child: Image.asset(
-                    'icon.png',
-                    height: 128,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 100, color: Color(0xFF38BDF8)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              SlideTransition(
-                position: _slideTitleAnim,
-                child: const Column(
-                  children: [
-                    Text('HELL', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 6, color: Colors.white, height: 1.0)),
-                    SizedBox(height: 4),
-                    Text('CREATOR OS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 4.5, color: Color(0xFF38BDF8))),
-                    SizedBox(height: 14),
-                    Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 10.5, letterSpacing: 1.3, color: Color(0xFF7DD3FC))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: 190,
-                child: AnimatedBuilder(
-                  animation: _progressAnim,
-                  builder: (_, __) => ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: _progressAnim.value,
-                      minHeight: 4,
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF38BDF8).withOpacity(isImpactFlash ? 0.55 : 0.22),
+                            blurRadius: isImpactFlash ? 48 : 24,
+                            spreadRadius: isImpactFlash ? 8 : 2,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                  Transform.rotate(
+                    angle: -_turbineController.value * 6.28318 * 1.4,
+                    child: Container(
+                      width: 210,
+                      height: 210,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF1E78FF).withOpacity(0.55), width: 2),
+                      ),
+                    ),
+                  ),
+                  // Conteúdo Central Sincronizado
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Transform.scale(
+                        scale: logoScale.clamp(0.4, 1.12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF050B1F),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF38BDF8).withOpacity(isImpactFlash ? 0.9 : 0.55),
+                                blurRadius: isImpactFlash ? 42 : 26,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'icon.png',
+                              width: 126,
+                              height: 126,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 96, color: Color(0xFF38BDF8)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Opacity(
+                        opacity: (t * 2.5).clamp(0.0, 1.0),
+                        child: const Column(
+                          children: [
+                            Text('HELL', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: 7, color: Colors.white, height: 1.0)),
+                            SizedBox(height: 4),
+                            Text('CREATOR OS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 5, color: Color(0xFF38BDF8))),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      // Barras espectrais que pulsam durante a voz robótica (4.2s - 7.0s)
+                      SizedBox(
+                        height: 26,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(15, (i) {
+                            final wave = isVoicePhase
+                                ? (8 + (((_turbineController.value * 15 + i) % 5) * 4.2))
+                                : (4 + ((i % 3) * 2.0));
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 90),
+                              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                              width: 4,
+                              height: wave,
+                              decoration: BoxDecoration(
+                                color: isVoicePhase ? const Color(0xFF38BDF8) : const Color(0xFF1E78FF).withOpacity(0.55),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(phaseLabel, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 1.6, color: Color(0xFF7DD3FC))),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: 210,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: t,
+                            minHeight: 4.5,
+                            backgroundColor: Colors.white12,
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 18,
+                    right: 18,
+                    child: TextButton(
+                      onPressed: _finishIntro,
+                      child: const Text('Saltar Intro →', style: TextStyle(color: Colors.white54, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 }
+
 
 
 class AuthGateScreen extends StatefulWidget {
