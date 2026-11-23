@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'app_data.dart';
 import 'account_security.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
 
 class MusicDeckController {
   static AudioPlayer? sharedPlayer;
@@ -64,12 +66,22 @@ class MusicBackgroundScreen extends StatefulWidget {
 
 class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
   final TextEditingController _playlistUrlCtrl = TextEditingController();
-  double _volume = 0.65;
+  late final WebViewController _spotifyWebCtrl;
+  late final WebViewController _ytMusicWebCtrl;
+  double _volume = 0.75;
 
   @override
   void initState() {
     super.initState();
     MusicDeckController.sharedPlayer = widget.bgPlayer;
+    _spotifyWebCtrl = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF04091A))
+      ..loadRequest(Uri.parse('https://spotify.com'));
+    _ytMusicWebCtrl = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF04091A))
+      ..loadRequest(Uri.parse('https://youtube.com'));
   }
 
   @override
@@ -83,9 +95,22 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
     MusicDeckController.currentIndex = index % MusicDeckController.activeTracks.length;
     final track = MusicDeckController.activeTracks[MusicDeckController.currentIndex];
     final src = track['url'] ?? 'sounds/music_cyber.wav';
-    await widget.bgPlayer.setVolume(_volume);
-    await MusicDeckController._playSource(widget.bgPlayer, src);
-    setState(() => MusicDeckController.isPlaying = true);
+    try {
+      await widget.bgPlayer.stop();
+      await widget.bgPlayer.setReleaseMode(ReleaseMode.loop);
+      await widget.bgPlayer.setVolume(_volume);
+      if (src.startsWith('http')) {
+        await widget.bgPlayer.play(UrlSource(src));
+      } else if (src.startsWith('sounds/')) {
+        await widget.bgPlayer.play(AssetSource(src));
+      } else if (src.isNotEmpty) {
+        await widget.bgPlayer.play(DeviceFileSource(src));
+      }
+      setState(() => MusicDeckController.isPlaying = true);
+    } catch (_) {
+      await widget.bgPlayer.play(AssetSource('sounds/music_cyber.wav'));
+      setState(() => MusicDeckController.isPlaying = true);
+    }
   }
 
   Future<void> _pickLocalTracks() async {
@@ -110,12 +135,13 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
     if (u.isEmpty) return;
     setState(() {
       MusicDeckController.activeTracks.insert(0, {
-        'title': 'Stream / Rádio Customizada',
+        'title': 'Stream / Rádio Direta',
         'artist': u,
         'url': u,
       });
       _playlistUrlCtrl.clear();
     });
+    _playIndex(0);
   }
 
   @override
@@ -123,168 +149,198 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
     final tracks = MusicDeckController.activeTracks;
     final currentTrack = tracks.isNotEmpty ? tracks[MusicDeckController.currentIndex % tracks.length] : {'title': 'Sem faixa', 'artist': ''};
 
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        HellCockpitWindow(
-          title: 'ESTÚDIO MUSICAL & RÁDIO 4K HDR',
-          icon: Icons.album_rounded,
-          accent: const Color(0xFFF59E0B),
-          badge: MusicDeckController.isPlaying ? 'A TOCAR' : 'PRONTO',
-          onTestPressed: () => _playIndex(MusicDeckController.currentIndex),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF1A2F6E), Color(0xFF070E24)]),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.55)),
-                ),
-                child: Column(
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF142A66), Color(0xFF0A1433)]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
+            ),
+            child: TabBar(
+              indicator: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF38BDF8)]),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white60,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5),
+              tabs: const [
+                Tab(text: '🎧 Estúdio & Links'),
+                Tab(text: '🟢 Spotify App'),
+                Tab(text: '🔴 YouTube Music'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                // 1. ESTÚDIO DE ÁUDIO & LINKS DIRETOS
+                ListView(
+                  padding: const EdgeInsets.all(14),
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFF59E0B)),
-                          ),
-                          child: Icon(MusicDeckController.isPlaying ? Icons.graphic_eq_rounded : Icons.music_note_rounded, color: const Color(0xFFF59E0B), size: 30),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    HellCockpitWindow(
+                      title: 'LEITOR DE MÚSICA & STREAMS DIRETOS',
+                      icon: Icons.album_rounded,
+                      accent: const Color(0xFFF59E0B),
+                      badge: MusicDeckController.isPlaying ? 'SOM ATIVO' : 'PAUSADO',
+                      onTestPressed: () => _playIndex(MusicDeckController.currentIndex),
+                      child: Column(
+                        children: [
+                          Text(currentTrack['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.white)),
+                          Text(currentTrack['artist'] ?? '', style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(currentTrack['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.white), overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 3),
-                              Text(currentTrack['artist'] ?? '', style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8), fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
+                              IconButton(
+                                icon: const Icon(Icons.skip_previous_rounded, size: 30, color: Colors.white),
+                                onPressed: () => _playIndex((MusicDeckController.currentIndex - 1 + tracks.length) % tracks.length),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
+                                onPressed: () async {
+                                  if (MusicDeckController.isPlaying) {
+                                    await widget.bgPlayer.pause();
+                                    setState(() => MusicDeckController.isPlaying = false);
+                                  } else {
+                                    await _playIndex(MusicDeckController.currentIndex);
+                                  }
+                                },
+                                icon: Icon(MusicDeckController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                                label: Text(MusicDeckController.isPlaying ? 'PAUSAR' : 'TOCAR SOM', style: const TextStyle(fontWeight: FontWeight.w900)),
+                              ),
+                              const SizedBox(width: 10),
+                              IconButton(
+                                icon: const Icon(Icons.skip_next_rounded, size: 30, color: Colors.white),
+                                onPressed: () => _playIndex(MusicDeckController.currentIndex + 1),
+                              ),
                             ],
                           ),
-                        ),
-                      ],
+                          Row(
+                            children: [
+                              const Icon(Icons.volume_up_rounded, size: 18, color: Color(0xFFF59E0B)),
+                              Expanded(
+                                child: Slider(
+                                  value: _volume,
+                                  activeColor: const Color(0xFFF59E0B),
+                                  onChanged: (v) async {
+                                    setState(() => _volume = v);
+                                    await widget.bgPlayer.setVolume(v);
+                                  },
+                                ),
+                              ),
+                              Text('${(_volume * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _playlistUrlCtrl,
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: const InputDecoration(hintText: 'Colar link direto MP3 / Stream AAC...', isDense: true, border: OutlineInputBorder()),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                                onPressed: _addCustomStreamOrPlaylist,
+                                child: const Text('Tocar Link'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.skip_previous_rounded, size: 30, color: Colors.white),
-                          onPressed: () => _playIndex((MusicDeckController.currentIndex - 1 + tracks.length) % tracks.length),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF59E0B),
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    HellCockpitWindow(
+                      title: 'FAIXAS SEM COPYRIGHT & FICHEIROS LOCAIS',
+                      icon: Icons.queue_music_rounded,
+                      accent: const Color(0xFF38BDF8),
+                      badge: '${tracks.length} FAIXAS',
+                      onTestPressed: () => _playIndex(0),
+                      child: Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _pickLocalTracks,
+                              icon: const Icon(Icons.folder_open_rounded, size: 17, color: Color(0xFF38BDF8)),
+                              label: const Text('+ Importar MP3/WAV do Dispositivo', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF38BDF8))),
+                            ),
                           ),
-                          onPressed: () async {
-                            await MusicDeckController.togglePlayPause();
-                            setState(() {});
-                          },
-                          icon: Icon(MusicDeckController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 22),
-                          label: Text(MusicDeckController.isPlaying ? 'PAUSAR' : 'TOCAR AGORA', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
-                        ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(Icons.skip_next_rounded, size: 30, color: Colors.white),
-                          onPressed: () async {
-                            await MusicDeckController.nextTrack();
-                            setState(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.volume_down_rounded, size: 18, color: Colors.white60),
-                        Expanded(
-                          child: Slider(
-                            value: _volume,
-                            activeColor: const Color(0xFFF59E0B),
-                            onChanged: (v) async {
-                              setState(() => _volume = v);
-                              await widget.bgPlayer.setVolume(v);
-                            },
-                          ),
-                        ),
-                        Text('${(_volume * 100).round()}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFFF59E0B))),
-                      ],
+                          ...tracks.asMap().entries.map((e) {
+                            final isCurrent = (MusicDeckController.currentIndex % tracks.length) == e.key && MusicDeckController.isPlaying;
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(isCurrent ? Icons.graphic_eq_rounded : Icons.music_note_rounded, color: isCurrent ? Colors.greenAccent : const Color(0xFF38BDF8)),
+                              title: Text(e.value['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                              subtitle: Text(e.value['artist'] ?? '', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
+                              trailing: IconButton(
+                                icon: Icon(isCurrent ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.greenAccent, size: 26),
+                                onPressed: () => _playIndex(e.key),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _playlistUrlCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: const InputDecoration(hintText: 'URL de Rádio MP3 / Stream...', border: OutlineInputBorder(), isDense: true),
+
+                // 2. SPOTIFY EMBUTIDO DENTRO DA APP
+                Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: const Color(0xFF0A1433),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.music_video_rounded, color: Color(0xFF1DB954), size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(child: Text('Spotify Web Player · Integrado Dentro da App', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Color(0xFF1DB954)))),
+                          IconButton(icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white70), onPressed: () => _spotifyWebCtrl.reload()),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                    onPressed: _addCustomStreamOrPlaylist,
-                    child: const Text('Adicionar'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        HellCockpitWindow(
-          title: 'BIBLIOTECA DE FAIXAS (SEM COPYRIGHT + LOCAIS)',
-          icon: Icons.queue_music_rounded,
-          accent: const Color(0xFF38BDF8),
-          badge: '${tracks.length} FAIXAS',
-          onTestPressed: () => _playIndex(0),
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _pickLocalTracks,
-                  icon: const Icon(Icons.folder_open_rounded, size: 17, color: Color(0xFF38BDF8)),
-                  label: const Text('+ Importar MP3/WAV do Dispositivo', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF38BDF8))),
+                    Expanded(child: WebViewWidget(controller: _spotifyWebCtrl)),
+                  ],
                 ),
-              ),
-              ...tracks.asMap().entries.map((e) {
-                final isCurrent = (MusicDeckController.currentIndex % tracks.length) == e.key && MusicDeckController.isPlaying;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  decoration: BoxDecoration(
-                    color: isCurrent ? const Color(0xFF1E78FF).withOpacity(0.22) : const Color(0xFF04091A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isCurrent ? const Color(0xFF38BDF8) : Colors.white12),
-                  ),
-                  child: ListTile(
-                    dense: true,
-                    leading: Icon(isCurrent ? Icons.equalizer_rounded : Icons.library_music_rounded, color: isCurrent ? Colors.greenAccent : const Color(0xFF38BDF8)),
-                    title: Text(e.value['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Colors.white)),
-                    subtitle: Text(e.value['artist'] ?? '', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
-                    trailing: IconButton(
-                      icon: Icon(isCurrent ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.greenAccent, size: 26),
-                      onPressed: () => _playIndex(e.key),
+
+                // 3. YOUTUBE MUSIC EMBUTIDO DENTRO DA APP
+                Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: const Color(0xFF0A1433),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFFF0033), size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(child: Text('YouTube Music · Integrado Dentro da App', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Color(0xFFFF0033)))),
+                          IconButton(icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white70), onPressed: () => _ytMusicWebCtrl.reload()),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }),
-            ],
+                    Expanded(child: WebViewWidget(controller: _ytMusicWebCtrl)),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
+
 
 
 class CommunitySocialScreen extends StatefulWidget {
@@ -398,46 +454,76 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
           },
           child: Column(
             children: [
-              SizedBox(
-                height: 250,
+                        SizedBox(
+                height: 270,
                 child: Center(
                   child: AnimatedBuilder(
                     animation: _globeRotCtrl,
                     builder: (_, __) {
+                      final orbitOffset = (_globeRotCtrl.value * 540) % 540;
                       return GestureDetector(
                         onTap: () => setState(() => _vipRotationSeed++),
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
+                            // Halo atmosférico azul brilhante no limbo do planeta
                             Container(
-                              width: 224,
-                              height: 224,
+                              width: 244,
+                              height: 244,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 boxShadow: [
-                                  BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.45), blurRadius: 34, spreadRadius: 4),
-                                  BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.35), blurRadius: 55),
+                                  BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 36, spreadRadius: 5),
+                                  BoxShadow(color: const Color(0xFF1D4ED8).withOpacity(0.45), blurRadius: 65, spreadRadius: 8),
                                 ],
+                              ),
+                            ),
+                            // Esfera 3D com textura NASA Earth at Night em rotação suave contínua
+                            Container(
+                              width: 236,
+                              height: 236,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF7DD3FC).withOpacity(0.75), width: 1.8),
                               ),
                               child: ClipOval(
                                 child: Stack(
-                                  fit: StackFit.expand,
                                   children: [
-                                    Image.network(
-                                      'https://wikimedia.org',
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        decoration: const BoxDecoration(
-                                          gradient: RadialGradient(colors: [Color(0xFF1E78FF), Color(0xFF0A2463), Color(0xFF030712)]),
-                                        ),
+                                    Positioned(
+                                      left: -orbitOffset,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: 1080,
+                                      child: Row(
+                                        children: [
+                                          Image.network(
+                                            'https://wikimedia.org',
+                                            width: 540,
+                                            height: 236,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF040B1E)),
+                                          ),
+                                          Image.network(
+                                            'https://wikimedia.org',
+                                            width: 540,
+                                            height: 236,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF040B1E)),
+                                          ),
+                                        ],
                                       ),
                                     ),
+                                    // Iluminação solar orbital e sombra esférica 3D
                                     Container(
                                       decoration: BoxDecoration(
                                         gradient: RadialGradient(
-                                          center: const Alignment(-0.35, -0.35),
-                                          radius: 0.95,
-                                          colors: [Colors.white.withOpacity(0.14), Colors.transparent, Colors.black.withOpacity(0.75)],
+                                          center: const Alignment(-0.32, -0.38),
+                                          radius: 0.96,
+                                          colors: [
+                                            const Color(0xFF38BDF8).withOpacity(0.18),
+                                            Colors.transparent,
+                                            Colors.black.withOpacity(0.82),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -447,8 +533,8 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
                             ),
                             ...visibleNodes.map((n) {
                               final isFixedOwner = n['fixed'] == true;
-                              final dx = ((n['lon'] as double) - 0.5) * 165;
-                              final dy = ((n['lat'] as double) - 0.5) * 165;
+                              final dx = ((n['lon'] as double) - 0.5) * 170;
+                              final dy = ((n['lat'] as double) - 0.5) * 170;
                               return Transform.translate(
                                 offset: Offset(dx, dy),
                                 child: GestureDetector(
@@ -457,14 +543,14 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                         decoration: BoxDecoration(
-                                          color: isFixedOwner ? Colors.amberAccent : const Color(0xFF04091A).withOpacity(0.88),
+                                          color: isFixedOwner ? Colors.amberAccent : const Color(0xFF04091A).withOpacity(0.92),
                                           borderRadius: BorderRadius.circular(999),
-                                          border: Border.all(color: isFixedOwner ? Colors.white : const Color(0xFF38BDF8)),
+                                          border: Border.all(color: isFixedOwner ? Colors.white : const Color(0xFF38BDF8), width: 1.2),
                                         ),
                                         child: Text(
-                                          isFixedOwner ? '🇵🇹 DONO' : '${n['flag']} VIP',
+                                          isFixedOwner ? '🇵🇹 FUNDADOR' : '${n['flag']} ${n['nick'].toString().split('_').first}',
                                           style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: isFixedOwner ? Colors.black : Colors.white),
                                         ),
                                       ),
@@ -472,9 +558,9 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
                                         width: isFixedOwner ? 12 : 9,
                                         height: isFixedOwner ? 12 : 9,
                                         decoration: BoxDecoration(
-                                          color: isFixedOwner ? Colors.amberAccent : Colors.greenAccent,
+                                          color: isFixedOwner ? Colors.amberAccent : const Color(0xFF38BDF8),
                                           shape: BoxShape.circle,
-                                          boxShadow: [BoxShadow(color: isFixedOwner ? Colors.amberAccent : Colors.greenAccent, blurRadius: 10, spreadRadius: 2)],
+                                          boxShadow: [BoxShadow(color: isFixedOwner ? Colors.amberAccent : const Color(0xFF38BDF8), blurRadius: 12, spreadRadius: 2.5)],
                                         ),
                                       ),
                                     ],
@@ -489,6 +575,7 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
                   ),
                 ),
               ),
+
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 activeColor: const Color(0xFF38BDF8),
@@ -631,7 +718,7 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Column(
         children: [
           const TabBar(
@@ -639,7 +726,7 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
             labelColor: Color(0xFF38BDF8),
             unselectedLabelColor: Colors.white54,
             tabs: [
-              Tab(text: '📱 Ecrã & Toque'),
+          
               Tab(text: 'ℹ️ Quem Somos'),
               Tab(text: '🤖 Ajuda (Robô IA)'),
               Tab(text: '📖 FAQ & Regras'),
@@ -648,79 +735,7 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
           Expanded(
             child: TabBarView(
               children: [
-                            // 0. ECRÃ & TOQUE (FEEDBACK HÁPTICO & SONORO MOBILE)
-            ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                HellCockpitWindow(
-                  title: 'ECRÃ & TOQUE · FEEDBACK MOBILE',
-                  icon: Icons.touch_app_rounded,
-                  accent: const Color(0xFF38BDF8),
-                  badge: HellFeedbackEngine.isMobileDevice ? 'MOBILE ATIVO' : 'MODO PC (SILENCIOSO)',
-                  onTestPressed: () async {
-                    final prev = HellFeedbackEngine.soundEnabled;
-                    HellFeedbackEngine.soundEnabled = true;
-                    try {
-                      final p = AudioPlayer();
-                      await p.setVolume(HellFeedbackEngine.tapVolume);
-                      await p.play(AssetSource(HellFeedbackEngine.tapSoundAsset));
-                    } catch (_) {}
-                    HellFeedbackEngine.soundEnabled = prev;
-                    HapticFeedback.mediumImpact();
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        activeColor: const Color(0xFF38BDF8),
-                        title: const Text('Som de Clique ao Tocar nos Botões (Mobile)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                        subtitle: const Text('Ativo no Android/Tablet e automaticamente silencioso no Windows.', style: TextStyle(fontSize: 11, color: Colors.white60)),
-                        value: HellFeedbackEngine.soundEnabled,
-                        onChanged: (v) => setState(() => HellFeedbackEngine.soundEnabled = v),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        activeColor: const Color(0xFF38BDF8),
-                        title: const Text('Vibração Háptica nos Toques (Mobile)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                        subtitle: const Text('Resposta tátil suave ao pressionar teclas e menus.', style: TextStyle(fontSize: 11, color: Colors.white60)),
-                        value: HellFeedbackEngine.vibrationEnabled,
-                        onChanged: (v) => setState(() => HellFeedbackEngine.vibrationEnabled = v),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: HellFeedbackEngine.tapSoundAsset,
-                        decoration: const InputDecoration(labelText: 'Tipo de Som de Toque', border: OutlineInputBorder(), isDense: true),
-                        items: const [
-                          DropdownMenuItem(value: 'sounds/tap_cyber.wav', child: Text('Cyber Mech (Futurista)')),
-                          DropdownMenuItem(value: 'sounds/tap_glass.wav', child: Text('Cristal HD (Suave)')),
-                          DropdownMenuItem(value: 'sounds/tap_pulse.wav', child: Text('Pulso Néon (Energético)')),
-                          DropdownMenuItem(value: 'sounds/tap_zerog.wav', child: Text('Zero-G Synth (Espacial)')),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) setState(() => HellFeedbackEngine.tapSoundAsset = v);
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const Icon(Icons.volume_up_rounded, size: 18, color: Color(0xFF38BDF8)),
-                          Expanded(
-                            child: Slider(
-                              value: HellFeedbackEngine.tapVolume,
-                              activeColor: const Color(0xFF38BDF8),
-                              onChanged: (v) => setState(() => HellFeedbackEngine.tapVolume = v),
-                            ),
-                          ),
-                          Text('${(HellFeedbackEngine.tapVolume * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Color(0xFF38BDF8))),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
+             
                 // 1. QUEM SOMOS
                 ListView(
                   padding: const EdgeInsets.all(16),
