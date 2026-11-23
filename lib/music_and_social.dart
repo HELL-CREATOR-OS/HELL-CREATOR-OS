@@ -698,22 +698,38 @@ class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
     },
   ];
 
-  String _generateAiReply(String question) {
-    final q = question.toLowerCase();
-    if (q.contains('qr') || q.contains('sincronizar') || q.contains('segundo') || q.contains('deck')) {
-      return 'Para sincronizar um segundo aparelho, entra na mesma conta nos dois dispositivos e valida o Código QR ou o código de 6 dígitos em "Centro de Controlo > Perfil & Sync QR".';
+    String _generateAiReply(String question) {
+    final q = question.toLowerCase().trim();
+    if (q.contains('qr') || q.contains('sincronizar') || q.contains('segundo') || q.contains('deck') || q.contains('stream deck')) {
+      return '🎛️ Stream Deck & 2.º Aparelho: Inicia sessão com a mesma conta nos dois dispositivos, abre "Stream Deck" no menu principal e lê o Código QR (ou insere o código de 6 dígitos) para controlar cenas, sons, mutar o microfone e lançar alertas à distância.';
     }
-    if (q.contains('obs') || q.contains('overlay') || q.contains('link')) {
-      return 'Em "Centro de Controlo > OBS Control", copia o endereço local http://IP:8765/overlay e adiciona-o como Browser Source no OBS Studio ou TikTok Live Studio.';
+    if (q.contains('obs') || q.contains('overlay') || q.contains('link') || q.contains('tiktok live studio')) {
+      return '🖥️ Overlays no OBS / TikTok Live Studio: No Centro de Controlo copia o endereço local http://127.0.0 e adiciona-o como Fonte de Navegador (1920x1080) no OBS ou TikTok Live Studio. Todos os alertas, presentes e metas aparecem em 4K transparente.';
     }
-    if (q.contains('voz') || q.contains('tts')) {
-      return 'Na aba "HELL Voz / Chat TTS" tens 3 vozes masculinas e 3 femininas em Português prontas a testar e instalar, além da clonagem de voz de 2 minutos.';
+    if (q.contains('voz') || q.contains('tts') || q.contains('helder') || q.contains('hélder') || q.contains('enzo') || q.contains('flavio') || q.contains('lucia') || q.contains('noa') || q.contains('sandra') || q.contains('idioma')) {
+      return '🎙️ Vozes Neurais IA & Idiomas: Abre "Centro de Controlo > Vozes IA". O idioma do aparelho é detetado automaticamente e podes baixar novos idiomas. Tens 3 vozes masculinas reais (Hélder, Enzo, Flávio) e 3 femininas (Lúcia, Noa, Sandra) prontas a ouvir e aplicar.';
     }
-    if (q.contains('doar') || q.contains('donation') || q.contains('mbway')) {
-      return 'Em "HELL Automações > Donation", configura o teu MB WAY, PayPal.me, Revolut ou PIX e copia o teu link único /donate para a bio da live.';
+    if (q.contains('presente') || q.contains('alerta') || q.contains('automac') || q.contains('automaç') || q.contains('bot') || q.contains('algoritmo')) {
+      return '🎁 Automações, Presentes & Bot Algoritmo: Tudo está integrado dentro do "Centro de Controlo". Podes ativar Presentes Padrão para todos os presentes de uma vez, personalizar cada presente individualmente, usar a Biblioteca Online CC0 gratuita e ativar o Chat Bot automático para impulsionar o algoritmo da live.';
     }
-    return 'Podes consultar os guias na sub-aba "FAQ & Regras" ou contactar diretamente a equipa oficial em hellcreatoros@gmail.com.';
+    if (q.contains('musica') || q.contains('música') || q.contains('spotify') || q.contains('youtube music') || q.contains('radio')) {
+      return '🎵 Música Integrada: Abre "Música" no menu principal. Tens o Spotify Web Player e o YouTube Music embutidos diretamente dentro da app (sem abrir páginas externas), além de faixas estéreo sem copyright e suporte para links diretos MP3/AAC.';
+    }
+    if (q.contains('clipe') || q.contains('clip') || q.contains('fabrica') || q.contains('fábrica') || q.contains('video') || q.contains('24h')) {
+      return '🎬 Fábrica de Conteúdos IA: Durante a live a app deteta os momentos de pico e gera clipes automáticos. No fim da live podes editar formato (9:16 ou 16:9), estilo e legendas, baixar para o telemóvel/PC ou publicar direto nas redes. Clipes não guardados são apagados automaticamente passado 24 horas.';
+    }
+    if (q.contains('globo') || q.contains('comunidade') || q.contains('vip') || q.contains('mapa')) {
+      return '🌍 Comunidade & Globo NASA: Na aba "Comunidade" tens o Globo Terrestre 3D "Earth at Night" em rotação suave com os seguidores VIP marcados nos países registados nas suas contas e chat global em tempo real.';
+    }
+    if (q.contains('doar') || q.contains('doaç') || q.contains('mbway') || q.contains('paypal') || q.contains('pix') || q.contains('revolut')) {
+      return '💶 Doações & Monetização: No Centro de Controlo podes configurar MB WAY, PayPal.me, Revolut ou PIX e partilhar o teu link de doação com alertas sonoros e por voz imediatos.';
+    }
+    if (q.contains('jogo') || q.contains('invisivel') || q.contains('invisível') || q.contains('minimizar')) {
+      return '🎮 Modo Jogo Invisível: Ao iniciares uma live mobile (Twitch, YouTube ou Kick) e minimizares a app para abrir o teu jogo, o Modo Invisível mantém a transmissão e o áudio ativos em segundo plano sem sobrepor janelas.';
+    }
+    return '🤖 Posso ajudar-te com qualquer área da HELL CREATOR OS! Pergunta-me sobre:\n• Sincronizar 2.º telemóvel / Stream Deck QR\n• Ligar Overlays no OBS / TikTok Live Studio\n• Vozes Neurais (Hélder, Enzo, Flávio, Lúcia, Noa, Sandra) e Idiomas\n• Presentes Padrão, Bot Algoritmo e Biblioteca CC0\n• Spotify e YouTube Music dentro da app\n• Fábrica de Conteúdos IA e limpeza 24H\n• Globo NASA e Doações (MB WAY / PayPal / PIX)';
   }
+
 
   @override
   Widget build(BuildContext context) {
