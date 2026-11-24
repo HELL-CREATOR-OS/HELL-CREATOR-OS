@@ -953,7 +953,7 @@ class _MainShellState extends State<MainShell> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Text('HELL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 21, letterSpacing: 4.5, color: Colors.white, height: 1.0)),
-                            const Text('CREATOR OS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 3.2, color: Color(0xFF38BDF8), height: 1.15)),
+                            const Text('CREATOR', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 3.2, color: Color(0xFF38BDF8), height: 1.15)),
                             const SizedBox(height: 3),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
