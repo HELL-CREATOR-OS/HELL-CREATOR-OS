@@ -245,20 +245,100 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
                     value: g['custom'] == true,
                     onChanged: (v) => setState(() => g['custom'] = v),
                   ),
-                  TextFormField(
-                    initialValue: g['msg'],
-                    style: const TextStyle(fontSize: 12),
-                    decoration: const InputDecoration(labelText: 'Agradecimento Vocal Individual', border: OutlineInputBorder(), isDense: true),
-                    onChanged: (v) => g['msg'] = v,
+                                       TextFormField(
+                        initialValue: g['msg'],
+                        style: const TextStyle(fontSize: 12),
+                        decoration: const InputDecoration(labelText: 'Agradecimento Vocal Individual', border: OutlineInputBorder(), isDense: true),
+                        onChanged: (v) => g['msg'] = v,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF38BDF8),
+                                side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.6)),
+                              ),
+                              onPressed: () {
+                                final hdLibrary = [
+                                  {'name': '🔔 Sino Cristalino HD', 'url': 'https://google.com', 'badge': '💎 Diamante HDR'},
+                                  {'name': '🪙 Caixa Registadora / Moeda HD', 'url': 'https://google.com', 'badge': '👑 Coroa Ouro HDR'},
+                                  {'name': '🚀 Impacto Sci-Fi & Laser HD', 'url': 'https://google.com', 'badge': '🚀 Foguete Turbo HDR'},
+                                  {'name': '🎉 Fanfarra Vitória / Sub HD', 'url': 'https://google.com', 'badge': '🌌 Galáxia 4K HDR'},
+                                  {'name': '⚡ Alarme Raid Épico HD', 'url': 'https://google.com', 'badge': '🔥 Troféu Lendário HDR'},
+                                ];
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: const Color(0xFF0A1433),
+                                    title: Text('Biblioteca Real HD · ${g['name']}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                                    content: SizedBox(
+                                      width: 360,
+                                      child: ListView.separated(
+                                        shrinkWrap: true,
+                                        itemCount: hdLibrary.length,
+                                        separatorBuilder: (_, __) => const Divider(color: Colors.white12),
+                                        itemBuilder: (_, i) {
+                                          final item = hdLibrary[i];
+                                          return ListTile(
+                                            dense: true,
+                                            title: Text(item['name']!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                                            subtitle: Text('Visual: ${item['badge']}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF38BDF8))),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  tooltip: 'Ouvir em Tempo Real',
+                                                  icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.greenAccent),
+                                                  onPressed: () async {
+                                                    try {
+                                                      await widget.sfxPlayer.stop();
+                                                      await widget.sfxPlayer.play(UrlSource(item['url']!));
+                                                    } catch (_) {}
+                                                  },
+                                                ),
+                                                ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(horizontal: 10)),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      g['sound'] = item['url']!;
+                                                      g['custom'] = true;
+                                                    });
+                                                    Navigator.pop(ctx);
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(content: Text('✅ "${item['name']}" guardado offline e aplicado a ${g['name']}!')),
+                                                    );
+                                                  },
+                                                  child: const Text('Baixar & Aplicar', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900)),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+                                    ],
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.library_music_rounded, size: 16),
+                              label: const Text('Biblioteca Real HD (Ouvir, Baixar & Aplicar)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
+                ),
+              );
+            }),
+          ],
+        );
+      }
+
 
   Widget _buildAlertsTab() {
     return ListView(
