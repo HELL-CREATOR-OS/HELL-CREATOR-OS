@@ -247,12 +247,11 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
                   await widget.sfxPlayer.play(UrlSource(ov['sound']!));
                 } catch (_) {}
                 if (!mounted) return;
-                showDialog(
+                               showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
                     backgroundColor: const Color(0xFF0A1433),
                     title: Text('Pré-visualização Ao Vivo · ${ov['title']}', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
-
                     content: Container(
                       width: 340,
                       padding: const EdgeInsets.all(16),
@@ -262,8 +261,10 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
                         border: Border.all(color: _overlayThemeColor, width: 1.8),
                         boxShadow: [BoxShadow(color: _overlayThemeColor.withOpacity(0.45), blurRadius: 20)],
                       ),
+                      child: Text(ov['desc']!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.white)),
+                    ),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
                         onPressed: () {
