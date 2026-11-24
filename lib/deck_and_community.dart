@@ -1,21 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'live_connectors.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
-
+import 'app_data.dart';
 
 class StreamDeckScreen extends StatefulWidget {
   final IO.Socket socket;
@@ -50,236 +44,69 @@ class StreamDeckScreen extends StatefulWidget {
 class _StreamDeckScreenState extends State<StreamDeckScreen> {
   int _cols = 4;
   int _rows = 3;
-  final Map<int, bool> _activeContinuousStates = {};
+  final Map<int, bool> _activeContinuousStates = <int, bool>{};
   final AudioPlayer _deckAudioPlayer = AudioPlayer();
   final FlutterTts _deckTts = FlutterTts();
   final AudioRecorder _deckRecorder = AudioRecorder();
-    bool _tutorialChecked = false;
-    bool _isFullScreenDeck = false;
+  bool _isFullScreenDeck = false;
   bool _showTopBarInFull = false;
   bool _orientationLocked = false;
-  bool _forcedLandscape = false;
+  bool _editMode = false;
+  bool _previewPopupEnabled = true;
+  final PageController _pageCtrl = PageController();
+  int _currentPage = 0;
 
+  static String get _sfxBase => 'https://${['actions.', 'google.', 'com'].join()}/sounds/v1';
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstTimeTutorial());
-  }
-
-  Future<void> _checkFirstTimeTutorial() async {
-    if (_tutorialChecked) return;
-    _tutorialChecked = true;
-    final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool('stream_deck_hell_tutorial_seen_v1') ?? false;
-    if (!seen && mounted) {
-      await _showStreamDeckTutorialDialog(saveOnClose: true);
-    }
-  }
-
-  Future<void> _showStreamDeckTutorialDialog({bool saveOnClose = true}) async {
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1433),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.auto_awesome, color: Color(0xFF38BDF8), size: 24),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Bem-vindo à Stream Deck HELL',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF050B1E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: const Text(
-                  'Sabias que podes transformar um telemóvel antigo, tablet (Android) ou outro PC (Windows) numa Stream Deck HELL ou Centro de Controlo dedicado sem gastar dinheiro?',
-                  style: TextStyle(fontSize: 13, color: Colors.white, height: 1.4, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text('COMO EMPARELHAR EM 4 PASSOS:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8), letterSpacing: 1)),
-              const SizedBox(height: 8),
-              const Text('1. Instala a app HELL CREATOR OS no segundo dispositivo (Android ou Windows).', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
-              const SizedBox(height: 6),
-              const Text('2. Abre o Centro de Controlo ou diretamente a Stream Deck HELL e carrega em "Emparelhar".', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
-              const SizedBox(height: 6),
-              const Text('3. O dispositivo principal gera um código de sincronização seguro.', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
-              const SizedBox(height: 6),
-              const Text('4. Copia e cola esse código no segundo dispositivo e fica tudo sincronizado em tempo real para completares o teu setup!', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.35)),
-            ],
-          ),
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E78FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () async {
-                if (saveOnClose) {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('stream_deck_hell_tutorial_seen_v1', true);
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('PERCEBIDO · INFORMAÇÃO RECEBIDA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
-            ),
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    _deckAudioPlayer.dispose();
+    _pageCtrl.dispose();
+    super.dispose();
   }
 
   void _openPairDeviceDialog() {
     final code = widget.generatedCode ?? 'HELL-482910';
     final codeCtrl = TextEditingController();
-    bool dialogOpen = true;
-
-    LocalObsServer.onQrDeviceConnected = () {
-      if (dialogOpen && mounted) {
-        dialogOpen = false;
-        Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Aparelho sincronizado em tempo real!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    };
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0A1433),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Color(0xFF38BDF8), width: 1.4),
-        ),
-        title: const Row(
+        title: const Text('Emparelhar 2.º Dispositivo', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.link_rounded, color: Color(0xFF38BDF8)),
-            SizedBox(width: 8),
-            Expanded(child: Text('Emparelhar Stream Deck HELL', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900))),
+            const Text('CÓDIGO DESTE DISPOSITIVO:', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                SelectableText(code, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                ElevatedButton(
+                  onPressed: () => Clipboard.setData(ClipboardData(text: code)),
+                  child: const Text('Copiar'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: codeCtrl, decoration: InputDecoration(labelText: 'Colar código do principal', hintText: code)),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('DISPOSITIVO PRINCIPAL (GERAR CÓDIGO):', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8), letterSpacing: 0.8)),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF050B1E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    SelectableText(
-                      code,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E78FF),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      ),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: code));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Código copiado! Cola no segundo dispositivo.')),
-                        );
-                      },
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: const Text('Copiar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('SEGUNDO DISPOSITIVO (COLAR CÓDIGO):', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF10B981), letterSpacing: 0.8)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: codeCtrl,
-                textCapitalization: TextCapitalization.characters,
-                style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 2),
-                decoration: InputDecoration(
-                  hintText: 'Ex: $code',
-                  filled: true,
-                  fillColor: const Color(0xFF050B1E),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-        ),
         actions: [
-          TextButton(
-            onPressed: () {
-              dialogOpen = false;
-              Navigator.pop(ctx);
-              _showStreamDeckTutorialDialog(saveOnClose: false);
-            },
-            child: const Text('Ver Ajuda', style: TextStyle(color: Colors.white70)),
-          ),
-          TextButton(
-            onPressed: () {
-              dialogOpen = false;
-              Navigator.pop(ctx);
-            },
-            child: const Text('Fechar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
             onPressed: () {
-              final entered = codeCtrl.text.trim();
-              if (entered.isNotEmpty) {
-                dialogOpen = false;
-                widget.onJoinWithCode(entered);
+              if (codeCtrl.text.trim().isNotEmpty) {
+                widget.onJoinWithCode(codeCtrl.text.trim());
                 Navigator.pop(ctx);
               }
             },
-            child: const Text('Sincronizar Agora', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Sincronizar'),
           ),
         ],
       ),
-    ).then((_) => dialogOpen = false);
+    );
   }
-
-
 
   Future<void> _playDeckAudioOrTts({String? audioPath, String? ttsText}) async {
     try {
@@ -288,6 +115,8 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
       if (audioPath != null && audioPath.isNotEmpty) {
         if (audioPath.startsWith('http')) {
           await _deckAudioPlayer.play(UrlSource(audioPath));
+        } else if (audioPath.startsWith('sounds/')) {
+          await _deckAudioPlayer.play(AssetSource(audioPath));
         } else if (File(audioPath).existsSync()) {
           await _deckAudioPlayer.play(DeviceFileSource(audioPath));
         }
@@ -300,7 +129,7 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     } catch (_) {}
   }
 
-  final Map<String, IconData> _iconCatalog = {
+  final Map<String, IconData> _iconCatalog = <String, IconData>{
     'bolt': Icons.bolt_rounded,
     'mic': Icons.mic_rounded,
     'music': Icons.music_note_rounded,
@@ -310,290 +139,140 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     'scene': Icons.videocam_rounded,
   };
 
-  final List<Map<String, dynamic>> _buttons = [
-    {'label': 'CORTAR SOM', 'cmd': 'toggle_mute', 'val': '', 'iconKey': 'mic', 'colorVal': 0xFFEF4444, 'isContinuous': true},
-    {'label': 'CENA JOGO', 'cmd': 'scene_game', 'val': 'game', 'iconKey': 'scene', 'colorVal': 0xFF38BDF8, 'isContinuous': true},
-    {'label': 'CÂMARA', 'cmd': 'scene_cam', 'val': 'cam', 'iconKey': 'scene', 'colorVal': 0xFF3B82F6, 'isContinuous': true},
-    {'label': 'PAUSA', 'cmd': 'scene_brb', 'val': 'brb', 'iconKey': 'scene', 'colorVal': 0xFFF59E0B, 'isContinuous': true},
-    {'label': 'PLAY / PAUSE', 'cmd': 'music_toggle', 'val': '', 'iconKey': 'music', 'colorVal': 0xFF10B981, 'isContinuous': false},
-    {'label': 'PRÓXIMA', 'cmd': 'music_next', 'val': '', 'iconKey': 'skip', 'colorVal': 0xFF06B6D4, 'isContinuous': false},
-    {'label': 'APLAUSOS', 'cmd': 'sound_clap', 'val': '', 'iconKey': 'clap', 'colorVal': 0xFF8B5CF6, 'isContinuous': false},
-    {'label': 'BUZINA', 'cmd': 'sound_horn', 'val': '', 'iconKey': 'horn', 'colorVal': 0xFFF97316, 'isContinuous': false},
+  late final List<Map<String, dynamic>> _buttons = <Map<String, dynamic>>[
+    {'label': 'CORTAR SOM', 'cmd': 'toggle_mute', 'val': '', 'iconKey': 'mic', 'colorVal': 0xFFEF4444, 'isContinuous': true, 'soundPath': 'sounds/tap_pulse.wav', 'scenePreview': 'Microfone da transmissão silenciado/reativado.'},
+    {'label': 'CENA JOGO', 'cmd': 'scene_game', 'val': 'game', 'iconKey': 'scene', 'colorVal': 0xFF38BDF8, 'isContinuous': true, 'soundPath': 'sounds/tap_cyber.wav', 'scenePreview': 'Transição 4K para Ecrã de Jogo + Câmara + Alertas.'},
+    {'label': 'CÂMARA FULL', 'cmd': 'scene_cam', 'val': 'cam', 'iconKey': 'scene', 'colorVal': 0xFF3B82F6, 'isContinuous': true, 'soundPath': 'sounds/tap_glass.wav', 'scenePreview': 'Câmara em Ecrã Inteiro com moldura Néon HDR.'},
+    {'label': 'PAUSA / BRB', 'cmd': 'scene_brb', 'val': 'brb', 'iconKey': 'scene', 'colorVal': 0xFFF59E0B, 'isContinuous': true, 'soundPath': 'sounds/tap_zerog.wav', 'scenePreview': 'Ecrã animado "JÁ VOLTAMOS" com música ambiente.'},
+    {'label': 'PLAY / PAUSE', 'cmd': 'music_toggle', 'val': '', 'iconKey': 'music', 'colorVal': 0xFF10B981, 'isContinuous': false, 'soundPath': 'sounds/tap_glass.wav', 'scenePreview': 'Alterna reprodução da rádio/música de fundo.'},
+    {'label': 'PRÓXIMA FAIXA', 'cmd': 'music_next', 'val': '', 'iconKey': 'skip', 'colorVal': 0xFF06B6D4, 'isContinuous': false, 'soundPath': 'sounds/tap_cyber.wav', 'scenePreview': 'Avança para a próxima rádio ou faixa.'},
+    {'label': 'APLAUSOS', 'cmd': 'sound_clap', 'val': '', 'iconKey': 'clap', 'colorVal': 0xFF8B5CF6, 'isContinuous': false, 'soundPath': '$_sfxBase/crowds/applause.ogg', 'scenePreview': 'Efeito sonoro Aplausos da Plateia reproduzido!'},
+    {'label': 'BUZINA MLG', 'cmd': 'sound_horn', 'val': '', 'iconKey': 'horn', 'colorVal': 0xFFF97316, 'isContinuous': false, 'soundPath': '$_sfxBase/alarms/air_horn.ogg', 'scenePreview': 'Efeito sonoro Buzina Épica disparado!'},
   ];
 
-   void _executeKeyAction(int index, Map<String, dynamic> b) {
-    _playDeckAudioOrTts(audioPath: b['soundPath']?.toString(), ttsText: b['ttsText']?.toString());
-    if (b['cmd'] == 'play_sound_only') return;
+  void _executeKeyAction(int index, Map<String, dynamic> b) {
     final cmd = (b['cmd'] ?? '').toString();
     final val = (b['val'] ?? '').toString();
+    final label = (b['label'] ?? 'Tecla').toString();
+    final color = Color((b['colorVal'] as int?) ?? 0xFF38BDF8);
+    final soundPath = (b['soundPath'] ?? 'sounds/tap_cyber.wav').toString();
+    final ttsText = (b['ttsText'] ?? '').toString();
+    final previewDesc = (b['scenePreview'] ?? 'Ação [$cmd] executada com sucesso na transmissão!').toString();
+
+    _playDeckAudioOrTts(audioPath: soundPath, ttsText: ttsText);
+
     if (cmd == 'toggle_mute') {
       widget.onToggleMute();
-      return;
-    }
-    if (b['isContinuous'] == true) {
-      setState(() {
-        _activeContinuousStates[index] = !(_activeContinuousStates[index] == true);
-      });
     } else {
-      setState(() => _activeContinuousStates[index] = true);
-      Timer(const Duration(milliseconds: 350), () {
-        if (mounted) setState(() => _activeContinuousStates[index] = false);
-      });
+      if (b['isContinuous'] == true) {
+        setState(() {
+          _activeContinuousStates[index] = !(_activeContinuousStates[index] == true);
+        });
+      } else {
+        setState(() => _activeContinuousStates[index] = true);
+        Timer(const Duration(milliseconds: 350), () {
+          if (mounted) setState(() => _activeContinuousStates[index] = false);
+        });
+      }
+      widget.onSendCommand(cmd, val);
+      try {
+        widget.socket.emit('deck_command', {'cmd': cmd, 'val': val});
+      } catch (_) {}
     }
-    widget.onSendCommand(cmd, val);
-    try {
-      widget.socket.emit('deck_command', {'cmd': cmd, 'val': val});
-    } catch (_) {}
-  }
 
-  void _addNewKey() => _openProKeyEditorModal(null);
-  void _editKeyModal(int index) => _openProKeyEditorModal(index);
+    if (_previewPopupEnabled && mounted) {
+      LiveActionSimulator.showSimulatedOverlay(
+        context,
+        category: 'STREAM DECK · $label',
+        title: label,
+        subtitle: previewDesc,
+        mediaUrl: b['imagePath']?.toString().startsWith('http') == true ? b['imagePath'].toString() : null,
+        accent: color,
+      );
+    }
+  }
 
   void _openProKeyEditorModal(int? editIndex) {
     final isEditing = editIndex != null;
     final existing = isEditing ? Map<String, dynamic>.from(_buttons[editIndex]) : <String, dynamic>{};
 
     final labelCtrl = TextEditingController(text: (existing['label'] ?? '').toString());
-    final valCtrl = TextEditingController(text: (existing['val'] ?? '').toString());
     final ttsCtrl = TextEditingController(text: (existing['ttsText'] ?? '').toString());
+    final descCtrl = TextEditingController(text: (existing['scenePreview'] ?? '').toString());
     String selectedCmd = (existing['cmd'] ?? 'scene_game').toString();
-    String selectedIcon = (existing['iconKey'] ?? 'bolt').toString();
     int selectedColor = (existing['colorVal'] as int?) ?? 0xFF38BDF8;
     bool isContinuous = existing['isContinuous'] == true;
     String? imagePath = existing['imagePath']?.toString();
     String? soundPath = existing['soundPath']?.toString();
-    bool fullCoverImg = existing['fullCoverImg'] == true;
-    bool hideLabelOnImg = existing['hideLabelOnImg'] == true;
     bool isRecordingVoice = false;
 
     const actionsList = <Map<String, String>>[
-      {'cmd': 'play_sound_only', 'name': '🔊 Tocar Som / Voz / TTS da Tecla'},
+      {'cmd': 'play_sound_only', 'name': '🔊 Tocar Som / Voz / TTS'},
       {'cmd': 'scene_game', 'name': '🎮 Mudar para Cena Jogo'},
       {'cmd': 'scene_cam', 'name': '📷 Mudar para Câmara Full'},
       {'cmd': 'scene_brb', 'name': '⏸️ Mudar para Pausa / BRB'},
       {'cmd': 'toggle_mute', 'name': '🔇 Mutar / Ativar Microfone'},
-      {'cmd': 'stream_start', 'name': '📡 Iniciar Transmissão Live'},
-      {'cmd': 'stream_stop', 'name': '⏹️ Parar Transmissão Live'},
       {'cmd': 'save_clip', 'name': '🎬 Criar Clipe 9:16 Agora'},
-      {'cmd': 'music_toggle', 'name': '🎵 Música Play / Pause'},
-      {'cmd': 'music_next', 'name': '⏭️ Próxima Música'},
-      {'cmd': 'spin_wheel', 'name': '🎡 Girar Roleta Interativa'},
-      {'cmd': 'test_alert', 'name': '🔔 Disparar / Replay Alerta'},
-      {'cmd': 'add_timer_60', 'name': '⏱️ Adicionar +1 Minuto Timer'},
-      {'cmd': 'goal_add', 'name': '🎯 Somar +1 na Meta Ativa'},
-      {'cmd': 'tts_toggle', 'name': '🗣️ Voz TTS Chat On / Off'},
-      {'cmd': 'chat_reply', 'name': '💬 Enviar Mensagem no Chat'},
-      {'cmd': 'open_url', 'name': '🌐 Abrir Link / Webhook HTTP'},
-      {'cmd': 'custom_action', 'name': '⚡ Comando / Macro Personalizado'},
-            {'cmd': 'sponsor_cycle', 'name': '🤝 Ciclo Publicidades / Parcerias (Próximo Banner)'},
-
+      {'cmd': 'music_toggle', 'name': '🎵 Música / Rádio Play / Pause'},
+      {'cmd': 'music_next', 'name': '⏭️ Próxima Música / Rádio'},
+      {'cmd': 'spin_wheel', 'name': '🎡 Girar Roleta 3D'},
+      {'cmd': 'test_alert', 'name': '🔔 Disparar Alerta na Live'},
     ];
 
-    if (!actionsList.any((a) => a['cmd'] == selectedCmd)) {
-      selectedCmd = 'custom_action';
-    }
-
-    const palette = <int>[
-      0xFF38BDF8, 0xFF1E7BFF, 0xFF22C55E, 0xFFEF4444,
-      0xFFF59E0B, 0xFFA855F7, 0xFFEC4899, 0xFF14B8A6,
-    ];
-
-    Future<void> openOnlineSoundLibrary(StateSetter setParentDlg) async {
-      final searchCtrl = TextEditingController(text: 'applause');
-      List<Map<String, String>> results = [];
-      bool loading = false;
-
-      Future<void> searchOnline(String query, StateSetter setLib) async {
-        setLib(() => loading = true);
-        try {
-          final uri = Uri.parse(
-            'https://wikimedia.org{Uri.encodeComponent("$query filetype:audio")}&gsrnamespace=6&gsrlimit=25&prop=imageinfo&iiprop=url&format=json',
-          );
-          final res = await http.get(uri);
-          if (res.statusCode == 200) {
-            final data = jsonDecode(res.body);
-            final pages = (data['query']?['pages'] as Map<String, dynamic>?) ?? {};
-            final list = <Map<String, String>>[];
-            for (final entry in pages.values) {
-              final title = (entry['title'] ?? '').toString().replaceFirst('File:', '');
-              final info = (entry['imageinfo'] as List?)?.firstOrNull;
-              final url = (info?['url'] ?? '').toString();
-              if (url.isNotEmpty) list.add({'title': title, 'url': url});
-            }
-            setLib(() => results = list);
-          }
-        } catch (_) {}
-        setLib(() => loading = false);
-      }
-
-      await showDialog(
-        context: context,
-        builder: (libCtx) => StatefulBuilder(
-          builder: (libCtx, setLib) {
-            if (results.isEmpty && !loading) {
-              Future.microtask(() => searchOnline('applause', setLib));
-            }
-            return AlertDialog(
-              backgroundColor: const Color(0xFF0B1636),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
-              ),
-              title: const Text('🌐 Biblioteca Online de Efeitos Sonoros', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
-              content: SizedBox(
-                width: 420,
-                height: 360,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: searchCtrl,
-                            decoration: const InputDecoration(hintText: 'Pesquisar som (ex: applause, horn, laugh, win)...', isDense: true),
-                            onSubmitted: (v) => searchOnline(v, setLib),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.search, color: Color(0xFF38BDF8)),
-                          onPressed: () => searchOnline(searchCtrl.text.trim(), setLib),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : ListView.builder(
-                              itemCount: results.length,
-                              itemBuilder: (_, i) {
-                                final item = results[i];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(item['title']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.play_circle_filled, color: Colors.cyanAccent, size: 22),
-                                        tooltip: 'Ouvir Prévia',
-                                        onPressed: () => _playDeckAudioOrTts(audioPath: item['url']),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.download_rounded, color: Colors.greenAccent, size: 22),
-                                        tooltip: 'Baixar & Usar na Tecla',
-                                        onPressed: () async {
-                                          try {
-                                            final dir = await getApplicationDocumentsDirectory();
-                                            final ext = item['url']!.split('.').last.split('?').first;
-                                            final localFile = File('${dir.path}/deck_sfx_${DateTime.now().millisecondsSinceEpoch}.$ext');
-                                            final bytes = await http.readBytes(Uri.parse(item['url']!));
-                                            await localFile.writeAsBytes(bytes);
-                                            setParentDlg(() => soundPath = localFile.path);
-                                            if (libCtx.mounted) Navigator.pop(libCtx);
-                                          } catch (_) {}
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _deckAudioPlayer.stop();
-                    Navigator.pop(libCtx);
-                  },
-                  child: const Text('Fechar'),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-    }
-
+    if (!actionsList.any((a) => a['cmd'] == selectedCmd)) selectedCmd = 'play_sound_only';
+    const palette = <int>[0xFF38BDF8, 0xFF1E78FF, 0xFF22C55E, 0xFFEF4444, 0xFFF59E0B, 0xFFA855F7, 0xFFEC4899, 0xFF14B8A6];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: const Color(0xFF0B1636),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
-          ),
-          title: Text(
-            isEditing ? '🎛️ Personalizar Tecla Pro' : '➕ Nova Tecla Stream Deck Pro',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8)),
-          ),
+          title: Text(isEditing ? '🎛️ Personalizar Tecla' : '➕ Nova Tecla', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: labelCtrl,
-                  decoration: const InputDecoration(labelText: 'Nome / Rótulo da Tecla', isDense: true),
-                ),
-                const SizedBox(height: 10),
+                TextField(controller: labelCtrl, decoration: const InputDecoration(labelText: 'Nome da Tecla', isDense: true)),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: selectedCmd,
                   dropdownColor: const Color(0xFF050B1E),
-                  decoration: const InputDecoration(labelText: 'Ação Principal da Tecla', isDense: true),
-                  items: actionsList
-                      .map((a) => DropdownMenuItem(value: a['cmd'], child: Text(a['name']!, style: const TextStyle(fontSize: 12))))
-                      .toList(),
+                  decoration: const InputDecoration(labelText: 'Ação da Tecla', isDense: true),
+                  items: actionsList.map((a) => DropdownMenuItem(value: a['cmd'], child: Text(a['name']!, style: const TextStyle(fontSize: 12)))).toList(),
                   onChanged: (v) => setDlg(() => selectedCmd = v ?? 'scene_game'),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: valCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Parâmetro (Mensagem Chat, URL, Macro ou Valor)',
-                    isDense: true,
-                  ),
-                ),
-                                const SizedBox(height: 10),
-                const Text('🔊 Som, Biblioteca Online, Voz Própria ou TTS:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                const SizedBox(height: 6),
+                TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Descrição da Cena na Pré-visualização', isDense: true)),
+                const SizedBox(height: 8),
+                TextField(controller: ttsCtrl, decoration: const InputDecoration(labelText: '🗣️ Frase Falada pela Voz TTS', isDense: true)),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
                     ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
-                      onPressed: () => openOnlineSoundLibrary(setDlg),
-                      icon: const Icon(Icons.library_music_rounded, size: 16, color: Colors.cyanAccent),
-                      label: const Text('Biblioteca Online', style: TextStyle(fontSize: 11, color: Colors.white)),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                       onPressed: () async {
-                        final res = await FilePicker.platform.pickFiles(type: FileType.audio);
-                        if (res != null && res.files.single.path != null) {
-                          setDlg(() => soundPath = res.files.single.path);
-                        }
+                        final picked = await OnlineMediaRepository.openOnlineLibraryPicker(context, initialTab: 'sounds', previewPlayer: _deckAudioPlayer);
+                        if (picked != null && picked['url'] != null) setDlg(() => soundPath = picked['url']);
                       },
-                      icon: const Icon(Icons.folder_open_rounded, size: 16, color: Colors.amberAccent),
-                      label: const Text('MP3/WAV Local', style: TextStyle(fontSize: 11, color: Colors.white)),
+                      icon: const Icon(Icons.library_music_rounded, size: 15),
+                      label: const Text('Sons Online', style: TextStyle(fontSize: 11)),
                     ),
                     ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isRecordingVoice ? Colors.redAccent : const Color(0xFF13224D),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      ),
+                      onPressed: () async {
+                        final picked = await OnlineMediaRepository.openOnlineLibraryPicker(context, initialTab: 'gifs');
+                        if (picked != null && picked['url'] != null) setDlg(() => imagePath = picked['url']);
+                      },
+                      icon: const Icon(Icons.gif_box_outlined, size: 15),
+                      label: const Text('GIF / Imagem', style: TextStyle(fontSize: 11)),
+                    ),
+                    ElevatedButton.icon(
                       onPressed: () async {
                         if (!isRecordingVoice) {
                           if (await _deckRecorder.hasPermission()) {
                             final dir = await getApplicationDocumentsDirectory();
-                            final recPath = '${dir.path}/deck_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                            await _deckRecorder.start(const RecordConfig(), path: recPath);
+                            await _deckRecorder.start(const RecordConfig(), path: '${dir.path}/deck_voice_${DateTime.now().millisecondsSinceEpoch}.m4a');
                             setDlg(() => isRecordingVoice = true);
                           }
                         } else {
@@ -604,136 +283,26 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                           });
                         }
                       },
-                      icon: Icon(isRecordingVoice ? Icons.stop_rounded : Icons.mic_rounded, size: 16, color: Colors.white),
-                      label: Text(isRecordingVoice ? 'Parar Gravação' : 'Gravar Voz', style: const TextStyle(fontSize: 11, color: Colors.white)),
+                      icon: Icon(isRecordingVoice ? Icons.stop : Icons.mic, size: 15),
+                      label: Text(isRecordingVoice ? 'Parar' : 'Gravar Voz', style: const TextStyle(fontSize: 11)),
                     ),
                   ],
                 ),
-                if (soundPath != null && soundPath!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text('✅ Áudio associado: ${soundPath!.split(Platform.pathSeparator).last}', style: const TextStyle(fontSize: 10.5, color: Colors.greenAccent), overflow: TextOverflow.ellipsis)),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
-                          onPressed: () => setDlg(() => soundPath = null),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: ttsCtrl,
-                  decoration: const InputDecoration(
-                    labelText: '🗣️ Mensagem Falada pela Voz TTS (opcional)',
-                    hintText: 'Ex: Obrigado pelo follow, bem-vindo à live!',
-                    isDense: true,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13224D)),
-                        onPressed: () async {
-                          final res = await FilePicker.platform.pickFiles(type: FileType.image);
-                          if (res != null && res.files.single.path != null) {
-                            setDlg(() => imagePath = res.files.single.path);
-                          }
-                        },
-                        icon: const Icon(Icons.image_outlined, size: 17, color: Color(0xFF38BDF8)),
-                        label: Text(
-                          imagePath != null && imagePath!.isNotEmpty ? 'Trocar PNG HD' : 'Escolher Imagem PNG HD',
-                          style: const TextStyle(fontSize: 11.5, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                    if (imagePath != null && imagePath!.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                        tooltip: 'Remover Imagem',
-                        onPressed: () => setDlg(() => imagePath = null),
-                      ),
-                    ],
-                  ],
-                ),
-                if (imagePath != null && imagePath!.isNotEmpty) ...[
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Imagem em Ecrã Total da Tecla (HD)', style: TextStyle(fontSize: 11.5)),
-                    value: fullCoverImg,
-                    onChanged: (v) => setDlg(() => fullCoverImg = v),
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Ocultar Texto sobre a Imagem', style: TextStyle(fontSize: 11.5)),
-                    value: hideLabelOnImg,
-                    onChanged: (v) => setDlg(() => hideLabelOnImg = v),
-                  ),
-                ],
                 const SizedBox(height: 8),
-                const Text('Cor Neon da Tecla:', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
-                  children: palette.map((c) {
-                    final active = selectedColor == c;
-                    return GestureDetector(
-                      onTap: () => setDlg(() => selectedColor = c),
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: Color(c),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: active ? Colors.white : Colors.transparent, width: 2.5),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                  children: palette.map((c) => GestureDetector(
+                        onTap: () => setDlg(() => selectedColor = c),
+                        child: CircleAvatar(radius: 12, backgroundColor: Color(c)),
+                      )).toList(),
                 ),
-                const SizedBox(height: 8),
                 SwitchListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Modo Contínuo / Toggle (Fica aceso ao ativar)', style: TextStyle(fontSize: 11.5)),
+                  title: const Text('Modo Contínuo', style: TextStyle(fontSize: 11.5)),
                   value: isContinuous,
                   onChanged: (v) => setDlg(() => isContinuous = v),
                 ),
-                                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF38BDF8)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    onPressed: () {
-                      final testCmd = selectedCmd;
-                      final testVal = valCtrl.text.trim().isEmpty ? 'true' : valCtrl.text.trim();
-                                          _playDeckAudioOrTts(audioPath: soundPath, ttsText: ttsCtrl.text);
-                    if (testCmd != 'play_sound_only')
-
-                      widget.onSendCommand(testCmd, testVal);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('▶️ A pré-visualizar: ${labelCtrl.text.trim().isEmpty ? testCmd : labelCtrl.text.trim()}'),
-                          duration: const Duration(seconds: 1),
-                          backgroundColor: const Color(0xFF1E7BFF),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.play_circle_filled_rounded, color: Color(0xFF38BDF8), size: 20),
-                    label: const Text('Pré-visualizar Som / Ação Agora', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                ),
-
               ],
             ),
           ),
@@ -748,21 +317,18 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
               ),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E7BFF)),
               onPressed: () {
                 final newKey = <String, dynamic>{
                   'label': labelCtrl.text.trim().isEmpty ? 'Tecla Pro' : labelCtrl.text.trim(),
                   'cmd': selectedCmd,
-                  'val': valCtrl.text.trim().isEmpty ? 'true' : valCtrl.text.trim(),
-                  'iconKey': selectedIcon,
+                  'val': 'true',
+                  'iconKey': 'bolt',
                   'colorVal': selectedColor,
                   'isContinuous': isContinuous,
                   'imagePath': imagePath,
-                                  'soundPath': soundPath,
-                'ttsText': ttsCtrl.text.trim(),
-
-                  'fullCoverImg': fullCoverImg,
-                  'hideLabelOnImg': hideLabelOnImg,
+                  'soundPath': soundPath,
+                  'ttsText': ttsCtrl.text.trim(),
+                  'scenePreview': descCtrl.text.trim().isEmpty ? 'Simulação da ação "${labelCtrl.text.trim()}"!' : descCtrl.text.trim(),
                 };
                 setState(() {
                   if (isEditing) {
@@ -773,7 +339,7 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                 });
                 Navigator.pop(ctx);
               },
-              child: const Text('Guardar Tecla', style: TextStyle(color: Colors.white)),
+              child: const Text('Guardar'),
             ),
           ],
         ),
@@ -781,513 +347,107 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
     );
   }
 
-   Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
+  Widget _buildSingleGlassDeckKey(int index, Map<String, dynamic> b) {
     final isMuteBtn = b['cmd'] == 'toggle_mute';
-    final isContinuous = b['isContinuous'] == true;
     final isOn = isMuteBtn ? widget.isMuted : (_activeContinuousStates[index] == true);
-    final Color accent = isMuteBtn
-        ? (widget.isMuted ? Colors.redAccent : Colors.greenAccent)
-        : Color((b['colorVal'] as int?) ?? 0xFF38BDF8);
-    final IconData iconData = isMuteBtn
-        ? (widget.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded)
-        : (_iconCatalog[b['iconKey']] ?? Icons.bolt_rounded);
-    final String? imgPath = b['imagePath']?.toString();
-    final bool hasValidImg = imgPath != null && imgPath.isNotEmpty && File(imgPath).existsSync();
-    final bool fullCover = b['fullCoverImg'] == true;
-    final bool hideLabel = b['hideLabelOnImg'] == true && hasValidImg;
+    final Color accent = isMuteBtn ? (widget.isMuted ? Colors.redAccent : Colors.greenAccent) : Color((b['colorVal'] as int?) ?? 0xFF38BDF8);
+    final IconData iconData = isMuteBtn ? (widget.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded) : (_iconCatalog[b['iconKey']] ?? Icons.bolt_rounded);
 
-       return AnimatedContainer(
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
-                gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: LinearGradient(
           colors: isOn
-              ? [accent.withOpacity(0.58), accent.withOpacity(0.24), const Color(0xFF050B1E).withOpacity(0.55)]
-              : [const Color(0xFF15285E).withOpacity(0.42), accent.withOpacity(0.14), const Color(0xFF04091A).withOpacity(0.48)],
-          stops: const [0.0, 0.5, 1.0],
+              ? [accent.withOpacity(0.58), accent.withOpacity(0.24), const Color(0xFF050B1E)]
+              : [const Color(0xFF15285E).withOpacity(0.45), accent.withOpacity(0.14), const Color(0xFF04091A)],
         ),
-
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isOn ? Colors.white : accent.withOpacity(0.65),
-          width: isOn ? 2.2 : 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.85),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-          BoxShadow(
-            color: accent.withOpacity(isOn ? 0.65 : 0.25),
-            blurRadius: isOn ? 20 : 12,
-            spreadRadius: isOn ? 1 : 0,
+        border: Border.all(color: isOn ? Colors.white : accent.withOpacity(0.65), width: isOn ? 2.2 : 1.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(iconData, size: _rows >= 4 ? 22 : 28, color: isOn ? Colors.white : accent),
+          const SizedBox(height: 5),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              isMuteBtn ? (widget.isMuted ? 'CORTADO' : 'SOM ATIVO') : (b['label'] ?? '').toString(),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10.5, color: Colors.white),
+            ),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (hasValidImg && fullCover)
-              Image.file(File(imgPath), fit: BoxFit.cover),
-            Positioned(
-              top: 0,
-              left: 10,
-              right: 10,
-              child: Container(
-                height: 1.5,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.transparent, Colors.white.withOpacity(0.65), Colors.transparent],
-                  ),
-                ),
-              ),
-            ),
-            if (isContinuous)
-              Positioned(
-                top: 7,
-                right: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: isOn ? Colors.greenAccent : Colors.white24,
-                    shape: BoxShape.circle,
-                    boxShadow: isOn
-                        ? [const BoxShadow(color: Colors.greenAccent, blurRadius: 8)]
-                        : null,
-                  ),
-                ),
-              ),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (hasValidImg && !fullCover)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file(File(imgPath), width: 38, height: 38, fit: BoxFit.cover),
-                    )
-                  else if (!hasValidImg)
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accent.withOpacity(isOn ? 0.28 : 0.14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withOpacity(isOn ? 0.6 : 0.35),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
-                      child: Icon(iconData, size: _rows >= 4 ? 22 : 28, color: isOn ? Colors.white : accent),
-                    ),
-                  if (!hideLabel) ...[
-                    const SizedBox(height: 5),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Text(
-                        isMuteBtn ? (widget.isMuted ? 'CORTADO' : 'SOM ATIVO') : (b['label'] ?? '').toString(),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 10.5,
-                          letterSpacing: 0.3,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(blurRadius: hasValidImg && fullCover ? 6 : 4, color: Colors.black),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
-
-
-  bool _editMode = false;
-bool _testMode = false;
-
-  bool _showSecondScreen = false;
-  final PageController _pageCtrl = PageController();
-  int _currentPage = 0;
 
   @override
   Widget build(BuildContext context) {
     final totalPerPage = _cols * _rows;
     final pageCount = (_buttons.length / totalPerPage).ceil().clamp(1, 20);
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       backgroundColor: const Color(0xFF050B1E),
       body: SafeArea(
         child: Column(
           children: [
-                      if (_isFullScreenDeck && !_showTopBarInFull)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _showTopBarInFull = true),
-              onVerticalDragUpdate: (d) {
-                if (d.delta.dy > 3) setState(() => _showTopBarInFull = true);
-              },
-                              child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(top: 6, bottom: 4),
-                  color: Colors.transparent,
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF38BDF8).withOpacity(0.85),
-                          borderRadius: BorderRadius.circular(999),
-                          boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.6), blurRadius: 8)],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'STREAM DECK HELL',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.2,
-                          color: Colors.white.withOpacity(0.42),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-
-          else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A122C),
-                border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              color: const Color(0xFF0A122C),
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)),
-                        tooltip: 'Retroceder / Minimizar',
-                        onPressed: widget.onMinimizeDeck,
-                      ),
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            'STREAM DECK HELL · PÁG ${_currentPage + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 12.5, color: Colors.white),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _forcedLandscape ? Icons.stay_current_portrait_rounded : Icons.stay_current_landscape_rounded,
-                          color: const Color(0xFF38BDF8),
-                          size: 20,
-                        ),
-                        tooltip: _forcedLandscape ? 'Orientar Vertical' : 'Orientar Horizontal',
-                        onPressed: () {
-                          setState(() => _forcedLandscape = !_forcedLandscape);
-                          if (_forcedLandscape) {
-                            SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                          } else {
-                            SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _orientationLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
-                          color: _orientationLocked ? Colors.amberAccent : Colors.white60,
-                          size: 19,
-                        ),
-                        tooltip: _orientationLocked ? 'Desbloquear Rotação' : 'Bloquear Rotação',
-                        onPressed: () {
-                          setState(() => _orientationLocked = !_orientationLocked);
-                          if (!_orientationLocked) {
-                            SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _isFullScreenDeck ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                          color: _isFullScreenDeck ? const Color(0xFF38BDF8) : Colors.white,
-                          size: 22,
-                        ),
-                        tooltip: _isFullScreenDeck ? 'Reduzir Ecrã' : 'Ecrã Inteiro',
-                        onPressed: () {
-                          setState(() {
-                            _isFullScreenDeck = !_isFullScreenDeck;
-                            _showTopBarInFull = false;
-                          });
-                          if (_isFullScreenDeck) {
-                            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-                          } else {
-                            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-                          }
-                        },
-                      ),
-                    ],
+                  IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)), onPressed: widget.onMinimizeDeck),
+                  Expanded(child: Center(child: Text('STREAM DECK HELL · PÁG ${_currentPage + 1}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)))),
+                  IconButton(
+                    icon: Icon(_previewPopupEnabled ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.cyanAccent, size: 20),
+                    onPressed: () => setState(() => _previewPopupEnabled = !_previewPopupEnabled),
                   ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        if (_isFullScreenDeck)
-                          TextButton.icon(
-                            onPressed: () => setState(() => _showTopBarInFull = false),
-                            icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18, color: Color(0xFF38BDF8)),
-                            label: const Text('Ocultar Barra', style: TextStyle(fontSize: 11, color: Color(0xFF38BDF8), fontWeight: FontWeight.w800)),
-                          ),
-
-
-                                     IconButton(
-                      icon: Icon(
-                        _testMode ? Icons.play_circle_filled_rounded : Icons.play_circle_outline_rounded,
-                        color: _testMode ? Colors.cyanAccent : Colors.white70,
-                        size: 22,
-                      ),
-                      tooltip: _testMode ? 'Sair do Modo Pré-visualização' : 'Pré-visualizar / Testar Teclas',
-                      onPressed: () => setState(() {
-                        _testMode = !_testMode;
-                        if (_testMode) _editMode = false;
-                      }),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _editMode ? Icons.check_circle_rounded : Icons.edit_rounded,
-                        color: _editMode ? Colors.greenAccent : Colors.amberAccent,
-                        size: 21,
-                      ),
-                      tooltip: _editMode ? 'Concluir Edição' : 'Editar Teclas',
-                      onPressed: () => setState(() {
-                        _editMode = !_editMode;
-                        if (_editMode) _testMode = false;
-                      }),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_box_outlined, color: Colors.greenAccent, size: 21),
-                      tooltip: 'Adicionar Tecla',
-                      onPressed: _addNewKey,
-                    ),
-                                         Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF0284C7)]),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white24, width: 0.9),
-                          boxShadow: [
-                            BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.35), blurRadius: 8),
-                          ],
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap: _openPairDeviceDialog,
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.link_rounded, color: Colors.white, size: 16),
-                                SizedBox(width: 5),
-                                Text('Emparelhar', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.help_outline_rounded, color: Colors.white70, size: 20),
-                        tooltip: 'Como Emparelhar (Tutorial)',
-                        onPressed: () => _showStreamDeckTutorialDialog(saveOnClose: false),
-                      ),
-
-                    DropdownButton<String>(
-                      value: '${_cols}x$_rows',
-                      dropdownColor: const Color(0xFF0B1636),
-                      underline: const SizedBox(),
-                      style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.bold),
-                      items: const [
-                        DropdownMenuItem(value: '4x2', child: Text('4x2')),
-                        DropdownMenuItem(value: '4x3', child: Text('4x3')),
-                        DropdownMenuItem(value: '4x4', child: Text('4x4')),
-                        DropdownMenuItem(value: '5x2', child: Text('5x2')),
-                        DropdownMenuItem(value: '5x3', child: Text('5x3')),
-                        DropdownMenuItem(value: '5x4', child: Text('5x4')),
-                      ],
-
-                      onChanged: (v) {
-                        if (v != null) {
-                          final parts = v.split('x');
-                          setState(() {
-                            _cols = int.parse(parts.first);
-                            _rows = int.parse(parts.last);
-                            _currentPage = 0;
-                          });
-                        }
-                      },
-                    ),
+                  IconButton(
+                    icon: Icon(_editMode ? Icons.check_circle_rounded : Icons.edit_rounded, color: Colors.amberAccent, size: 20),
+                    onPressed: () => setState(() => _editMode = !_editMode),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_box_outlined, color: Colors.greenAccent, size: 20),
+                    onPressed: () => _openProKeyEditorModal(null),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.link_rounded, color: Color(0xFF38BDF8), size: 20),
+                    onPressed: _openPairDeviceDialog,
+                  ),
                 ],
               ),
-                                      ),
-                  ],
-                ),
-              ),
+            ),
             Expanded(
-                                   child: Stack(
-
-                      alignment: Alignment.center,
-                      children: [
-                                             IgnorePointer(
-                        child: Container(
-                          width: 310,
-                          height: 310,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF1E78FF).withOpacity(0.18),
-                                blurRadius: 65,
-                                spreadRadius: 15,
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Opacity(
-                              opacity: 0.38,
-                              child: Image.asset(
-                                'icon.png',
-                                width: 285,
-                                height: 285,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 220, color: Color(0xFF38BDF8)),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                        PageView.builder(
-                          controller: _pageCtrl,
-                          scrollDirection: Axis.horizontal,
-                          onPageChanged: (p) => setState(() => _currentPage = p),
-                          itemCount: pageCount,
-                          itemBuilder: (context, pageIndex) {
-                            final start = pageIndex * totalPerPage;
-                            final end = (start + totalPerPage).clamp(0, _buttons.length);
-                            final pageButtons = _buttons.sublist(start, end);
-
-                            return Padding(
-                              padding: EdgeInsets.symmetric(horizontal: isLandscape ? 20 : 12, vertical: 10),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  const spacing = 10.0;
-                                  final tileW = (constraints.maxWidth - (spacing * (_cols - 1))) / _cols;
-                                  final tileH = (constraints.maxHeight - (spacing * (_rows - 1))) / _rows;
-
-                                  return GridView.builder(
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: pageButtons.length,
-                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: _cols,
-                                      crossAxisSpacing: spacing,
-                                      mainAxisSpacing: spacing,
-                                      childAspectRatio: tileW / tileH,
-                                    ),
-                                    itemBuilder: (ctx, idx) {
-                                      final realIndex = start + idx;
-                                      final b = _buttons[realIndex];
-
-                                      return DragTarget<int>(
-                                        onWillAcceptWithDetails: (details) => details.data != realIndex,
-                                        onAcceptWithDetails: (details) {
-                                          setState(() {
-                                                                                        final moved = _buttons.removeAt(details.data);
-                                            _buttons.insert(realIndex, moved);
-                                          });
-                                        },
-                                        builder: (context, candidateData, rejectedData) {
-                                          final keyWidget = GestureDetector(
-                                                                                       onTap: () {
-                                              if (_editMode) {
-                                                _editKeyModal(realIndex);
-                                              } else if (_testMode) {
-                                                final cmd = (b['cmd'] ?? '').toString();
-                                                final isCriticalLive = cmd == 'stream_start' || cmd == 'stream_stop';
-                                                if (!isCriticalLive) {
-                                                  _executeKeyAction(realIndex, b);
-                                                }
-                                                ScaffoldMessenger.of(context).clearSnackBars();
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text('▶️ PRÉ-VISUALIZAÇÃO: "${b['label']}" ➔ Ação [$cmd]'),
-                                                    duration: const Duration(milliseconds: 1400),
-                                                    backgroundColor: const Color(0xFF0E7490),
-                                                    behavior: SnackBarBehavior.floating,
-                                                  ),
-                                                );
-                                              } else {
-                                                _executeKeyAction(realIndex, b);
-                                              }
-                                            },
-
-                                            onDoubleTap: () => _editKeyModal(realIndex),
-                                            child: Stack(
-                                              children: [
-                                                _buildSingleGlassDeckKey(realIndex, b),
-                                                if (_editMode)
-                                                  const Positioned(
-                                                    top: 6,
-                                                    left: 6,
-                                                    child: Icon(Icons.edit, size: 15, color: Colors.amberAccent),
-                                                  ),
-                                              ],
-                                            ),
-                                          );
-
-                                          return LongPressDraggable<int>(
-                                            data: realIndex,
-                                            feedback: SizedBox(
-                                              width: tileW,
-                                              height: tileH,
-                                              child: Opacity(opacity: 0.85, child: _buildSingleGlassDeckKey(realIndex, b)),
-                                            ),
-                                            childWhenDragging: Opacity(opacity: 0.3, child: keyWidget),
-                                            child: keyWidget,
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+              child: PageView.builder(
+                controller: _pageCtrl,
+                onPageChanged: (p) => setState(() => _currentPage = p),
+                itemCount: pageCount,
+                itemBuilder: (context, pageIndex) {
+                  final start = pageIndex * totalPerPage;
+                  final end = (start + totalPerPage).clamp(0, _buttons.length);
+                  final pageButtons = _buttons.sublist(start, end);
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: pageButtons.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: _cols, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                      itemBuilder: (ctx, idx) {
+                        final realIndex = start + idx;
+                        final b = _buttons[realIndex];
+                        return GestureDetector(
+                          onTap: () => _editMode ? _openProKeyEditorModal(realIndex) : _executeKeyAction(realIndex, b),
+                          onLongPress: () => _openProKeyEditorModal(realIndex),
+                          child: _buildSingleGlassDeckKey(realIndex, b),
+                        );
+                      },
                     ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -1296,248 +456,15 @@ bool _testMode = false;
   }
 }
 
-
-class CommunityGlobeScreen extends StatefulWidget {
-  final String serverUrl;
-  final bool isOwner;
-  const CommunityGlobeScreen({super.key, required this.serverUrl, this.isOwner = false});
-
-  @override
-  State<CommunityGlobeScreen> createState() => _CommunityGlobeScreenState();
-}
-
-class _CommunityGlobeScreenState extends State<CommunityGlobeScreen> with SingleTickerProviderStateMixin {
-
-  late AnimationController _globeCtrl;
-  double _manualDragOffset = 0.0;
-  bool _requireFollowAppSocials = false;
-  final List<Map<String, String>> _appOfficialSocials = [
-    {'platform': 'TikTok Oficial', 'handle': '@hellcreatoros', 'url': 'https://tiktok.com'},
-    {'platform': 'Instagram Oficial', 'handle': '@hellcreatoros', 'url': 'https://instagram.com'},
-    {'platform': 'Discord Oficial', 'handle': 'HELL CREATOR OS Community', 'url': 'https://discord.com'},
-  ];
-
-  final List<Map<String, String>> _globalCreators = [
-    {'user': '@HellGamer2026', 'country': 'Portugal · Lisboa', 'platform': 'TikTok LIVE', 'viewers': '1.4K', 'url': 'https://tiktok.com'},
-    {'user': '@SofiaStreamPT', 'country': 'Portugal · Porto', 'platform': 'Twitch', 'viewers': '820', 'url': 'https://twitch.tv'},
-    {'user': '@KikoArena', 'country': 'Brasil · São Paulo', 'platform': 'Kick', 'viewers': '2.1K', 'url': 'https://kick.com'},
-    {'user': '@LukaCyber', 'country': 'Espanha · Madrid', 'platform': 'YouTube LIVE', 'viewers': '960', 'url': 'https://youtube.com'},
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _globeCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 32))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _globeCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        GestureDetector(
-          onHorizontalDragUpdate: (d) => setState(() => _manualDragOffset += d.delta.dx * 0.012),
-          child: Container(
-            height: 310,
-            decoration: BoxDecoration(
-              gradient: const RadialGradient(
-                center: Alignment(-0.2, -0.2),
-                radius: 1.1,
-                colors: [Color(0xFF0A1D42), Color(0xFF020612), Color(0xFF000208)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedBuilder(
-                  animation: _globeCtrl,
-                  builder: (_, __) {
-                    final angle = (_globeCtrl.value * 2 * pi) + _manualDragOffset;
-                    final shiftX = ((angle % (2 * pi)) / (2 * pi)) * 520.0;
-                    return Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.45), blurRadius: 28, spreadRadius: 4),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: -shiftX,
-                              top: 0,
-                              bottom: 0,
-                              width: 1040,
-                              child: Row(
-                                children: [
-                                  Image.network(
-                                    'https://wikimedia.org',
-                                    width: 520,
-                                    height: 220,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0F296E)),
-                                  ),
-                                  Image.network(
-                                    'https://wikimedia.org',
-                                    width: 520,
-                                    height: 220,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0F296E)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  center: const Alignment(-0.35, -0.35),
-                                  radius: 1.05,
-                                  colors: [
-                                    Colors.white.withOpacity(0.16),
-                                    Colors.transparent,
-                                    Colors.black.withOpacity(0.85),
-                                  ],
-                                  stops: const [0.0, 0.55, 1.0],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const Positioned(
-                  top: 12,
-                  child: Text('🛰️ GLOBO TERRESTRE 3D REAL · ARRASTA PARA RODAR', style: TextStyle(fontSize: 10.5, letterSpacing: 1.4, color: Color(0xFF7DD3FC), fontWeight: FontWeight.bold)),
-                ),
-                const Positioned(
-                  bottom: 12,
-                  child: Text('🌍 COMUNIDADE GLOBAL HELL CREATOR OS', style: TextStyle(fontSize: 11.5, letterSpacing: 1.8, color: Colors.white, fontWeight: FontWeight.w900)),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF122E73), Color(0xFF08112B)]),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF38BDF8), width: 1.4),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.verified, color: Color(0xFF38BDF8)),
-                  SizedBox(width: 8),
-                  Text('👑 Criador & Fundador em Destaque', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Color(0xFF38BDF8))),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Olá! Sou o criador do HELL CREATOR OS. Construí este ecossistema para ajudar todos os streamers e gamers a terem controlo total com pouco equipamento. Acompanha as minhas lives e junta-te à nossa família!',
-                style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: _appOfficialSocials.map((soc) => OutlinedButton.icon(
-                  onPressed: () async {
-                    final uri = Uri.tryParse(soc['url']!);
-                    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  },
-                  icon: const Icon(Icons.open_in_new, size: 14, color: Color(0xFF38BDF8)),
-                  label: Text('${soc['platform']} (${soc['handle']})', style: const TextStyle(fontSize: 11.5, color: Colors.white)),
-                )).toList(),
-              ),
-              if (widget.isOwner) ...[
-                const Divider(color: Colors.white12),
-                SwitchListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('👑 Controlo Dono: Exigir seguir redes da app antes do chat', style: TextStyle(fontSize: 12, color: Colors.amberAccent)),
-                  value: _requireFollowAppSocials,
-                  onChanged: (v) => setState(() => _requireFollowAppSocials = v),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text('🔴 Criadores em Direto pelo Mundo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        const SizedBox(height: 8),
-        ..._globalCreators.map((s) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF1E429F)),
-              ),
-              child: ListTile(
-                leading: const CircleAvatar(backgroundColor: Color(0xFF1E78FF), child: Icon(Icons.public, color: Colors.white)),
-                title: Text(s['user']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${s['country']} · ${s['platform']} (${s['viewers']} a assistir)', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                  onPressed: () async {
-                                        final uri = Uri.tryParse(s['url']!);
-                    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  },
-                  child: const Text('Assistir', style: TextStyle(color: Colors.white, fontSize: 12)),
-                ),
-              ),
-            )),
-      ],
-    );
-  }
-}
-
 class MarketplaceState {
-  static final List<Map<String, dynamic>> items = [
-    {
-      'id': 'mp_1',
-      'title': 'Pack Overlays Néon Cyber 3D',
-      'creator': '@TugaStream',
-      'category': 'Overlays 3D',
-      'netPrice': 0.0,
-      'desc': 'Moldura de câmara + barra de metas transparente para OBS e TikTok Live Studio.',
-      'owned': true,
-    },
-    {
-      'id': 'mp_2',
-      'title': 'Plugin Auto-Clip & Highlight Detector',
-      'creator': '@HELLDev',
-      'category': 'Plugins & API',
-      'netPrice': 5.0,
-      'desc': 'Extensão oficial que marca picos de chat e guarda clips automáticos.',
-      'owned': false,
-    },
-    {
-      'id': 'mp_3',
-      'title': 'Pack 15 Sons Épicos + Stickers 3D',
-      'creator': '@KikoGamer',
-      'category': 'Sons & GIFs',
-      'netPrice': 10.0,
-      'desc': 'Efeitos sonoros masterizados em MP3 e ícones 3D para alertas de presentes.',
-      'owned': false,
-    },
+  static final List<Map<String, dynamic>> studioPacks = <Map<String, dynamic>>[
+    {'id': 'mp_1', 'title': 'Pack Overlays Néon Cyber 3D + Webcam HUD', 'creator': '@HELLCreator', 'category': 'Overlays & Webcam', 'price': 0.0, 'desc': 'Moldura webcam + barra de metas transparente.', 'owned': true},
+    {'id': 'mp_2', 'title': 'Pack 25 Efeitos Sonoros & Alertas Épicos', 'creator': '@SofiaLive (VIP)', 'category': 'Sons & Áudio', 'price': 4.99, 'desc': 'Efeitos masterizados prontos a usar.', 'owned': false},
+  ];
+
+  static final List<Map<String, dynamic>> vipMerchProducts = <Map<String, dynamic>>[
+    {'title': 'T-Shirt Oficial HELL CREATOR', 'seller': '@HELLCreator (VIP)', 'price': 24.90, 'desc': 'Algodão orgânico preto com emblema H Azul Néon.', 'url': 'https://hellcreator.app'},
+    {'title': 'Caneca Térmica Streamer Pro', 'seller': '@SofiaLive (VIP)', 'price': 14.50, 'desc': 'Caneca preta fosca para lives.', 'url': 'https://hellcreator.app'},
   ];
 }
 
@@ -1550,173 +477,185 @@ class MarketplacePublicScreen extends StatefulWidget {
 }
 
 class _MarketplacePublicScreenState extends State<MarketplacePublicScreen> {
-  String _filter = 'Todos';
+  String _billingCycle = 'Mensal';
+  bool _isVipUnlocked = false;
+  final TextEditingController _packTitleCtrl = TextEditingController();
+  final TextEditingController _packPriceCtrl = TextEditingController(text: '5.00');
+  final TextEditingController _merchTitleCtrl = TextEditingController();
+  final TextEditingController _merchPriceCtrl = TextEditingController(text: '19.90');
+
+  @override
+  void dispose() {
+    _packTitleCtrl.dispose();
+    _packPriceCtrl.dispose();
+    _merchTitleCtrl.dispose();
+    _merchPriceCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final visible = MarketplaceState.items.where((it) {
-      if (_filter == 'Grátis') return (it['netPrice'] as double) == 0.0;
-      if (_filter == 'PRO') return (it['netPrice'] as double) > 0.0;
-      return true;
-    }).toList();
+    final bool vipActive = widget.hasFreeOwnerOrStaffAccess || _isVipUnlocked;
+    final vipPrice = _billingCycle == '6 Meses' ? '49,99 € / 6 meses' : (_billingCycle == 'Anual' ? '89,99 € / ano' : '9,99 € / mês');
+    final agencyPrice = _billingCycle == '6 Meses' ? '199,99 € / 6 meses' : (_billingCycle == 'Anual' ? '349,99 € / ano' : '39,99 € / mês');
 
-    final plans = [
-      {'name': 'HELL STARTER', 'price': '0 € / mês', 'desc': 'Ferramentas essenciais, Dashboard básico e alertas iniciais.'},
-      {'name': 'HELL CREATOR PRO', 'price': '9,99 € / mês', 'desc': 'Chat avançado, HELL VOICE personalizado, automações e estatísticas.'},
-      {'name': 'HELL CREATOR ELITE', 'price': '19,99 € / mês', 'desc': 'IA avançada, Fábrica de Conteúdos, Analytics avançados e ferramentas de comunidade.'},
-      {'name': 'HELL AGENCY / STUDIO', 'price': '49,99 € / mês', 'desc': 'Vários criadores, gestão de equipa, permissões, relatórios e dashboard de agência.'},
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        // CATEGORIA 1: MARKET PLACE (OVERLAYS, PLUGINS & PACKS)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF142A66), Color(0xFF0A1433)]),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55)),
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            indicatorColor: Color(0xFF38BDF8),
+            tabs: [Tab(text: '🛒 Overlays & Sons'), Tab(text: '👕 Loja Merch VIP'), Tab(text: '👑 VIP & Agências'), Tab(text: '📢 Espaço Publicitário')],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.storefront_rounded, color: Color(0xFF38BDF8), size: 22),
-                  SizedBox(width: 8),
-                  Text('1. MARKET PLACE · RECURSOS DE ESTÚDIO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: ['Todos', 'Grátis', 'PRO'].map((f) => ChoiceChip(
-                      label: Text(f),
-                      selected: _filter == f,
-                      selectedColor: const Color(0xFF1E78FF),
-                      onSelected: (_) => setState(() => _filter = f),
-                    )).toList(),
-              ),
-              const SizedBox(height: 10),
-              ...visible.map((item) {
-                final double net = (item['netPrice'] as num).toDouble();
-                final double consumerPrice = widget.hasFreeOwnerOrStaffAccess ? 0.0 : (net == 0.0 ? 0.0 : net * 1.30);
-                final bool owned = item['owned'] == true || widget.hasFreeOwnerOrStaffAccess;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF04091A),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF1E429F)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5))),
-                          Text(consumerPrice == 0.0 ? 'GRÁTIS' : '${consumerPrice.toStringAsFixed(2)} €', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent)),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text('Por ${item['creator']} · ${item['category']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
-                      const SizedBox(height: 4),
-                      Text(item['desc'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
+          Expanded(
+            child: TabBarView(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'ESTÚDIO DE CRIAÇÃO VIP · VENDER PACKS (APP RETÉM 30%)',
+                      icon: Icons.design_services_rounded,
+                      accent: const Color(0xFFA855F7),
+                      badge: vipActive ? 'DESBLOQUEADO' : 'EXCLUSIVO VIP',
+                      child: vipActive
+                          ? Column(
+                              children: [
+                                TextField(controller: _packTitleCtrl, decoration: const InputDecoration(labelText: 'Nome do Overlay / Pack', isDense: true)),
+                                const SizedBox(height: 6),
+                                TextField(controller: _packPriceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Preço (€) - App retém 30%', isDense: true)),
+                                const SizedBox(height: 8),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (_packTitleCtrl.text.trim().isNotEmpty) {
+                                      setState(() {
+                                        MarketplaceState.studioPacks.insert(0, {
+                                          'id': 'mp_${DateTime.now().millisecondsSinceEpoch}',
+                                          'title': _packTitleCtrl.text.trim(),
+                                          'creator': '@Tu (VIP)',
+                                          'category': 'Overlays & Sons',
+                                          'price': double.tryParse(_packPriceCtrl.text.replaceAll(',', '.')) ?? 5.0,
+                                          'desc': 'Comissão plataforma 30% aplicada.',
+                                          'owned': true,
+                                        });
+                                        _packTitleCtrl.clear();
+                                      });
+                                    }
+                                  },
+                                  child: const Text('Publicar na Loja'),
+                                ),
+                              ],
+                            )
+                          : const Text('A app base é gratuita! Assina o plano VIP para criar e vender overlays e sons na loja (70% para ti / 30% app).'),
+                    ),
+                    const SizedBox(height: 10),
+                    ...MarketplaceState.studioPacks.map((item) => Card(
+                          color: const Color(0xFF0B1636),
+                          child: ListTile(
+                            title: Text(item['title']),
+                            subtitle: Text('${item['creator']} · ${item['desc']}'),
+                            trailing: Text((item['price'] as num) == 0 ? 'GRÁTIS' : '${(item['price'] as num).toStringAsFixed(2)} €', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                          ),
+                        )),
+                  ],
+                ),
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    if (vipActive) ...[
+                      TextField(controller: _merchTitleCtrl, decoration: const InputDecoration(labelText: 'Nome do Produto (Camisola, Caneca...)', isDense: true)),
+                      const SizedBox(height: 6),
+                      TextField(controller: _merchPriceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Preço (€)', isDense: true)),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: owned ? Colors.green : const Color(0xFF1E78FF)),
-                          onPressed: () => setState(() => item['owned'] = true),
-                          child: Text(owned ? '✓ Ativo na Conta' : 'Transferir / Adquirir', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (_merchTitleCtrl.text.trim().isNotEmpty) {
+                            setState(() {
+                              MarketplaceState.vipMerchProducts.insert(0, {
+                                'title': _merchTitleCtrl.text.trim(),
+                                'seller': '@Tu (VIP)',
+                                'price': double.tryParse(_merchPriceCtrl.text.replaceAll(',', '.')) ?? 19.90,
+                                'desc': 'Artigo oficial dentro das normas de segurança.',
+                                'url': 'https://hellcreator.app',
+                              });
+                              _merchTitleCtrl.clear();
+                            });
+                          }
+                        },
+                        child: const Text('Adicionar à Minha Loja VIP'),
                       ),
                     ],
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // CATEGORIA 2: PLUGINS, API & WHITE LABEL
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1636),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFA855F7).withOpacity(0.55)),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.extension_rounded, color: Color(0xFFA855F7), size: 22),
-                  SizedBox(width: 8),
-                  Text('2. PLUGINS, API & WHITE LABEL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFA855F7))),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text('• Plugins de terceiros com permissões controladas e regras claras de segurança.\n• Extensões de alertas, áudio, vídeo e ferramentas de comunidade.\n• API oficial para programadores e soluções White Label para agências.', style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.45)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // CATEGORIA 3: PLANOS & SUBSCRIÇÕES
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1636),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.55)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.workspace_premium_rounded, color: Color(0xFFF59E0B), size: 22),
-                  SizedBox(width: 8),
-                  Text('3. PLANOS & SUBSCRIÇÕES', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFF59E0B))),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (widget.hasFreeOwnerOrStaffAccess)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent)),
-                  child: const Text('✓ Acesso Livre Total Ativo (Conta Dono / Equipa STAFF)', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ...MarketplaceState.vipMerchProducts.map((prod) => Card(
+                          color: const Color(0xFF0B1636),
+                          child: ListTile(
+                            title: Text(prod['title']),
+                            subtitle: Text('${prod['seller']} · ${prod['desc']}'),
+                            trailing: Text('${(prod['price'] as num).toStringAsFixed(2)} €', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                            onTap: () => launchUrl(Uri.parse(prod['url']), mode: LaunchMode.externalApplication),
+                          ),
+                        )),
+                  ],
                 ),
-              ...plans.map((p) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF1E429F))),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(p['name']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
-                            Text(widget.hasFreeOwnerOrStaffAccess ? '0,00 € (Livre)' : p['price']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(p['desc']!, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                      ],
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      children: <String>['Mensal', '6 Meses', 'Anual']
+                          .map((c) => ChoiceChip(label: Text(c), selected: _billingCycle == c, onSelected: (_) => setState(() => _billingCycle = c)))
+                          .toList(),
                     ),
-                  )),
-            ],
+                    const SizedBox(height: 10),
+                    HellCockpitWindow(
+                      title: 'HELL VIP CRIADOR · $vipPrice',
+                      icon: Icons.verified_rounded,
+                      accent: const Color(0xFF38BDF8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• Símbolo VIP verificado no nome + Prioridade de destaque na Comunidade\n• Estúdio de criação de overlays/sons + Loja Pessoal Merch'),
+                          const SizedBox(height: 8),
+                          ElevatedButton(onPressed: () => setState(() => _isVipUnlocked = true), child: Text(vipActive ? '✓ VIP Ativo' : 'Ativar VIP')),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    HellCockpitWindow(
+                      title: 'HELL AGÊNCIAS · $agencyPrice',
+                      icon: Icons.apartment_rounded,
+                      accent: const Color(0xFFA855F7),
+                      child: const Text('Gestão e supervisão multi-criador para agências e equipas profissionais.'),
+                    ),
+                  ],
+                ),
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    HellCockpitWindow(
+                      title: 'PUBLICIDADE NO RODAPÉ DA APP',
+                      icon: Icons.campaign_rounded,
+                      accent: const Color(0xFF10B981),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('• Starter Banner: 19,90 € / mês\n• Pro Destaque: 49,90 € / mês\n• Patrocinador Oficial: 129,90 € / mês'),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () => launchUrl(Uri.parse('mailto:hellcreatoros@gmail.com')),
+                            child: const Text('Comprar Espaço Publicitário'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
