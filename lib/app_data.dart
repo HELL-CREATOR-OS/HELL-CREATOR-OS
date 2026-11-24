@@ -7,6 +7,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:http/http.dart' as http;
 
 class AppTranslations {
+    static List<String> get voiceCloneScript2Min => ['Olá! Bem-vindo ao HELL CREATOR!'];
+
   static String t(String lang, String key) {
     final map = {
       'pt': {
