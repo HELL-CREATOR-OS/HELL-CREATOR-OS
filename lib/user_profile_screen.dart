@@ -997,7 +997,7 @@ class StructuredProfileStorage {
       ),
     ]);
   }
-  // ABA 3: SEGURANÇA / PRIVACIDADE UNIDOS
+   // ABA 3: SEGURANÇA / PRIVACIDADE UNIDOS
   Widget _secSegurancaEPrivacidade() {
     final twoFactor = _u['twoFactorEnabled'] == true;
     final secret = (_u['totpSecret'] ?? '').toString();
@@ -1006,22 +1006,24 @@ class StructuredProfileStorage {
     final chgHist = List<Map<String, dynamic>>.from((_u['changeHistory'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
     final p = Map<String, dynamic>.from(_u['privacy'] as Map? ?? {});
 
-    Widget drop(String label, String key, List<String> opts) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: DropdownButtonFormField<String>(
-            value: opts.contains(p[key]) ? p[key].toString() : opts.first,
-            dropdownColor: const Color(0xFF0B1636),
-            decoration: InputDecoration(labelText: label, isDense: true),
-            items: opts.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
-            onChanged: (v) async {
-              if (v != null) {
-                p[key] = v;
-                _u['privacy'] = p;
-                await _save();
-              }
-            },
-          ),
-        );
+    Widget drop(String label, String key, List<String> opts) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: DropdownButtonFormField<String>(
+          value: opts.contains(p[key]) ? p[key].toString() : opts.first,
+          dropdownColor: const Color(0xFF0B1636),
+          decoration: InputDecoration(labelText: label, isDense: true),
+          items: opts.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          onChanged: (v) async {
+            if (v != null) {
+              p[key] = v;
+              _u['privacy'] = p;
+              await _save();
+            }
+          },
+        ),
+      );
+    }
 
     return ListView(padding: const EdgeInsets.all(16), children: [
       const Text('Segurança da Conta', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
@@ -1032,7 +1034,8 @@ class StructuredProfileStorage {
         subtitle: const Text('Protegida por hash criptográfico • Nunca exibida'),
         onTap: () async {
           if (!await _authAction('Alterar Palavra-passe') || !mounted) return;
-          final c1 = TextEditingController(), c2 = TextEditingController();
+          final c1 = TextEditingController();
+          final c2 = TextEditingController();
           await showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -1143,6 +1146,7 @@ class StructuredProfileStorage {
       ),
     ]);
   }
+
   // ABA 4: GESTÃO DE CONTA (PREFERÊNCIAS + SESSÕES POR DISPOSITIVO / TODOS + LOGOUT + RGPD)
   Widget _secGestaoContaCompleto() {
     final pr = Map<String, dynamic>.from(_u['preferences'] as Map? ?? {});
