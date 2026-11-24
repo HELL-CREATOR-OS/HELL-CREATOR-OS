@@ -162,7 +162,8 @@ class OnlineMediaRepository {
     final searchCtrl = TextEditingController(
       text: initialTab == 'sounds' ? 'applause' : (initialTab == 'gifs' ? 'celebration' : 'crown neon'),
     );
-    List<Map<String, String>> results = [];
+        List<Map<String, String>> results = List<Map<String, String>>.empty(growable: true);
+
     bool loading = true;
     bool initialized = false;
 
