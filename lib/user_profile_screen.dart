@@ -955,8 +955,8 @@ class StructuredProfileStorage {
           },
           child: const Text('Enviar Confirmação'),
         ),
-        if (_pendingToken != null) ...[
-          const SizedBox(width: 8),
+                if (_pendingToken != null) const SizedBox(width: 8),
+        if (_pendingToken != null)
           ElevatedButton(
             onPressed: () async {
               if (!await UserAccountManager.checkFirebaseEmailVerified(_pendingToken!)) {
@@ -974,7 +974,7 @@ class StructuredProfileStorage {
             },
             child: const Text('Confirmar Link'),
           ),
-        ],
+
       ]),
       const SizedBox(height: 12),
       TextField(controller: _recEmailCtrl, decoration: const InputDecoration(labelText: 'E-mail de Recuperação', isDense: true)),
