@@ -755,7 +755,8 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              const Text(DefaultMediaLibrary.voiceCloneScript2Min, style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
+              const Text('Olá! Bem-vindo ao HELL CREATOR! Esta é a nossa amostra de clonagem neural de voz.', style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
+
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
