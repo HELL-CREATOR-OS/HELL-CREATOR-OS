@@ -770,3 +770,53 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
     );
   }
 }
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 6,
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF08122E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45)),
+            ),
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicator: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF38BDF8)]),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white60,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5),
+              tabs: const [
+                Tab(text: '✨ Biblioteca Overlays HDR'),
+                Tab(text: '🎁 Presentes'),
+                Tab(text: '🔔 Alertas Padrão'),
+                Tab(text: '💶 Doações'),
+                Tab(text: '🎯 Metas & Desafios'),
+                Tab(text: '⚡ Regras & Histórico'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildOverlaysLibraryTab(),
+                _buildGiftsTab(),
+                _buildAlertsTab(),
+                _buildDonationsTab(),
+                _buildGoalsTab(),
+                _buildRulesTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
