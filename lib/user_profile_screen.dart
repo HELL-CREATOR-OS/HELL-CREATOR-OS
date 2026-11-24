@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'account_security.dart';
 
 class CloudFirestoreSync {
@@ -335,143 +336,214 @@ class StructuredProfileStorage {
   }
 }
 
-class UserProfileScreen extends StatefulWidget {
-  final Map<String, dynamic> user;
-  final Function(Map<String, dynamic>) onUserUpdated;
-  final VoidCallback onAccountDeletedOrSuspended;
+  Future<void> _openPartnerDialog({int? editIndex}) async {
+    final partners = List<Map<String, dynamic>>.from((_u['partnersList'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+    final isEdit = editIndex != null;
+    final current = isEdit ? partners[editIndex] : <String, dynamic>{};
 
-  const UserProfileScreen({
-    super.key,
-    required this.user,
-    required this.onUserUpdated,
-    required this.onAccountDeletedOrSuspended,
-  });
-
-  @override
-  State<UserProfileScreen> createState() => _UserProfileScreenState();
-}
-
-class _UserProfileScreenState extends State<UserProfileScreen> with TickerProviderStateMixin {
-  late Map<String, dynamic> _u;
-  late TabController _tabs;
-  late AnimationController _coverAnimCtrl;
-  Timer? _carouselTimer;
-  int _carouselIndex = 0;
-
-  late TextEditingController _dispCtrl, _userCtrl, _bioCtrl, _locCtrl;
-  late TextEditingController _fnCtrl, _lnCtrl, _pronCtrl, _cityCtrl, _zipCtrl, _addrCtrl;
-  late TextEditingController _newEmailCtrl, _recEmailCtrl, _phoneCtrl, _bizCtrl;
-  String? _pendingToken, _pendingEmail;
-
-  final List<String> _titles = const [
-    'Meu Perfil', 'Info Pessoais', 'Redes Sociais', 'Contactos',
-    'Segurança', 'Privacidade', 'Preferências', 'Sessões', 'Gestão de Conta',
-  ];
-  @override
-  void initState() {
-    super.initState();
-    _u = ProfileManager.ensureAccountStructure(widget.user);
-    _tabs = TabController(length: _titles.length, vsync: this);
-    _coverAnimCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat(reverse: true);
-    _startPromoCarousel();
-
-    _dispCtrl = TextEditingController(text: (_u['displayName'] ?? '').toString());
-    _userCtrl = TextEditingController(text: (_u['username'] ?? '').toString());
-    _bioCtrl = TextEditingController(text: (_u['bio'] ?? '').toString());
-    _locCtrl = TextEditingController(text: (_u['publicLocation'] ?? '').toString());
-    _fnCtrl = TextEditingController(text: (_u['firstName'] ?? '').toString());
-    _lnCtrl = TextEditingController(text: (_u['lastName'] ?? '').toString());
-    _pronCtrl = TextEditingController(text: (_u['pronouns'] ?? '').toString());
-    _cityCtrl = TextEditingController(text: (_u['city'] ?? '').toString());
-    _zipCtrl = TextEditingController(text: (_u['postalCode'] ?? '').toString());
-    _addrCtrl = TextEditingController(text: (_u['address'] ?? '').toString());
-    _newEmailCtrl = TextEditingController();
-    _recEmailCtrl = TextEditingController(text: (_u['recoveryEmail'] ?? '').toString());
-    _phoneCtrl = TextEditingController(text: (_u['phone'] ?? '').toString());
-    _bizCtrl = TextEditingController(text: (_u['businessContact'] ?? '').toString());
-  }
-
-  void _startPromoCarousel() {
-    _carouselTimer?.cancel();
-    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      final slides = (_u['bannerSlides'] as List? ?? []);
-      if (mounted && _u['bannerPromoMode'] == 'carousel' && slides.length > 1) {
-        setState(() => _carouselIndex = (_carouselIndex + 1) % slides.length);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _carouselTimer?.cancel();
-    _coverAnimCtrl.dispose();
-    _tabs.dispose();
-    super.dispose();
-  }
-
-  void _msg(String t, {bool err = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(t),
-      backgroundColor: err ? const Color(0xFFB91C1C) : const Color(0xFF0F766E),
-    ));
-  }
-
-  Future<void> _save([String? customMsg]) async {
-    await StructuredProfileStorage.saveAndSync(_u, widget.onUserUpdated);
-    if (mounted) {
-      setState(() {});
-      _msg(customMsg ?? 'As informações foram atualizadas com sucesso.');
-    }
-  }
-
-  Future<bool> _authAction(String title) async {
-    final c = TextEditingController();
-    bool ok = false;
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0B1636),
-        title: Text('Confirmar Identidade • $title', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
-        content: TextField(controller: c, obscureText: true, decoration: const InputDecoration(labelText: 'Palavra-passe atual', isDense: true)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () {
-              final e = c.text.trim();
-              if (e.isNotEmpty && (e == (_u['passwordSecret'] ?? '').toString() || ProfileManager.hashPass(e, (_u['internalAccountId'] ?? '').toString()) == _u['passwordHash'])) {
-                ok = true;
-                Navigator.pop(ctx);
-              } else {
-                _msg('Palavra-passe incorreta.', err: true);
-              }
-            },
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
-    );
-    return ok;
-  }
-
-  Future<void> _openCoverStudio() async {
-    String mode = (_u['coverMode'] ?? 'default').toString();
-    int colorVal = (_u['coverColor'] is int) ? _u['coverColor'] as int : 0xFF0B1636;
-    String animStyle = (_u['coverAnimStyle'] ?? 'neon_wave').toString();
-    String promoMode = (_u['bannerPromoMode'] ?? 'off').toString();
-    final slides = List<Map<String, dynamic>>.from((_u['bannerSlides'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
-    final palette = [0xFF0B1636, 0xFF1E1B4B, 0xFF3B0764, 0xFF450A0A, 0xFF064E3B, 0xFF0C4A6E, 0xFF18181B];
+    final brandCtrl = TextEditingController(text: (current['brand'] ?? '').toString());
+    final codeCtrl = TextEditingController(text: (current['code'] ?? '').toString());
+    final urlCtrl = TextEditingController(text: (current['url'] ?? '').toString());
+    final imgUrlCtrl = TextEditingController(text: (current['imageUrl'] ?? '').toString());
+    String localImgPath = (current['imagePath'] ?? '').toString();
+    bool isVisible = current['visible'] != false;
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setM) => AlertDialog(
           backgroundColor: const Color(0xFF0B1636),
-          title: const Text('Personalizar Capa & Publicidade', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15, fontWeight: FontWeight.bold)),
+          title: Text(isEdit ? 'Editar Publicidade / Parceria' : 'Nova Publicidade / Parceria', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 15, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: brandCtrl, decoration: const InputDecoration(labelText: 'Nome da Marca / Patrocinador', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Código Promocional (ex: HELL10)', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: 'Página Oficial (URL https://...)', isDense: true)),
+              const SizedBox(height: 8),
+              TextField(controller: imgUrlCtrl, decoration: const InputDecoration(labelText: 'Link da Imagem / Logo (Opcional)', isDense: true)),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
+                  if (r?.files.single.path != null) {
+                    setM(() => localImgPath = r!.files.single.path!);
+                  }
+                },
+                icon: const Icon(Icons.image_outlined, size: 16),
+                label: Text(localImgPath.isEmpty ? 'Ou carregar Imagem do Dispositivo' : 'Imagem carregada ✓', style: const TextStyle(fontSize: 12)),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Exibir no meu perfil público', style: TextStyle(fontSize: 12.5)),
+                value: isVisible,
+                onChanged: (v) => setM(() => isVisible = v),
+              ),
+            ]),
+          ),
+          actions: [
+            if (isEdit)
+              TextButton(
+                onPressed: () {
+                  partners.removeAt(editIndex);
+                  _u['partnersList'] = partners;
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
+              ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () {
+                if (brandCtrl.text.trim().isNotEmpty) {
+                  String cleanUrl = urlCtrl.text.trim();
+                  if (cleanUrl.isNotEmpty && !cleanUrl.startsWith('http')) {
+                    cleanUrl = 'https://$cleanUrl';
+                  }
+                  final item = <String, dynamic>{
+                    'brand': brandCtrl.text.trim(),
+                    'code': codeCtrl.text.trim(),
+                    'url': cleanUrl.isEmpty ? 'https://hellcreator.app' : cleanUrl,
+                    'imageUrl': imgUrlCtrl.text.trim(),
+                    'imagePath': localImgPath,
+                    'visible': isVisible,
+                  };
+                  if (isEdit) {
+                    partners[editIndex] = item;
+                  } else {
+                    partners.insert(0, item);
+                  }
+                  _u['partnersList'] = partners;
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await _save('Vitrine de Publicidades & Parcerias atualizada!');
+  }
+
+  Widget _buildPartnersShowcaseCard() {
+    final showBox = _u['showPartnersShowcase'] != false;
+    final partners = List<Map<String, dynamic>>.from((_u['partnersList'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF13275E), Color(0xFF0A1433)]),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.handshake_rounded, color: Color(0xFF38BDF8), size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('PUBLICIDADES & PARCERIAS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
+              ),
+              TextButton.icon(
+                onPressed: () => _openPartnerDialog(),
+                icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.greenAccent),
+                label: const Text('Adicionar', style: TextStyle(fontSize: 11.5, color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+              ),
+              Switch(
+                activeColor: const Color(0xFF38BDF8),
+                value: showBox,
+                onChanged: (v) async {
+                  _u['showPartnersShowcase'] = v;
+                  await _save(v ? 'Vitrine visível no perfil.' : 'Vitrine ocultada.');
+                },
+              ),
+            ],
+          ),
+          if (!showBox)
+            const Text('Vitrine oculta neste momento (ativa o interruptor acima para exibir aos visitantes).', style: TextStyle(fontSize: 11.5, color: Colors.white60))
+          else if (partners.isEmpty)
+            const Text('Ainda sem parcerias adicionadas. Toca em "Adicionar" para expor marcas, imagens, códigos e links oficiais.', style: TextStyle(fontSize: 12, color: Colors.white70))
+          else
+            ...partners.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final p = entry.value;
+              final brand = (p['brand'] ?? '').toString();
+              final code = (p['code'] ?? '').toString();
+              final url = (p['url'] ?? '').toString();
+              final imgPath = (p['imagePath'] ?? '').toString();
+              final imgUrl = (p['imageUrl'] ?? '').toString();
+              final visible = p['visible'] != false;
+
+              Widget thumb = const CircleAvatar(backgroundColor: Color(0xFF1E78FF), child: Icon(Icons.storefront_rounded, color: Colors.white));
+              if (imgPath.isNotEmpty && File(imgPath).existsSync()) {
+                thumb = ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(imgPath), width: 48, height: 48, fit: BoxFit.cover));
+              } else if (imgUrl.startsWith('http')) {
+                thumb = ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(imgUrl, width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (_, __, ___) => thumb));
+              }
+
+              return Opacity(
+                opacity: visible ? 1.0 : 0.45,
+                child: Card(
+                  color: const Color(0xFF04091A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.45))),
+                  child: ListTile(
+                    leading: thumb,
+                    title: Text(brand, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                    subtitle: Text(
+                      code.isNotEmpty ? 'Código: $code · Toca para abrir página oficial' : 'Toca para abrir página oficial',
+                      style: const TextStyle(fontSize: 11, color: Colors.amberAccent),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (code.isNotEmpty)
+                          IconButton(
+                            tooltip: 'Copiar Código',
+                            icon: const Icon(Icons.copy_rounded, size: 17, color: Colors.greenAccent),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: code));
+                              _msg('Código "$code" copiado!');
+                            },
+                          ),
+                        IconButton(
+                          tooltip: 'Editar Parceria',
+                          icon: const Icon(Icons.edit_outlined, size: 17, color: Colors.white70),
+                          onPressed: () => _openPartnerDialog(editIndex: idx),
+                        ),
+                        const Icon(Icons.open_in_new_rounded, size: 17, color: Color(0xFF38BDF8)),
+                      ],
+                    ),
+                    onTap: () {
+                      if (url.startsWith('http')) {
+                        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      }
+                    },
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+  Future<void> _openCoverStudio() async {
+    String mode = (_u['coverMode'] ?? 'default').toString();
+    int colorVal = (_u['coverColor'] is int) ? _u['coverColor'] as int : 0xFF0B1636;
+    String animStyle = (_u['coverAnimStyle'] ?? 'neon_wave').toString();
+    final palette = <int>[0xFF0B1636, 0xFF1E1B4B, 0xFF3B0764, 0xFF450A0A, 0xFF064E3B, 0xFF0C4A6E, 0xFF18181B];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setM) => AlertDialog(
+          backgroundColor: const Color(0xFF0B1636),
+          title: const Text('Personalizar Capa', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Fundo da Capa:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.white70)),
-              const SizedBox(height: 8),
               Wrap(spacing: 6, runSpacing: 6, children: [
                 ElevatedButton.icon(
                   onPressed: () async {
@@ -495,12 +567,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                     mode = 'default';
                     _u['coverPath'] = '';
                   }),
-                  child: const Text('Repor Original / Remover', style: TextStyle(fontSize: 11.5)),
+                  child: const Text('Repor Original', style: TextStyle(fontSize: 11.5)),
                 ),
               ]),
               const SizedBox(height: 10),
-              const Text('Ou escolher Cor Sólida:', style: TextStyle(fontSize: 12, color: Colors.white60)),
-              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 children: palette.map((c) => GestureDetector(
@@ -508,15 +578,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                     mode = 'color';
                     colorVal = c;
                   }),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Color(c),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: (mode == 'color' && colorVal == c) ? const Color(0xFF38BDF8) : Colors.white30, width: 2),
-                    ),
-                  ),
+                  child: CircleAvatar(radius: 14, backgroundColor: Color(c)),
                 )).toList(),
               ),
               if (mode == 'animated') ...[
@@ -533,77 +595,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                   onChanged: (v) => setM(() => animStyle = v ?? 'neon_wave'),
                 ),
               ],
-              const Divider(height: 22),
-              const Text('Publicidade / Parcerias na Capa (Opcional):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: promoMode,
-                dropdownColor: const Color(0xFF0B1636),
-                decoration: const InputDecoration(labelText: 'Modo de Exibição', isDense: true),
-                items: const [
-                  DropdownMenuItem(value: 'off', child: Text('Desativado')),
-                  DropdownMenuItem(value: 'static', child: Text('Imagem / Banner Estático')),
-                  DropdownMenuItem(value: 'carousel', child: Text('Carrossel Sequencial (Vários Patrocinadores)')),
-                ],
-                onChanged: (v) => setM(() => promoMode = v ?? 'off'),
-              ),
-              if (promoMode != 'off') ...[
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final titleC = TextEditingController();
-                    final subC = TextEditingController();
-                    String imgP = '';
-                    await showDialog(
-                      context: context,
-                      builder: (c2) => StatefulBuilder(
-                        builder: (c2, setM2) => AlertDialog(
-                          backgroundColor: const Color(0xFF081028),
-                          title: const Text('Adicionar Patrocinador / Banner', style: TextStyle(fontSize: 14, color: Color(0xFF38BDF8))),
-                          content: Column(mainAxisSize: MainAxisSize.min, children: [
-                            TextField(controller: titleC, decoration: const InputDecoration(labelText: 'Nome / Parceiro (ex: ENEBA -15%)', isDense: true)),
-                            const SizedBox(height: 8),
-                            TextField(controller: subC, decoration: const InputDecoration(labelText: 'Código ou Link (ex: Código HELL)', isDense: true)),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: () async {
-                                final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp']);
-                                if (r?.files.single.path != null) setM2(() => imgP = r!.files.single.path!);
-                              },
-                              icon: const Icon(Icons.add_photo_alternate, size: 16),
-                              label: Text(imgP.isEmpty ? 'Carregar Imagem/Logo (Opcional)' : 'Imagem selecionada ✓', style: const TextStyle(fontSize: 12)),
-                            ),
-                          ]),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(c2), child: const Text('Cancelar')),
-                            ElevatedButton(
-                              onPressed: () {
-                                if (titleC.text.trim().isNotEmpty || imgP.isNotEmpty) {
-                                  slides.add({'title': titleC.text.trim(), 'subtitle': subC.text.trim(), 'imagePath': imgP});
-                                  Navigator.pop(c2);
-                                }
-                              },
-                              child: const Text('Adicionar'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                    setM(() {});
-                  },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Adicionar Banner / Parceiro', style: TextStyle(fontSize: 12)),
-                ),
-                ...slides.asMap().entries.map((e) => ListTile(
-                      dense: true,
-                      title: Text(e.value['title'].toString().isEmpty ? 'Banner Imagem' : e.value['title'].toString()),
-                      subtitle: Text(e.value['subtitle'].toString()),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
-                        onPressed: () => setM(() => slides.removeAt(e.key)),
-                      ),
-                    )),
-              ],
             ]),
           ),
           actions: [
@@ -613,10 +604,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                 _u['coverMode'] = mode;
                 _u['coverColor'] = colorVal;
                 _u['coverAnimStyle'] = animStyle;
-                _u['bannerPromoMode'] = promoMode;
-                _u['bannerSlides'] = slides;
-                _carouselIndex = 0;
-                ProfileManager.logChange(_u, 'Capa & Publicidade', 'Capa atualizada ($mode)');
+                ProfileManager.logChange(_u, 'Capa', 'Capa atualizada ($mode)');
                 Navigator.pop(ctx);
                 await _save();
               },
@@ -627,6 +615,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       ),
     );
   }
+
   Future<void> _editAvatar() async {
     double s = (_u['avatarScale'] is num) ? (_u['avatarScale'] as num).toDouble() : 1.0;
     double dx = (_u['avatarDx'] is num) ? (_u['avatarDx'] as num).toDouble() : 0.0;
@@ -687,7 +676,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                     child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
                   ),
                 ]),
-                const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: ProfileManager.presetAvatars.map((a) => IconButton(
@@ -724,55 +712,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
     );
   }
 
-  Widget _secMeuPerfil() {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Row(children: [
-        ElevatedButton.icon(onPressed: _editAvatar, icon: const Icon(Icons.crop, size: 16), label: const Text('Alterar / Cortar Foto', style: TextStyle(fontSize: 12))),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(onPressed: _openCoverStudio, icon: const Icon(Icons.panorama, size: 16), label: const Text('Personalizar Capa', style: TextStyle(fontSize: 12))),
-      ]),
-      const SizedBox(height: 10),
-      TextField(controller: _dispCtrl, maxLength: 50, decoration: const InputDecoration(labelText: 'Nome de Apresentação', isDense: true)),
-      TextField(controller: _userCtrl, maxLength: 30, decoration: const InputDecoration(labelText: '@username (único)', isDense: true)),
-      TextField(controller: _bioCtrl, maxLines: 3, maxLength: 300, decoration: const InputDecoration(labelText: 'Biografia', isDense: true)),
-      TextField(controller: _locCtrl, decoration: const InputDecoration(labelText: 'Localização Pública', isDense: true)),
-      const SizedBox(height: 8),
-      Text('ID Interno Imutável: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 12, color: Colors.white60)),
-      const SizedBox(height: 12),
-      ElevatedButton(
-        onPressed: () async {
-          final nu = _userCtrl.text.trim().toLowerCase();
-          if (!RegExp(r'^[a-z0-9._]{3,30}$').hasMatch(nu) || ProfileManager.reserved.contains(nu)) {
-            _msg('Username inválido ou reservado.', err: true);
-            return;
-          }
-          if (nu != (_u['username'] ?? '').toString().toLowerCase()) {
-            final free = await CloudFirestoreSync.isUsernameFree(nu, (_u['internalAccountId'] ?? '').toString());
-            if (!free) {
-              _msg('Este nome de utilizador já está a ser utilizado.', err: true);
-              return;
-            }
-          }
-          _u['displayName'] = _dispCtrl.text.trim();
-          _u['nickname'] = _dispCtrl.text.trim();
-          _u['username'] = nu;
-          _u['bio'] = _bioCtrl.text.trim();
-          _u['publicLocation'] = _locCtrl.text.trim();
-          ProfileManager.logChange(_u, 'Meu Perfil', 'Dados públicos atualizados');
-          await _save();
-        },
-        child: const Text('Guardar Perfil Público'),
-      ),
-    ]);
-  }
-  Widget _secInfoPessoais() {
-    final genders = ['Prefiro não dizer', 'Masculino', 'Feminino', 'Não-binário', 'Outro'];
-    final countries = ['Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha', 'Suíça', 'Luxemburgo', 'Angola', 'Moçambique', 'Cabo Verde', 'Estados Unidos', 'Outro País'];
+  // ABA 1: MEU PERFIL (VITRINE PUBLICIDADES & PARCERIAS + PERFIL PÚBLICO + INFORMAÇÕES PESSOAIS)
+  Widget _secMeuPerfilCompleto() {
+    final genders = <String>['Prefiro não dizer', 'Masculino', 'Feminino', 'Não-binário', 'Outro'];
+    final countries = <String>['Portugal', 'Brasil', 'Espanha', 'França', 'Reino Unido', 'Alemanha', 'Suíça', 'Luxemburgo', 'Angola', 'Moçambique', 'Cabo Verde', 'Estados Unidos', 'Outro País'];
     final selectedCountry = (_u['country'] ?? 'Portugal').toString();
     final citySuggestions = ProfileManager.countryCities[selectedCountry] ?? <String>[];
     final postalHint = selectedCountry == 'Portugal' ? ProfileManager.detectPortugalPostalZone(_zipCtrl.text) : '';
 
     return ListView(padding: const EdgeInsets.all(16), children: [
+      _buildPartnersShowcaseCard(),
+      Row(children: [
+        ElevatedButton.icon(onPressed: _editAvatar, icon: const Icon(Icons.crop, size: 16), label: const Text('Alterar / Cortar Foto', style: TextStyle(fontSize: 12))),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(onPressed: _openCoverStudio, icon: const Icon(Icons.panorama, size: 16), label: const Text('Personalizar Capa', style: TextStyle(fontSize: 12))),
+      ]),
+      const SizedBox(height: 12),
+      const Text('Dados Públicos do Perfil', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
+      const SizedBox(height: 6),
+      TextField(controller: _dispCtrl, maxLength: 50, decoration: const InputDecoration(labelText: 'Nome de Apresentação', isDense: true)),
+      TextField(controller: _userCtrl, maxLength: 30, decoration: const InputDecoration(labelText: '@username (único)', isDense: true)),
+      TextField(controller: _bioCtrl, maxLines: 3, maxLength: 300, decoration: const InputDecoration(labelText: 'Biografia', isDense: true)),
+      TextField(controller: _locCtrl, decoration: const InputDecoration(labelText: 'Localização Pública', isDense: true)),
+      const Divider(height: 24),
+      const Text('Informações Pessoais', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
+      const SizedBox(height: 6),
       TextField(controller: _fnCtrl, decoration: const InputDecoration(labelText: 'Nome Próprio', isDense: true)),
       const SizedBox(height: 8),
       TextField(controller: _lnCtrl, decoration: const InputDecoration(labelText: 'Apelido (Opcional)', isDense: true)),
@@ -788,6 +752,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       ),
       const SizedBox(height: 8),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         title: const Text('Data de Nascimento (Requer verificação)', style: TextStyle(fontSize: 13)),
         subtitle: Text((_u['birthDate'] ?? 'Não definida').toString().split('T').first),
         trailing: const Icon(Icons.lock_clock_outlined, color: Color(0xFF38BDF8)),
@@ -823,7 +788,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
             controller: ctrl,
             focusNode: focus,
             onChanged: (v) => _cityCtrl.text = v,
-            decoration: const InputDecoration(labelText: 'Cidade (escreve para sugestões ou manual)', isDense: true),
+            decoration: const InputDecoration(labelText: 'Cidade (sugestões ou manual)', isDense: true),
           );
         },
       ),
@@ -839,30 +804,53 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       ),
       const SizedBox(height: 8),
       TextField(controller: _addrCtrl, decoration: const InputDecoration(labelText: 'Restante da Morada / Rua (Opcional)', isDense: true)),
+      const SizedBox(height: 8),
+      Text('ID Interno Imutável: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 12, color: Colors.white60)),
       const SizedBox(height: 12),
-      ElevatedButton(
-        onPressed: () async {
-          _u['firstName'] = _fnCtrl.text.trim();
-          _u['lastName'] = _lnCtrl.text.trim();
-          _u['pronouns'] = _pronCtrl.text.trim();
-          _u['city'] = _cityCtrl.text.trim();
-          _u['postalCode'] = _zipCtrl.text.trim();
-          _u['address'] = _addrCtrl.text.trim();
-          ProfileManager.logChange(_u, 'Info Pessoais', 'Atualizadas');
-          await _save();
-        },
-        child: const Text('Guardar Informações Pessoais'),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () async {
+            final nu = _userCtrl.text.trim().toLowerCase();
+            if (!RegExp(r'^[a-z0-9._]{3,30}$').hasMatch(nu) || ProfileManager.reserved.contains(nu)) {
+              _msg('Username inválido ou reservado.', err: true);
+              return;
+            }
+            if (nu != (_u['username'] ?? '').toString().toLowerCase()) {
+              final free = await CloudFirestoreSync.isUsernameFree(nu, (_u['internalAccountId'] ?? '').toString());
+              if (!free) {
+                _msg('Este nome de utilizador já está a ser utilizado.', err: true);
+                return;
+              }
+            }
+            _u['displayName'] = _dispCtrl.text.trim();
+            _u['nickname'] = _dispCtrl.text.trim();
+            _u['username'] = nu;
+            _u['bio'] = _bioCtrl.text.trim();
+            _u['publicLocation'] = _locCtrl.text.trim();
+            _u['firstName'] = _fnCtrl.text.trim();
+            _u['lastName'] = _lnCtrl.text.trim();
+            _u['pronouns'] = _pronCtrl.text.trim();
+            _u['city'] = _cityCtrl.text.trim();
+            _u['postalCode'] = _zipCtrl.text.trim();
+            _u['address'] = _addrCtrl.text.trim();
+            ProfileManager.logChange(_u, 'Meu Perfil', 'Perfil público e dados pessoais atualizados');
+            await _save();
+          },
+          child: const Text('Guardar Meu Perfil & Informações Pessoais'),
+        ),
       ),
     ]);
   }
-
-  Widget _secRedesSociais() {
+  // ABA 2: REDES SOCIAIS / CONTACTOS UNIDOS
+  Widget _secRedesSociaisEContactos() {
     final links = Map<String, dynamic>.from(_u['socialLinks'] as Map? ?? {});
     final activeKeys = links.keys.where((k) => links[k].toString().trim().isNotEmpty).toList();
+    final email = (_u['email'] ?? '').toString();
 
     return ListView(padding: const EdgeInsets.all(16), children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('Redes Sociais & Website Ativos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF38BDF8))),
+        const Text('Redes Sociais & Website', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
         ElevatedButton.icon(
           onPressed: () async {
             String selectedId = ProfileManager.availableSocialPlatforms.first['id'] as String;
@@ -915,11 +903,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
           label: const Text('Adicionar Rede', style: TextStyle(fontSize: 12)),
         ),
       ]),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
       if (activeKeys.isEmpty)
         const Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(child: Text('Nenhuma rede adicionada. Clica em "Adicionar Rede" para escolher apenas as que queres exibir.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60, fontSize: 12.5))),
+          padding: EdgeInsets.symmetric(vertical: 14),
+          child: Text('Nenhuma rede adicionada. Clica em "Adicionar Rede" para escolher as que queres exibir.', style: TextStyle(color: Colors.white60, fontSize: 12)),
         ),
       ...activeKeys.map((k) {
         final plat = ProfileManager.availableSocialPlatforms.firstWhere((p) => p['id'] == k, orElse: () => {'label': k.toUpperCase(), 'icon': Icons.link, 'color': 0xFF38BDF8});
@@ -941,12 +929,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
           ),
         );
       }),
-    ]);
-  }
-  Widget _secContactos() {
-    final email = (_u['email'] ?? '').toString();
-    return ListView(padding: const EdgeInsets.all(16), children: [
+      const Divider(height: 28),
+      const Text('Contactos da Conta', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.verified, color: Colors.greenAccent),
         title: Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: const Text('E-mail Principal Verificado'),
@@ -978,7 +964,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                 return;
               }
               _u['email'] = _pendingEmail;
-              ProfileManager.logSecurity(_u, 'E-mail alterado para $_pendingEmail (aviso enviado ao anterior)');
+              ProfileManager.logSecurity(_u, 'E-mail alterado para $_pendingEmail');
               setState(() {
                 _pendingToken = null;
                 _pendingEmail = null;
@@ -993,31 +979,54 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       const SizedBox(height: 12),
       TextField(controller: _recEmailCtrl, decoration: const InputDecoration(labelText: 'E-mail de Recuperação', isDense: true)),
       const SizedBox(height: 8),
-      TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Telemóvel (Opcional — sem SMS)', isDense: true)),
+      TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Telemóvel (Opcional)', isDense: true)),
       const SizedBox(height: 8),
       TextField(controller: _bizCtrl, decoration: const InputDecoration(labelText: 'Contacto Profissional (Opcional)', isDense: true)),
       const SizedBox(height: 12),
-      ElevatedButton(
-        onPressed: () async {
-          _u['recoveryEmail'] = _recEmailCtrl.text.trim().toLowerCase();
-          _u['phone'] = _phoneCtrl.text.trim();
-          _u['businessContact'] = _bizCtrl.text.trim();
-          await _save();
-        },
-        child: const Text('Guardar Contactos'),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () async {
+            _u['recoveryEmail'] = _recEmailCtrl.text.trim().toLowerCase();
+            _u['phone'] = _phoneCtrl.text.trim();
+            _u['businessContact'] = _bizCtrl.text.trim();
+            await _save('Contactos atualizados!');
+          },
+          child: const Text('Guardar Contactos'),
+        ),
       ),
     ]);
   }
-
-  Widget _secSeguranca() {
+  // ABA 3: SEGURANÇA / PRIVACIDADE UNIDOS
+  Widget _secSegurancaEPrivacidade() {
     final twoFactor = _u['twoFactorEnabled'] == true;
     final secret = (_u['totpSecret'] ?? '').toString();
     final codes = List<String>.from(_u['recoveryCodes'] ?? []);
     final secHist = List<Map<String, dynamic>>.from((_u['securityHistory'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
     final chgHist = List<Map<String, dynamic>>.from((_u['changeHistory'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+    final p = Map<String, dynamic>.from(_u['privacy'] as Map? ?? {});
+
+    Widget drop(String label, String key, List<String> opts) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            value: opts.contains(p[key]) ? p[key].toString() : opts.first,
+            dropdownColor: const Color(0xFF0B1636),
+            decoration: InputDecoration(labelText: label, isDense: true),
+            items: opts.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+            onChanged: (v) async {
+              if (v != null) {
+                p[key] = v;
+                _u['privacy'] = p;
+                await _save();
+              }
+            },
+          ),
+        );
 
     return ListView(padding: const EdgeInsets.all(16), children: [
+      const Text('Segurança da Conta', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.password, color: Color(0xFF38BDF8)),
         title: const Text('Alterar Palavra-passe'),
         subtitle: const Text('Protegida por hash criptográfico • Nunca exibida'),
@@ -1055,6 +1064,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         },
       ),
       SwitchListTile(
+        contentPadding: EdgeInsets.zero,
         activeColor: const Color(0xFF38BDF8),
         title: const Text('Google Authenticator (2FA Offline)'),
         subtitle: Text('Chave: $secret • Código atual: ${ProfileManager.currentTotpCode(secret)}', style: const TextStyle(fontSize: 11.5)),
@@ -1067,6 +1077,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         },
       ),
       SwitchListTile(
+        contentPadding: EdgeInsets.zero,
         activeColor: const Color(0xFF38BDF8),
         title: const Text('Chaves de Acesso (Passkeys / Biometria)'),
         value: _u['passkeysEnabled'] == true,
@@ -1076,6 +1087,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         },
       ),
       ExpansionTile(
+        tilePadding: EdgeInsets.zero,
         title: const Text('Códigos de Recuperação (8 códigos)', style: TextStyle(fontSize: 13, color: Color(0xFF38BDF8))),
         children: [
           Wrap(spacing: 6, children: codes.map((c) => Chip(label: Text(c, style: const TextStyle(fontSize: 11)))).toList()),
@@ -1088,39 +1100,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
           ),
         ],
       ),
-      const Divider(),
-      Text('ID Interno Imutável: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 12, color: Colors.amberAccent)),
-      Text('Estado: ${_u['verificationStatus']} • Permissões: ${_u['permissionLevel']}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+      const Divider(height: 24),
+      const Text('Controlos de Privacidade', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
       const SizedBox(height: 8),
-      ExpansionTile(
-        title: Text('Histórico de Segurança (${secHist.length})', style: const TextStyle(fontSize: 13)),
-        children: secHist.map((e) => ListTile(dense: true, title: Text(e['event'].toString(), style: const TextStyle(fontSize: 12)), subtitle: Text(e['at'].toString()))).toList(),
-      ),
-      ExpansionTile(
-        title: Text('Histórico de Alterações (${chgHist.length})', style: const TextStyle(fontSize: 13)),
-        children: chgHist.map((e) => ListTile(dense: true, title: Text('${e['field']}: ${e['detail']}', style: const TextStyle(fontSize: 12)), subtitle: Text(e['at'].toString()))).toList(),
-      ),
-    ]);
-  }
-  Widget _secPrivacidade() {
-    final p = Map<String, dynamic>.from(_u['privacy'] as Map? ?? {});
-    Widget drop(String label, String key, List<String> opts) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: DropdownButtonFormField<String>(
-            value: opts.contains(p[key]) ? p[key].toString() : opts.first,
-            dropdownColor: const Color(0xFF0B1636),
-            decoration: InputDecoration(labelText: label, isDense: true),
-            items: opts.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
-            onChanged: (v) async {
-              if (v != null) {
-                p[key] = v;
-                _u['privacy'] = p;
-                await _save();
-              }
-            },
-          ),
-        );
-    return ListView(padding: const EdgeInsets.all(16), children: [
       drop('Perfil', 'profileVisibility', ['Público', 'Privado']),
       drop('Fotografia', 'photoVisibility', ['Todos', 'Utilizadores autorizados']),
       drop('Biografia', 'bioVisibility', ['Todos', 'Privado']),
@@ -1148,12 +1130,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
           await _save();
         },
       ),
+      const Divider(height: 24),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text('Histórico de Segurança (${secHist.length})', style: const TextStyle(fontSize: 13)),
+        children: secHist.map((e) => ListTile(dense: true, title: Text(e['event'].toString(), style: const TextStyle(fontSize: 12)), subtitle: Text(e['at'].toString()))).toList(),
+      ),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text('Histórico de Alterações (${chgHist.length})', style: const TextStyle(fontSize: 13)),
+        children: chgHist.map((e) => ListTile(dense: true, title: Text('${e['field']}: ${e['detail']}', style: const TextStyle(fontSize: 12)), subtitle: Text(e['at'].toString()))).toList(),
+      ),
     ]);
   }
-
-  Widget _secPreferencias() {
+  // ABA 4: GESTÃO DE CONTA (PREFERÊNCIAS + SESSÕES POR DISPOSITIVO / TODOS + LOGOUT + RGPD)
+  Widget _secGestaoContaCompleto() {
     final pr = Map<String, dynamic>.from(_u['preferences'] as Map? ?? {});
+    final sess = List<Map<String, dynamic>>.from((_u['sessions'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
+
     return ListView(padding: const EdgeInsets.all(16), children: [
+      const Text('Preferências da Conta', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
+      const SizedBox(height: 8),
       DropdownButtonFormField<String>(
         value: ['Português (PT)', 'Português (BR)', 'English', 'Español'].contains(pr['language']) ? pr['language'] : 'Português (PT)',
         dropdownColor: const Color(0xFF0B1636),
@@ -1203,39 +1200,65 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         value: true,
         onChanged: null,
       ),
-    ]);
-  }
-
-  Widget _secSessoes() {
-    final sess = List<Map<String, dynamic>>.from((_u['sessions'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      ...sess.map((s) => Card(
-            color: const Color(0xFF0B1636),
-            child: ListTile(
-              leading: const Icon(Icons.devices, color: Color(0xFF38BDF8)),
-              title: Text(s['device'].toString()),
-              subtitle: Text('${s['location']}\nÚltimo acesso: ${s['lastAccess']}'),
-              trailing: s['isCurrent'] == true ? const Chip(label: Text('Atual')) : null,
-            ),
-          )),
-    ]);
-  }
-  Widget _secGestaoConta() {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      ListTile(
-        leading: const Icon(Icons.logout_rounded, color: Color(0xFF38BDF8)),
-        title: const Text('Terminar Sessão (Logout)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-        subtitle: const Text('Sai da conta atual neste dispositivo com segurança.'),
-        onTap: () async {
-          await UserAccountManager.logout();
-          if (mounted) {
-            Navigator.of(context).pop();
-            widget.onAccountDeletedOrSuspended();
-          }
-        },
+      const Divider(height: 26),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Expanded(
+            child: Text('Sessões Ativas & Dispositivos', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF38BDF8))),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+            onPressed: () async {
+              _u['sessions'] = <Map<String, dynamic>>[];
+              ProfileManager.logSecurity(_u, 'Sessão terminada em todos os dispositivos');
+              await _save('Sessão terminada em todos os dispositivos!');
+              await UserAccountManager.logout();
+              if (mounted) {
+                Navigator.of(context).pop();
+                widget.onAccountDeletedOrSuspended();
+              }
+            },
+            icon: const Icon(Icons.logout_rounded, size: 15),
+            label: const Text('Terminar em Todos', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+          ),
+        ],
       ),
-      const Divider(),
+      const SizedBox(height: 8),
+      ...sess.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final s = entry.value;
+        final isCurr = s['isCurrent'] == true;
+        return Card(
+          color: const Color(0xFF0B1636),
+          child: ListTile(
+            leading: Icon(isCurr ? Icons.phonelink_ring_rounded : Icons.devices_rounded, color: const Color(0xFF38BDF8)),
+            title: Text(s['device'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            subtitle: Text('${s['location']}\nÚltimo acesso: ${s['lastAccess']}', style: const TextStyle(fontSize: 11)),
+            trailing: TextButton.icon(
+              onPressed: () async {
+                if (isCurr) {
+                  await UserAccountManager.logout();
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    widget.onAccountDeletedOrSuspended();
+                  }
+                } else {
+                  sess.removeAt(idx);
+                  _u['sessions'] = sess;
+                  ProfileManager.logSecurity(_u, 'Sessão terminada no dispositivo: ${s['device']}');
+                  await _save('Sessão terminada em ${s['device']}!');
+                }
+              },
+              icon: const Icon(Icons.power_settings_new_rounded, size: 16, color: Colors.redAccent),
+              label: Text(isCurr ? 'Sair (Atual)' : 'Terminar', style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        );
+      }),
+      const Divider(height: 26),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.download, color: Color(0xFF38BDF8)),
         title: const Text('Exportar Dados Pessoais (RGPD)'),
         onTap: () async {
@@ -1245,6 +1268,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         },
       ),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.pause_circle_outline, color: Colors.amberAccent),
         title: const Text('Desativar Conta Temporariamente', style: TextStyle(color: Colors.amberAccent)),
         onTap: () async {
@@ -1259,6 +1283,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
         },
       ),
       ListTile(
+        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
         title: const Text('Solicitar Eliminação Permanente', style: TextStyle(color: Colors.redAccent)),
         onTap: () async {
@@ -1280,9 +1305,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
     final coverPath = (_u['coverPath'] ?? '').toString();
     final coverColor = (_u['coverColor'] is int) ? _u['coverColor'] as int : 0xFF0B1636;
     final animStyle = (_u['coverAnimStyle'] ?? 'neon_wave').toString();
-    final promoMode = (_u['bannerPromoMode'] ?? 'off').toString();
-    final slides = List<Map<String, dynamic>>.from((_u['bannerSlides'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
-    final activeSlide = slides.isNotEmpty ? slides[_carouselIndex % slides.length] : null;
 
     List<Color> animColors = [const Color(0xFF0B1636), const Color(0xFF0284C7)];
     if (animStyle == 'cyber_pulse') animColors = [const Color(0xFF1E1B4B), const Color(0xFF9333EA)];
@@ -1309,59 +1331,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                   ? DecorationImage(image: FileImage(File(coverPath)), fit: BoxFit.cover, colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.45), BlendMode.darken))
                   : null,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  GestureDetector(onTap: _editAvatar, child: ProfileManager.buildTransparentAvatar(_u, radius: 30)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text((_u['displayName'] ?? 'Criador').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                      Text('@${_u['username']}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12.5)),
-                      Text('ID: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
-                    ]),
-                  ),
-                  const Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+            child: Row(children: [
+              GestureDetector(onTap: _editAvatar, child: ProfileManager.buildTransparentAvatar(_u, radius: 30)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text((_u['displayName'] ?? 'Criador').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  Text('@${_u['username']}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12.5)),
+                  Text('ID: ${_u['internalAccountId']}', style: const TextStyle(fontSize: 11, color: Colors.white60)),
                 ]),
-                if (promoMode != 'off' && activeSlide != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.55),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
-                    ),
-                    child: Row(children: [
-                      if ((activeSlide['imagePath'] ?? '').toString().isNotEmpty && File(activeSlide['imagePath'].toString()).existsSync())
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.file(File(activeSlide['imagePath'].toString()), width: 28, height: 28, fit: BoxFit.cover),
-                          ),
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: Icon(Icons.campaign_rounded, color: Color(0xFF38BDF8), size: 20),
-                        ),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if ((activeSlide['title'] ?? '').toString().isNotEmpty)
-                            Text(activeSlide['title'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
-                          if ((activeSlide['subtitle'] ?? '').toString().isNotEmpty)
-                            Text(activeSlide['subtitle'].toString(), style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
-                        ]),
-                      ),
-                      if (promoMode == 'carousel' && slides.length > 1)
-                        Text('${(_carouselIndex % slides.length) + 1}/${slides.length}', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
-                    ]),
-                  ),
-                ],
-              ],
-            ),
+              ),
+              const Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+            ]),
           );
         },
       ),
@@ -1401,15 +1382,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
           child: TabBarView(
             controller: _tabs,
             children: [
-              _secMeuPerfil(),
-              _secInfoPessoais(),
-              _secRedesSociais(),
-              _secContactos(),
-              _secSeguranca(),
-              _secPrivacidade(),
-              _secPreferencias(),
-              _secSessoes(),
-              _secGestaoConta(),
+              _secMeuPerfilCompleto(),
+              _secRedesSociaisEContactos(),
+              _secSegurancaEPrivacidade(),
+              _secGestaoContaCompleto(),
             ],
           ),
         ),
