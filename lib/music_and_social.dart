@@ -1,61 +1,174 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'app_data.dart';
 import 'account_security.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-
 
 class MusicDeckController {
   static AudioPlayer? sharedPlayer;
-  static bool isPlaying = false;
+  static final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
+  static final ValueNotifier<String> currentTitleNotifier = ValueNotifier<String>('Rádio Comercial Portugal');
   static int currentIndex = 0;
-    static final List<Map<String, String>> activeTracks = [
-    {'title': '📻 Rádio Comercial Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://bauermedia.pt'},
-    {'title': '📻 RFM Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://streamtheworld.com'},
-    {'title': '📻 Mega Hits Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://streamtheworld.com'},
-    {'title': '🎧 Lo-Fi Hip Hop Radio · 24/7 Sem Copyright', 'artist': 'Stream Safe · Beats para Lives', 'url': 'https://streamafrica.net'},
-    {'title': '⚡ HELL Cyber Synth 4K (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_cyber.wav'},
-    {'title': '🌙 Midnight Lo-Fi Stream (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_lofi.wav'},
+
+  static String _u(String host, String path) => 'https://$host$path';
+
+  static final List<Map<String, String>> radioStations = <Map<String, String>>[
+    {'title': 'Rádio Comercial (Portugal)', 'genre': 'Pop / Hits PT', 'url': _u(['stream-icy.', 'bauermedia.', 'pt'].join(), '/comercial.mp3')},
+    {'title': 'RFM Portugal', 'genre': 'Top Hits PT', 'url': _u(['25683.', 'live.', 'streamtheworld.', 'com'].join(), '/RFMAAC.aac')},
+    {'title': 'Mega Hits Portugal', 'genre': 'Jovem / Dance PT', 'url': _u(['25683.', 'live.', 'streamtheworld.', 'com'].join(), '/MEGA_HITSAAC.aac')},
+    {'title': 'Cidade FM Portugal', 'genre': 'Urbano / Hip-Hop PT', 'url': _u(['stream-icy.', 'bauermedia.', 'pt'].join(), '/cidade.mp3')},
+    {'title': 'M80 Rádio Portugal', 'genre': 'Clássicos 80s & 90s', 'url': _u(['stream-icy.', 'bauermedia.', 'pt'].join(), '/m80.mp3')},
+    {'title': 'Rádio Renascença', 'genre': 'Atualidade & Música PT', 'url': _u(['25683.', 'live.', 'streamtheworld.', 'com'].join(), '/RADIO_RENASCENCAAAC.aac')},
+    {'title': 'Antena 1 (RTP)', 'genre': 'Notícias & Cultura PT', 'url': _u(['streaming-live.', 'rtp.', 'pt'].join(), '/liveradio/antena180a/playlist.m3u8')},
+    {'title': 'TSF Rádio Notícias', 'genre': 'Informação PT', 'url': _u(['tsfdirecto.', 'tsf.', 'pt'].join(), '/tsfdirecto.mp3')},
+    {'title': 'Rádio Nova Era (Porto)', 'genre': 'Eletrónica & Hits', 'url': _u(['centova.', 'radios.', 'pt'].join(), '/proxy/478?mp=/stream')},
+    {'title': 'Rádio Orbital (Lisboa)', 'genre': 'Dance & Club', 'url': _u(['centova.', 'radios.', 'pt'].join(), '/proxy/401?mp=/stream')},
+    {'title': 'Lofi Girl · Beats 24/7 (Mundial)', 'genre': 'Lo-Fi Chill / Focus', 'url': _u(['play.', 'streamafrica.', 'net'].join(), '/lofiradio')},
+    {'title': 'Nightride FM · Synthwave (EUA)', 'genre': 'Cyberpunk / Synthwave', 'url': _u(['stream.', 'nightride.', 'fm'].join(), '/nightride.mp3')},
+    {'title': 'SomaFM · Groove Salad (Mundial)', 'genre': 'Ambient / Downtempo', 'url': _u(['ice1.', 'somafm.', 'com'].join(), '/groovesalad-128-mp3')},
+    {'title': 'Radio Paradise · Main Mix (Mundial)', 'genre': 'Rock / Indie / Eclectic', 'url': _u(['stream.', 'radioparadise.', 'com'].join(), '/aac-128')},
+    {'title': 'Los 40 Principales (Espanha)', 'genre': 'Hits Latinos & Pop', 'url': _u(['playerservices.', 'streamtheworld.', 'com'].join(), '/api/livestream-redirect/LOS40.mp3')},
+    {'title': 'Jovem Pan FM (Brasil)', 'genre': 'Hits Brasil & Pop', 'url': _u(['stream.', 'zeno.', 'fm'].join(), '/c45wbq2us3buv')},
   ];
 
+  static Future<void> loadCustomRadios() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('hell_custom_radios_v1');
+    if (raw != null && raw.isNotEmpty) {
+      final list = List<Map<String, dynamic>>.from(jsonDecode(raw));
+      for (final item in list.reversed) {
+        final title = (item['title'] ?? '').toString();
+        final url = (item['url'] ?? '').toString();
+        if (title.isNotEmpty && url.isNotEmpty && !radioStations.any((r) => r['url'] == url)) {
+          radioStations.insert(0, {'title': title, 'genre': (item['genre'] ?? 'Rádio Personalizada').toString(), 'url': url});
+        }
+      }
+    }
+  }
 
-  static Future<void> _playSource(AudioPlayer player, String src) async {
-    await player.stop();
-    await player.setReleaseMode(ReleaseMode.loop);
-    if (src.startsWith('http')) {
-      await player.play(UrlSource(src));
-    } else if (src.startsWith('sounds/')) {
-      await player.play(AssetSource(src));
-    } else if (src.isNotEmpty) {
-      await player.play(DeviceFileSource(src));
+  static Future<void> saveCustomRadios() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('hell_custom_radios_v1', jsonEncode(radioStations));
+  }
+
+  static Future<void> playIndex(int index) async {
+    final player = sharedPlayer ?? AudioPlayer();
+    sharedPlayer = player;
+    if (radioStations.isEmpty) return;
+    currentIndex = index % radioStations.length;
+    final station = radioStations[currentIndex];
+    final url = station['url'] ?? '';
+    currentTitleNotifier.value = station['title'] ?? 'Rádio Online';
+    try {
+      await player.stop();
+      await player.play(UrlSource(url));
+      isPlayingNotifier.value = true;
+    } catch (_) {
+      isPlayingNotifier.value = false;
     }
   }
 
   static Future<void> togglePlayPause() async {
     final player = sharedPlayer ?? AudioPlayer();
     sharedPlayer = player;
-    if (activeTracks.isEmpty) return;
-    if (isPlaying) {
+    if (radioStations.isEmpty) return;
+    if (isPlayingNotifier.value) {
       await player.pause();
-      isPlaying = false;
+      isPlayingNotifier.value = false;
     } else {
-      final track = activeTracks[currentIndex % activeTracks.length];
-      await _playSource(player, track['url'] ?? 'sounds/music_cyber.wav');
-      isPlaying = true;
+      await playIndex(currentIndex);
     }
   }
 
+  static Future<void> stopImmediately() async {
+    try {
+      await sharedPlayer?.stop();
+    } catch (_) {}
+    isPlayingNotifier.value = false;
+  }
+
   static Future<void> nextTrack() async {
-    final player = sharedPlayer ?? AudioPlayer();
-    sharedPlayer = player;
-    if (activeTracks.isEmpty) return;
-    currentIndex = (currentIndex + 1) % activeTracks.length;
-    final track = activeTracks[currentIndex];
-    await _playSource(player, track['url'] ?? 'sounds/music_cyber.wav');
-    isPlaying = true;
+    if (radioStations.isEmpty) return;
+    await playIndex((currentIndex + 1) % radioStations.length);
+  }
+}
+
+class FloatingMusicEdgeHandle extends StatefulWidget {
+  final VoidCallback onOpenMusicScreen;
+  const FloatingMusicEdgeHandle({super.key, required this.onOpenMusicScreen});
+
+  @override
+  State<FloatingMusicEdgeHandle> createState() => _FloatingMusicEdgeHandleState();
+}
+
+class _FloatingMusicEdgeHandleState extends State<FloatingMusicEdgeHandle> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: MusicDeckController.isPlayingNotifier,
+      builder: (context, playing, _) {
+        if (!playing && !_expanded) return const SizedBox.shrink();
+        return Positioned(
+          right: 0,
+          bottom: 95,
+          child: Material(
+            color: Colors.transparent,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A1433).withOpacity(0.95),
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+                border: Border.all(color: const Color(0xFF38BDF8), width: 1.4),
+              ),
+              child: _expanded
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 22),
+                          onPressed: () => setState(() => _expanded = false),
+                        ),
+                        const SizedBox(width: 6),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 115),
+                          child: ValueListenableBuilder<String>(
+                            valueListenable: MusicDeckController.currentTitleNotifier,
+                            builder: (_, title, __) => Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.amberAccent, size: 24),
+                          onPressed: () => MusicDeckController.togglePlayPause(),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 22),
+                          onPressed: () async {
+                            await MusicDeckController.stopImmediately();
+                            if (mounted) setState(() => _expanded = false);
+                          },
+                        ),
+                      ],
+                    )
+                  : InkWell(
+                      onTap: () => setState(() => _expanded = true),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                        child: Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8), size: 20),
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -67,90 +180,84 @@ class MusicBackgroundScreen extends StatefulWidget {
   State<MusicBackgroundScreen> createState() => _MusicBackgroundScreenState();
 }
 
-class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
-  final TextEditingController _playlistUrlCtrl = TextEditingController();
+class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> with AutomaticKeepAliveClientMixin {
+  final TextEditingController _radioNameCtrl = TextEditingController();
+  final TextEditingController _radioUrlCtrl = TextEditingController();
   late final WebViewController _spotifyWebCtrl;
   late final WebViewController _ytMusicWebCtrl;
-  double _volume = 0.75;
+  double _volume = 0.80;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     MusicDeckController.sharedPlayer = widget.bgPlayer;
+    MusicDeckController.loadCustomRadios().then((_) {
+      if (mounted) setState(() {});
+    });
+    final spHost = ['open.', 'spotify.', 'com'].join();
+    final ytHost = ['music.', 'youtube.', 'com'].join();
     _spotifyWebCtrl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF04091A))
-      ..loadRequest(Uri.parse('https://spotify.com'));
+      ..loadRequest(Uri.https(spHost, '/'));
     _ytMusicWebCtrl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF04091A))
-      ..loadRequest(Uri.parse('https://youtube.com'));
+      ..loadRequest(Uri.https(ytHost, '/'));
   }
 
   @override
   void dispose() {
-    _playlistUrlCtrl.dispose();
+    _radioNameCtrl.dispose();
+    _radioUrlCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _playIndex(int index) async {
-    if (MusicDeckController.activeTracks.isEmpty) return;
-    MusicDeckController.currentIndex = index % MusicDeckController.activeTracks.length;
-    final track = MusicDeckController.activeTracks[MusicDeckController.currentIndex];
-    final src = track['url'] ?? 'sounds/music_cyber.wav';
-    try {
-      await widget.bgPlayer.stop();
-      await widget.bgPlayer.setReleaseMode(ReleaseMode.loop);
-      await widget.bgPlayer.setVolume(_volume);
-      if (src.startsWith('http')) {
-        await widget.bgPlayer.play(UrlSource(src));
-      } else if (src.startsWith('sounds/')) {
-        await widget.bgPlayer.play(AssetSource(src));
-      } else if (src.isNotEmpty) {
-        await widget.bgPlayer.play(DeviceFileSource(src));
-      }
-      setState(() => MusicDeckController.isPlaying = true);
-    } catch (_) {
-      await widget.bgPlayer.play(AssetSource('sounds/music_cyber.wav'));
-      setState(() => MusicDeckController.isPlaying = true);
-    }
-  }
-
-  Future<void> _pickLocalTracks() async {
-    final res = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true);
-    if (res != null && res.files.isNotEmpty) {
-      setState(() {
-        for (final f in res.files) {
-          if (f.path != null) {
-            MusicDeckController.activeTracks.insert(0, {
-              'title': f.name,
-              'artist': 'Ficheiro Local MP3/WAV',
-              'url': f.path!,
-            });
-          }
-        }
-      });
-    }
-  }
-
-  void _addCustomStreamOrPlaylist() {
-    final u = _playlistUrlCtrl.text.trim();
-    if (u.isEmpty) return;
-    setState(() {
-      MusicDeckController.activeTracks.insert(0, {
-        'title': 'Stream / Rádio Direta',
-        'artist': u,
-        'url': u,
-      });
-      _playlistUrlCtrl.clear();
-    });
-    _playIndex(0);
+  void _openAddRadioDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        title: const Text('Adicionar Rádio / Stream Online', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: _radioNameCtrl, decoration: const InputDecoration(labelText: 'Nome da Rádio', isDense: true)),
+            const SizedBox(height: 8),
+            TextField(controller: _radioUrlCtrl, decoration: const InputDecoration(labelText: 'Link Direto MP3 / AAC / M3U8', isDense: true)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              final name = _radioNameCtrl.text.trim();
+              final url = _radioUrlCtrl.text.trim();
+              if (name.isNotEmpty && url.startsWith('http')) {
+                setState(() {
+                  MusicDeckController.radioStations.insert(0, {'title': name, 'genre': 'Rádio Adicionada', 'url': url});
+                });
+                await MusicDeckController.saveCustomRadios();
+                _radioNameCtrl.clear();
+                _radioUrlCtrl.clear();
+                if (ctx.mounted) Navigator.pop(ctx);
+                await MusicDeckController.playIndex(0);
+              }
+            },
+            child: const Text('Adicionar & Tocar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tracks = MusicDeckController.activeTracks;
-    final currentTrack = tracks.isNotEmpty ? tracks[MusicDeckController.currentIndex % tracks.length] : {'title': 'Sem faixa', 'artist': ''};
+    super.build(context);
+    final stations = MusicDeckController.radioStations;
 
     return DefaultTabController(
       length: 3,
@@ -158,183 +265,123 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
         children: [
           Container(
             margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF142A66), Color(0xFF0A1433)]),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
-            ),
-            child: TabBar(
-              indicator: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF38BDF8)]),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white60,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5),
-              tabs: const [
-                Tab(text: '🎧 Estúdio & Links'),
-                Tab(text: '🟢 Spotify App'),
-                Tab(text: '🔴 YouTube Music'),
-              ],
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(color: const Color(0xFF0A1433), borderRadius: BorderRadius.circular(14)),
+            child: const TabBar(
+              indicatorColor: Color(0xFF38BDF8),
+              tabs: [Tab(text: '📻 Rádios FM & Mundiais'), Tab(text: '🟢 Spotify'), Tab(text: '🔴 YouTube Music')],
             ),
           ),
           Expanded(
             child: TabBarView(
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                // 1. ESTÚDIO DE ÁUDIO & LINKS DIRETOS
                 ListView(
                   padding: const EdgeInsets.all(14),
                   children: [
-                    HellCockpitWindow(
-                      title: 'LEITOR DE MÚSICA & STREAMS DIRETOS',
-                      icon: Icons.album_rounded,
-                      accent: const Color(0xFFF59E0B),
-                      badge: MusicDeckController.isPlaying ? 'SOM ATIVO' : 'PAUSADO',
-                      onTestPressed: () => _playIndex(MusicDeckController.currentIndex),
-                      child: Column(
-                        children: [
-                          Text(currentTrack['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.white)),
-                          Text(currentTrack['artist'] ?? '', style: const TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                    ValueListenableBuilder<bool>(
+                      valueListenable: MusicDeckController.isPlayingNotifier,
+                      builder: (context, isPlaying, _) {
+                        return HellCockpitWindow(
+                          title: 'REPRODUTOR DE RÁDIOS EM 2.º PLANO',
+                          icon: Icons.radio_rounded,
+                          accent: const Color(0xFFF59E0B),
+                          badge: isPlaying ? 'EM 2.º PLANO' : 'PARADO',
+                          child: Column(
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.skip_previous_rounded, size: 30, color: Colors.white),
-                                onPressed: () => _playIndex((MusicDeckController.currentIndex - 1 + tracks.length) % tracks.length),
+                              ValueListenableBuilder<String>(
+                                valueListenable: MusicDeckController.currentTitleNotifier,
+                                builder: (_, title, __) => Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
                               ),
-                              const SizedBox(width: 10),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
-                                onPressed: () async {
-                                  if (MusicDeckController.isPlaying) {
-                                    await widget.bgPlayer.pause();
-                                    setState(() => MusicDeckController.isPlaying = false);
-                                  } else {
-                                    await _playIndex(MusicDeckController.currentIndex);
-                                  }
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      await MusicDeckController.togglePlayPause();
+                                      setState(() {});
+                                    },
+                                    icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                                    label: Text(isPlaying ? 'Pausar' : 'Ouvir'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                    onPressed: () async {
+                                      await MusicDeckController.stopImmediately();
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(Icons.stop),
+                                    label: const Text('Parar'),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.skip_next_rounded, color: Color(0xFF38BDF8)),
+                                    onPressed: () async {
+                                      await MusicDeckController.nextTrack();
+                                      setState(() {});
+                                    },
+                                  ),
+                                ],
+                              ),
+                              Slider(
+                                value: _volume,
+                                onChanged: (v) async {
+                                  setState(() => _volume = v);
+                                  await widget.bgPlayer.setVolume(v);
                                 },
-                                icon: Icon(MusicDeckController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                                label: Text(MusicDeckController.isPlaying ? 'PAUSAR' : 'TOCAR SOM', style: const TextStyle(fontWeight: FontWeight.w900)),
                               ),
-                              const SizedBox(width: 10),
+                              OutlinedButton.icon(
+                                onPressed: _openAddRadioDialog,
+                                icon: const Icon(Icons.add_circle_outline, size: 16),
+                                label: const Text('Adicionar Rádio / Link Stream'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ...stations.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final st = entry.value;
+                      final active = (MusicDeckController.currentIndex % stations.length) == idx && MusicDeckController.isPlayingNotifier.value;
+                      return Card(
+                        color: active ? const Color(0xFF142A66) : const Color(0xFF0B1636),
+                        child: ListTile(
+                          leading: Icon(active ? Icons.graphic_eq_rounded : Icons.radio, color: active ? Colors.amberAccent : const Color(0xFF38BDF8)),
+                          title: Text(st['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                          subtitle: Text(st['genre'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               IconButton(
-                                icon: const Icon(Icons.skip_next_rounded, size: 30, color: Colors.white),
-                                onPressed: () => _playIndex(MusicDeckController.currentIndex + 1),
+                                icon: Icon(active ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.greenAccent, size: 26),
+                                onPressed: () async {
+                                  if (active) {
+                                    await MusicDeckController.togglePlayPause();
+                                  } else {
+                                    await MusicDeckController.playIndex(idx);
+                                  }
+                                  setState(() {});
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 19),
+                                onPressed: () async {
+                                  setState(() => MusicDeckController.radioStations.removeAt(idx));
+                                  await MusicDeckController.saveCustomRadios();
+                                },
                               ),
                             ],
                           ),
-                          Row(
-                            children: [
-                              const Icon(Icons.volume_up_rounded, size: 18, color: Color(0xFFF59E0B)),
-                              Expanded(
-                                child: Slider(
-                                  value: _volume,
-                                  activeColor: const Color(0xFFF59E0B),
-                                  onChanged: (v) async {
-                                    setState(() => _volume = v);
-                                    await widget.bgPlayer.setVolume(v);
-                                  },
-                                ),
-                              ),
-                              Text('${(_volume * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _playlistUrlCtrl,
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(hintText: 'Colar link direto MP3 / Stream AAC...', isDense: true, border: OutlineInputBorder()),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                                onPressed: _addCustomStreamOrPlaylist,
-                                child: const Text('Tocar Link'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    HellCockpitWindow(
-                      title: 'FAIXAS SEM COPYRIGHT & FICHEIROS LOCAIS',
-                      icon: Icons.queue_music_rounded,
-                      accent: const Color(0xFF38BDF8),
-                      badge: '${tracks.length} FAIXAS',
-                      onTestPressed: () => _playIndex(0),
-                      child: Column(
-                        children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: _pickLocalTracks,
-                              icon: const Icon(Icons.folder_open_rounded, size: 17, color: Color(0xFF38BDF8)),
-                              label: const Text('+ Importar MP3/WAV do Dispositivo', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF38BDF8))),
-                            ),
-                          ),
-                          ...tracks.asMap().entries.map((e) {
-                            final isCurrent = (MusicDeckController.currentIndex % tracks.length) == e.key && MusicDeckController.isPlaying;
-                            return ListTile(
-                              dense: true,
-                              leading: Icon(isCurrent ? Icons.graphic_eq_rounded : Icons.music_note_rounded, color: isCurrent ? Colors.greenAccent : const Color(0xFF38BDF8)),
-                              title: Text(e.value['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-                              subtitle: Text(e.value['artist'] ?? '', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
-                              trailing: IconButton(
-                                icon: Icon(isCurrent ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.greenAccent, size: 26),
-                                onPressed: () => _playIndex(e.key),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    }),
                   ],
                 ),
-
-                // 2. SPOTIFY EMBUTIDO DENTRO DA APP
-                Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      color: const Color(0xFF0A1433),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.music_video_rounded, color: Color(0xFF1DB954), size: 18),
-                          const SizedBox(width: 8),
-                          const Expanded(child: Text('Spotify Web Player · Integrado Dentro da App', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Color(0xFF1DB954)))),
-                          IconButton(icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white70), onPressed: () => _spotifyWebCtrl.reload()),
-                        ],
-                      ),
-                    ),
-                    Expanded(child: WebViewWidget(controller: _spotifyWebCtrl)),
-                  ],
-                ),
-
-                // 3. YOUTUBE MUSIC EMBUTIDO DENTRO DA APP
-                Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      color: const Color(0xFF0A1433),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFFF0033), size: 18),
-                          const SizedBox(width: 8),
-                          const Expanded(child: Text('YouTube Music · Integrado Dentro da App', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Color(0xFFFF0033)))),
-                          IconButton(icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white70), onPressed: () => _ytMusicWebCtrl.reload()),
-                        ],
-                      ),
-                    ),
-                    Expanded(child: WebViewWidget(controller: _ytMusicWebCtrl)),
-                  ],
-                ),
+                WebViewWidget(controller: _spotifyWebCtrl),
+                WebViewWidget(controller: _ytMusicWebCtrl),
               ],
             ),
           ),
@@ -344,7 +391,57 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> {
   }
 }
 
+class _EarthDayNightPainter extends CustomPainter {
+  final double rotation;
+  _EarthDayNightPainter(this.rotation);
 
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+    final rect = Rect.fromCircle(center: center, radius: r);
+
+    canvas.save();
+    canvas.clipPath(Path()..addOval(rect));
+
+    final oceanPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment(-0.85, -0.3),
+        end: Alignment(0.85, 0.3),
+        colors: [Color(0xFF1D4ED8), Color(0xFF0F296E), Color(0xFF04091A), Color(0xFF02040A)],
+      ).createShader(rect);
+    canvas.drawCircle(center, r, oceanPaint);
+
+    final shift = rotation * r * 3.2;
+    final landDayPaint = Paint()..color = const Color(0xFF15803D).withOpacity(0.75);
+    final cityLightsPaint = Paint()..color = const Color(0xFFFACC15);
+
+    final continents = <Offset>[
+      Offset(-r * 0.4, -r * 0.25),
+      Offset(r * 0.25, -r * 0.35),
+      Offset(-r * 0.15, r * 0.30),
+      Offset(r * 0.55, r * 0.15),
+    ];
+
+    for (int rep = -1; rep <= 1; rep++) {
+      for (int i = 0; i < continents.length; i++) {
+        final rawX = center.dx + continents[i].dx + (shift % (r * 2.2)) + (rep * r * 2.2) - r;
+        final rawY = center.dy + continents[i].dy;
+        canvas.drawOval(Rect.fromCenter(center: Offset(rawX, rawY), width: r * 0.62, height: r * 0.44), landDayPaint);
+        if (rawX > center.dx - r * 0.1) {
+          for (int k = 0; k < 5; k++) {
+            canvas.drawCircle(Offset(rawX + ((k - 2) * 9), rawY + (((k % 3) - 1) * 8)), 1.6, cityLightsPaint);
+          }
+        }
+      }
+    }
+    canvas.restore();
+    canvas.drawCircle(center, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 3.0..color = const Color(0xFF38BDF8).withOpacity(0.75));
+  }
+
+  @override
+  bool shouldRepaint(covariant _EarthDayNightPainter oldDelegate) => oldDelegate.rotation != rotation;
+}
 
 class CommunitySocialScreen extends StatefulWidget {
   final String serverUrl;
@@ -357,600 +454,201 @@ class CommunitySocialScreen extends StatefulWidget {
 
 class _CommunitySocialScreenState extends State<CommunitySocialScreen> with SingleTickerProviderStateMixin {
   late AnimationController _globeRotCtrl;
+  double _manualSpin = 0.0;
   final TextEditingController _chatCtrl = TextEditingController();
-  bool _showMyLocationOnGlobe = true;
-  int _vipRotationSeed = 0;
+  final TextEditingController _appealCtrl = TextEditingController();
 
-  final List<Map<String, dynamic>> _communityMessages = [
-    {'user': '@HELLCreatorOS', 'country': 'Portugal 🇵🇹', 'msg': 'Bem-vindos à Comunidade Global 4K HDR! Mapa NASA ativo.', 'isOwner': true},
-    {'user': '@SofiaLive', 'country': 'Portugal 🇵🇹', 'msg': 'O globo da NASA com os VIPs em tempo real ficou brutal!', 'isOwner': false},
-    {'user': 'CarlosGamer_BR', 'country': 'Brasil 🇧🇷', 'msg': 'Salve desde São Paulo! A testar os alertas 4K.', 'isOwner': false},
+  int _warningCount = 0;
+  bool _isChatBanned = false;
+  bool _appealSubmitted = false;
+  final List<Map<String, String>> _infractionScreenshots = List<Map<String, String>>.empty(growable: true);
+
+  static const List<String> _blockedWords = <String>[
+    'idiota', 'estupido', 'estúpido', 'lixo', 'otario', 'otário',
+    'morre', 'matar', 'racista', 'cabrao', 'cabrão', 'filho da puta', 'burro',
   ];
 
-  final List<Map<String, dynamic>> _globalVipNodes = [
-    {'nick': '@HELLCreatorOS (FUNDADOR)', 'country': 'Portugal', 'flag': '🇵🇹', 'lat': 0.34, 'lon': 0.46, 'fixed': true, 'live': true, 'tier': 'DONO · SUPREMO'},
-    {'nick': 'SofiaLive_VIP', 'country': 'Portugal', 'flag': '🇵🇹', 'lat': 0.36, 'lon': 0.48, 'fixed': false, 'live': true, 'tier': 'VIP SUPREMO'},
-    {'nick': 'CarlosGamer_BR', 'country': 'Brasil', 'flag': '🇧🇷', 'lat': 0.64, 'lon': 0.33, 'fixed': false, 'live': true, 'tier': 'VIP PRO'},
-    {'nick': 'LucasStream_BR', 'country': 'Brasil', 'flag': '🇧🇷', 'lat': 0.60, 'lon': 0.35, 'fixed': false, 'live': false, 'tier': 'VIP PRO'},
-    {'nick': 'CyberAlex_US', 'country': 'EUA', 'flag': '🇺🇸', 'lat': 0.36, 'lon': 0.22, 'fixed': false, 'live': true, 'tier': 'VIP SUPREMO'},
-    {'nick': 'ElenaStream_ES', 'country': 'Espanha', 'flag': '🇪🇸', 'lat': 0.35, 'lon': 0.49, 'fixed': false, 'live': true, 'tier': 'VIP PRO'},
-    {'nick': 'KenjiPlays_JP', 'country': 'Japão', 'flag': '🇯🇵', 'lat': 0.38, 'lon': 0.84, 'fixed': false, 'live': true, 'tier': 'VIP SUPREMO'},
+  final List<Map<String, dynamic>> _communityMessages = <Map<String, dynamic>>[
+    {'user': '@HELLCreator', 'msg': 'Bem-vindos à Comunidade Global! Respeito mútuo acima de tudo.', 'isVip': true},
+    {'user': '@SofiaLive', 'msg': 'Adorei o novo globo dia e noite!', 'isVip': true},
+    {'user': '@CarlosPT', 'msg': 'Alguém para jogar em equipa hoje à noite?', 'isVip': false},
+  ];
+
+  final List<Map<String, dynamic>> _globeUserAvatars = <Map<String, dynamic>>[
+    {'nick': '@HELLCreator', 'country': 'Portugal', 'dx': -0.12, 'dy': -0.22, 'isVip': true, 'live': true, 'color': 0xFFF59E0B, 'initial': 'H'},
+    {'nick': '@SofiaLive', 'country': 'Portugal', 'dx': -0.05, 'dy': -0.16, 'isVip': true, 'live': true, 'color': 0xFF38BDF8, 'initial': 'S'},
+    {'nick': '@CarlosBR', 'country': 'Brasil', 'dx': -0.34, 'dy': 0.28, 'isVip': true, 'live': true, 'color': 0xFF10B981, 'initial': 'C'},
+    {'nick': '@AlexUSA', 'country': 'EUA', 'dx': -0.52, 'dy': -0.24, 'isVip': true, 'live': false, 'color': 0xFFA855F7, 'initial': 'A'},
+    {'nick': '@ElenaES', 'country': 'Espanha', 'dx': 0.04, 'dy': -0.20, 'isVip': false, 'live': true, 'color': 0xFFEC4899, 'initial': 'E'},
   ];
 
   @override
   void initState() {
     super.initState();
-    _globeRotCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 28))..repeat();
+    _globeRotCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 26))..repeat();
   }
 
   @override
   void dispose() {
     _globeRotCtrl.dispose();
     _chatCtrl.dispose();
+    _appealCtrl.dispose();
     super.dispose();
   }
 
-  List<Map<String, dynamic>> _visibleNodesForCurrentPass() {
-    final owner = _globalVipNodes.first;
-    final others = _globalVipNodes.where((n) => n['fixed'] != true).toList();
-    final selected = <Map<String, dynamic>>[];
-    if (_showMyLocationOnGlobe) {
-      selected.add(owner);
+  bool _containsToxicContent(String text) {
+    final lower = text.toLowerCase();
+    for (final w in _blockedWords) {
+      if (lower.contains(w)) return true;
     }
-    for (int i = 0; i < others.length; i++) {
-      if ((i + _vipRotationSeed) % 2 == 0) {
-        selected.add(others[i]);
-      }
-    }
-    return selected;
+    return false;
   }
 
-  void _openNodeDetails(Map<String, dynamic> node) {
+  void _handleSendMessage() {
+    final txt = _chatCtrl.text.trim();
+    if (txt.isEmpty || _isChatBanned) return;
+
+    if (_containsToxicContent(txt)) {
+      _warningCount++;
+      _infractionScreenshots.insert(0, {
+        'id': 'PRINT-${DateTime.now().millisecondsSinceEpoch}',
+        'message': txt,
+        'time': DateTime.now().toIso8601String(),
+        'status': _warningCount >= 3 ? 'BAN APLICADO (3/3)' : 'AVISO $_warningCount/3',
+      });
+      _chatCtrl.clear();
+      setState(() {
+        if (_warningCount >= 3) _isChatBanned = true;
+      });
+      return;
+    }
+
+    final isOwner = UserAccountManager.isOwnerEmail(widget.currentUser['email']);
+    setState(() {
+      _communityMessages.insert(0, {'user': '@${widget.currentUser['nickname'] ?? 'Criador'}', 'msg': txt, 'isVip': isOwner});
+      _chatCtrl.clear();
+    });
+  }
+
+  void _openInfractionsAndAppealDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1433),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5)),
-        title: Row(
-          children: [
-            Text(node['flag'] ?? '🌍', style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(node['nick'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))),
-          ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1433),
+          title: const Text('🛡️ Registo de Infrações (Prints IA) & Recurso', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Estado: ${_isChatBanned ? "BANIDO (3/3)" : "Ativo ($_warningCount/3 avisos)"}'),
+                  ..._infractionScreenshots.map((inf) => ListTile(
+                        dense: true,
+                        title: Text('📸 ${inf['id']} · ${inf['status']}'),
+                        subtitle: Text('Mensagem: "${inf['message']}"'),
+                      )),
+                  if (_isChatBanned) ...[
+                    TextField(controller: _appealCtrl, decoration: const InputDecoration(hintText: 'Escreve o teu recurso...')),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_appealCtrl.text.trim().isNotEmpty) {
+                          setModal(() => _appealSubmitted = true);
+                          setState(() => _appealSubmitted = true);
+                        }
+                      },
+                      child: Text(_appealSubmitted ? '✓ Recurso Enviado' : 'Enviar Recurso'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('País: ${node['country']}', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF38BDF8))),
-            const SizedBox(height: 6),
-            Text('Estatuto: ${node['tier']}', style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.amberAccent)),
-            const SizedBox(height: 6),
-            Text(node['live'] == true ? '🟢 Em Direto Agora' : '🔵 Online na Comunidade', style: const TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
-        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isOwner = UserAccountManager.isOwnerEmail(widget.currentUser['email']);
-    final visibleNodes = _visibleNodesForCurrentPass();
+    final sortedMembers = List<Map<String, dynamic>>.from(_globeUserAvatars)
+      ..sort((a, b) => (b['isVip'] == true ? 1 : 0).compareTo(a['isVip'] == true ? 1 : 0));
 
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        HellCockpitWindow(
-          title: 'GLOBO TERRESTRE NASA · REDE GLOBAL VIP',
-          icon: Icons.public_rounded,
-          accent: const Color(0xFF38BDF8),
-          badge: 'NASA BLUE MARBLE 4K',
-          onTestPressed: () {
-            setState(() => _vipRotationSeed++);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('🌍 Órbita NASA atualizada! Nova rotação aleatória de VIPs por país.'), behavior: SnackBarBehavior.floating),
-            );
-          },
-          child: Column(
-            children: [
-                             SizedBox(
-                  height: 335,
-                  child: Center(
-                    child: AnimatedBuilder(
-                      animation: _globeRotCtrl,
-                      builder: (_, __) {
-                        final orbitOffset = (_globeRotCtrl.value * 680) % 680;
-                        return GestureDetector(
-                          onTap: () => setState(() => _vipRotationSeed++),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Halo atmosférico orbital HDR (azul & dourado solar)
-                              Container(
-                                width: 318,
-                                height: 318,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 34, spreadRadius: 4),
-                                    BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.28), blurRadius: 52, spreadRadius: 6),
-                                  ],
-                                ),
-                              ),
-                              // Esfera 3D Vista de Satélite NASA Realista em Rotação Suave
-                              Container(
-                                width: 306,
-                                height: 306,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.8), width: 1.5),
-                                ),
-                                child: ClipOval(
-                                  child: Stack(
-                                    children: [
-                                      Positioned(
-                                        left: -orbitOffset,
-                                        top: 0,
-                                        bottom: 0,
-                                        width: 1360,
-                                        child: Row(
-                                          children: [
-                                            Image.network(
-                                              'https://wikimedia.org',
-                                              width: 680,
-                                              height: 306,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0A2463)),
-                                            ),
-                                            Image.network(
-                                              'https://wikimedia.org',
-                                              width: 680,
-                                              height: 306,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0A2463)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Iluminação orbital HDR (reflexo solar + profundidade esférica 3D)
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          gradient: RadialGradient(
-                                            center: const Alignment(-0.35, -0.35),
-                                            radius: 0.92,
-                                            colors: [
-                                              Colors.white.withOpacity(0.14),
-                                              const Color(0xFF38BDF8).withOpacity(0.08),
-                                              Colors.transparent,
-                                              Colors.black.withOpacity(0.76),
-                                            ],
-                                            stops: const [0.0, 0.35, 0.68, 1.0],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              ...visibleNodes.map((n) {
-                                final isFixedOwner = n['fixed'] == true;
-                                final isLive = n['live'] == true;
-                                final dx = ((n['lon'] as double) - 0.5) * 230;
-                                final dy = ((n['lat'] as double) - 0.5) * 230;
-                                return Transform.translate(
-                                  offset: Offset(dx, dy),
-                                  child: GestureDetector(
-                                    onTap: () => _openNodeDetails(n),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isFixedOwner ? const Color(0xFFF59E0B).withOpacity(0.95) : const Color(0xFF060E24).withOpacity(0.92),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isFixedOwner ? Colors.white : (isLive ? Colors.redAccent : const Color(0xFF38BDF8)),
-                                          width: 1.3,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: (isLive ? Colors.redAccent : const Color(0xFF38BDF8)).withOpacity(0.5),
-                                            blurRadius: 10,
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 7,
-                                            height: 7,
-                                            decoration: BoxDecoration(
-                                              color: isLive ? Colors.redAccent : Colors.greenAccent,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            isFixedOwner
-                                                ? '👑 ${n['flag']} ${n['nick'].toString().split('_').first}'
-                                                : '${n['flag']} ${n['nick'].toString().split('_').first} · ${isLive ? "AO VIVO" : "ONLINE"}',
-                                            style: TextStyle(
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w900,
-                                              color: isFixedOwner ? Colors.black : Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-
-
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                activeColor: const Color(0xFF38BDF8),
-                title: const Text('Mostrar a minha presença no Globo NASA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                subtitle: const Text('Portugal mantém o fundador em destaque; restantes VIPs rodam aleatoriamente por país.', style: TextStyle(fontSize: 10.5, color: Colors.white60)),
-                value: _showMyLocationOnGlobe,
-                onChanged: (v) => setState(() => _showMyLocationOnGlobe = v),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        HellCockpitWindow(
-          title: 'CHAT GLOBAL & DESTAQUE DO FUNDADOR',
-          icon: Icons.forum_rounded,
-          accent: const Color(0xFFA855F7),
-          badge: '${_communityMessages.length} MENSAGENS',
-          onTestPressed: () {
-            setState(() {
-              _communityMessages.insert(0, {'user': '@HELLCreatorOS', 'country': 'Portugal 🇵🇹', 'msg': 'Sinal global verificado com sucesso!', 'isOwner': true});
-            });
-          },
-          child: Column(
-            children: [
-              ..._communityMessages.map((m) {
-                final ownerMsg = m['isOwner'] == true;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 7),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: ownerMsg ? const Color(0xFF1E2B58) : const Color(0xFF04091A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ownerMsg ? Colors.amberAccent : Colors.white12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(m['user'] ?? '', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: ownerMsg ? Colors.amberAccent : const Color(0xFF38BDF8))),
-                          const SizedBox(width: 6),
-                          Text(m['country'] ?? '', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(m['msg'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white)),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _chatCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: const InputDecoration(hintText: 'Escrever na comunidade global...', border: OutlineInputBorder(), isDense: true),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
-                    onPressed: () {
-                      if (_chatCtrl.text.trim().isEmpty) return;
-                      setState(() {
-                        _communityMessages.insert(0, {
-                          'user': '@${widget.currentUser['nickname'] ?? 'Criador'}',
-                          'country': 'Portugal 🇵🇹',
-                          'msg': _chatCtrl.text.trim(),
-                          'isOwner': isOwner,
-                        });
-                        _chatCtrl.clear();
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-
-class HellInfoHubScreen extends StatefulWidget {
-  const HellInfoHubScreen({super.key});
-
-  @override
-  State<HellInfoHubScreen> createState() => _HellInfoHubScreenState();
-}
-
-class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
-  final TextEditingController _aiInputCtrl = TextEditingController();
-  final List<Map<String, String>> _aiChat = [
-    {
-      'role': 'ai',
-      'text': 'Olá! Sou o Robô Assistente do HELL CREATOR OS. Pergunta-me como sincronizar um segundo aparelho, ligar o OBS, configurar vozes ou usar o Modo de Jogo!',
-    },
-  ];
-
-  final List<Map<String, String>> _faqTopics = [
-    {
-      'title': '1. Como fazer Live Direta no Telemóvel ou Tablet sem PC?',
-      'example': 'Toca num dos 4 quadrados (Twitch, YouTube ou Kick) no topo do ecrã inicial, cola a tua Stream Key e inicia. Ao minimizar para jogar, o Modo de Jogo Invisível ativa-se automaticamente sem nada no ecrã.',
-    },
-    {
-      'title': '2. Como sincronizar um Telemóvel Velho como Stream Deck Pro?',
-      'example': 'Inicia sessão com a mesma conta nos dois aparelhos, vai a "Centro de Controlo > Perfil & Sync QR" e lê o Código QR (ou escreve o código de 6 dígitos) para desbloquear o Stream Deck Pro sincronizado.',
-    },
-    {
-      'title': '3. Como escolher e instalar Vozes Masculinas e Femininas?',
-      'example': 'Abre "HELL Voz / Chat TTS", escolhe entre as 3 vozes masculinas e 3 femininas em Português, toca em Play para testar e instala na aplicação.',
-    },
-    {
-      'title': '4. Como ligar Overlays no OBS Studio / TikTok Live Studio?',
-      'example': 'Vai a "Centro de Controlo > OBS Control", copia o URL Browser Source local e cola-o como Fonte de Navegador (1920x1080) no teu software de transmissão.',
-    },
-  ];
-
-    String _generateAiReply(String question) {
-    final q = question.toLowerCase().trim();
-    if (q.contains('qr') || q.contains('sincronizar') || q.contains('segundo') || q.contains('deck') || q.contains('stream deck')) {
-      return '🎛️ Stream Deck & 2.º Aparelho: Inicia sessão com a mesma conta nos dois dispositivos, abre "Stream Deck" no menu principal e lê o Código QR (ou insere o código de 6 dígitos) para controlar cenas, sons, mutar o microfone e lançar alertas à distância.';
-    }
-    if (q.contains('obs') || q.contains('overlay') || q.contains('link') || q.contains('tiktok live studio')) {
-      return '🖥️ Overlays no OBS / TikTok Live Studio: No Centro de Controlo copia o endereço local http://127.0.0 e adiciona-o como Fonte de Navegador (1920x1080) no OBS ou TikTok Live Studio. Todos os alertas, presentes e metas aparecem em 4K transparente.';
-    }
-    if (q.contains('voz') || q.contains('tts') || q.contains('helder') || q.contains('hélder') || q.contains('enzo') || q.contains('flavio') || q.contains('lucia') || q.contains('noa') || q.contains('sandra') || q.contains('idioma')) {
-      return '🎙️ Vozes Neurais IA & Idiomas: Abre "Centro de Controlo > Vozes IA". O idioma do aparelho é detetado automaticamente e podes baixar novos idiomas. Tens 3 vozes masculinas reais (Hélder, Enzo, Flávio) e 3 femininas (Lúcia, Noa, Sandra) prontas a ouvir e aplicar.';
-    }
-    if (q.contains('presente') || q.contains('alerta') || q.contains('automac') || q.contains('automaç') || q.contains('bot') || q.contains('algoritmo')) {
-      return '🎁 Automações, Presentes & Bot Algoritmo: Tudo está integrado dentro do "Centro de Controlo". Podes ativar Presentes Padrão para todos os presentes de uma vez, personalizar cada presente individualmente, usar a Biblioteca Online CC0 gratuita e ativar o Chat Bot automático para impulsionar o algoritmo da live.';
-    }
-    if (q.contains('musica') || q.contains('música') || q.contains('spotify') || q.contains('youtube music') || q.contains('radio')) {
-      return '🎵 Música Integrada: Abre "Música" no menu principal. Tens o Spotify Web Player e o YouTube Music embutidos diretamente dentro da app (sem abrir páginas externas), além de faixas estéreo sem copyright e suporte para links diretos MP3/AAC.';
-    }
-    if (q.contains('clipe') || q.contains('clip') || q.contains('fabrica') || q.contains('fábrica') || q.contains('video') || q.contains('24h')) {
-      return '🎬 Fábrica de Conteúdos IA: Durante a live a app deteta os momentos de pico e gera clipes automáticos. No fim da live podes editar formato (9:16 ou 16:9), estilo e legendas, baixar para o telemóvel/PC ou publicar direto nas redes. Clipes não guardados são apagados automaticamente passado 24 horas.';
-    }
-    if (q.contains('globo') || q.contains('comunidade') || q.contains('vip') || q.contains('mapa')) {
-      return '🌍 Comunidade & Globo NASA: Na aba "Comunidade" tens o Globo Terrestre 3D "Earth at Night" em rotação suave com os seguidores VIP marcados nos países registados nas suas contas e chat global em tempo real.';
-    }
-    if (q.contains('doar') || q.contains('doaç') || q.contains('mbway') || q.contains('paypal') || q.contains('pix') || q.contains('revolut')) {
-      return '💶 Doações & Monetização: No Centro de Controlo podes configurar MB WAY, PayPal.me, Revolut ou PIX e partilhar o teu link de doação com alertas sonoros e por voz imediatos.';
-    }
-    if (q.contains('jogo') || q.contains('invisivel') || q.contains('invisível') || q.contains('minimizar')) {
-      return '🎮 Modo Jogo Invisível: Ao iniciares uma live mobile (Twitch, YouTube ou Kick) e minimizares a app para abrir o teu jogo, o Modo Invisível mantém a transmissão e o áudio ativos em segundo plano sem sobrepor janelas.';
-    }
-    return '🤖 Posso ajudar-te com qualquer área da HELL CREATOR OS! Pergunta-me sobre:\n• Sincronizar 2.º telemóvel / Stream Deck QR\n• Ligar Overlays no OBS / TikTok Live Studio\n• Vozes Neurais (Hélder, Enzo, Flávio, Lúcia, Noa, Sandra) e Idiomas\n• Presentes Padrão, Bot Algoritmo e Biblioteca CC0\n• Spotify e YouTube Music dentro da app\n• Fábrica de Conteúdos IA e limpeza 24H\n• Globo NASA e Doações (MB WAY / PayPal / PIX)';
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: Column(
         children: [
           const TabBar(
             indicatorColor: Color(0xFF38BDF8),
-            labelColor: Color(0xFF38BDF8),
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-          
-              Tab(text: 'ℹ️ Quem Somos'),
-              Tab(text: '🤖 Ajuda (Robô IA)'),
-              Tab(text: '📖 FAQ & Regras'),
-            ],
+            tabs: [Tab(text: '🌍 Globo 3D Dia/Noite'), Tab(text: '⭐ Destaque & Online'), Tab(text: '💬 Chat & Moderação IA')],
           ),
           Expanded(
             child: TabBarView(
               children: [
-             
-                // 1. QUEM SOMOS
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Center(
-                      child: Image.asset('icon.png', height: 85, errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, size: 70, color: Color(0xFF38BDF8))),
-                    ),
-                    const SizedBox(height: 10),
-                    const Center(child: Text('HELL', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 4, color: Colors.white, height: 1.0))),
-                    const Center(child: Text('CREATOR OS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3, color: Color(0xFF38BDF8)))),
-                    const SizedBox(height: 6),
-                    const Center(child: Text('UM CRIADOR · VÁRIAS PLATAFORMAS · CONTROLO TOTAL', style: TextStyle(fontSize: 10.5, letterSpacing: 1.2, color: Color(0xFF7DD3FC)))),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF1E78FF)),
-                      ),
-                      child: const Text(
-                        'O HELL CREATOR OS é um sistema operativo completo criado para dar a todos os criadores de conteúdo — desde quem transmite apenas com um telemóvel até estúdios profissionais no PC — controlo total sobre múltiplas plataformas, voz natural em tempo real, automações sem código e ferramentas inteligentes de crescimento.',
-                        style: TextStyle(fontSize: 13.5, height: 1.5, color: Colors.white70),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      color: const Color(0xFF0B1636),
-                      child: ListTile(
-                        leading: const Icon(Icons.email_outlined, color: Color(0xFF38BDF8)),
-                        title: const Text('Contacto Oficial HELL CREATOR OS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-                        subtitle: const Text('hellcreatoros@gmail.com', style: TextStyle(color: Colors.cyanAccent)),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.open_in_new, size: 18, color: Colors.white),
-                          onPressed: () => launchUrl(Uri.parse('mailto:hellcreatoros@gmail.com')),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // 2. AJUDA COM ROBÔ BRANCO & AZUL NÉON ("H")
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0B1636),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF38BDF8)),
-                      ),
-                      child: Column(
+                GestureDetector(
+                  onHorizontalDragUpdate: (d) => setState(() => _manualSpin += d.delta.dx * 0.002),
+                  child: Center(
+                    child: SizedBox(
+                      width: 310,
+                      height: 310,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          const _HellRobotMascot(),
-                          const SizedBox(height: 8),
-                          const Text('Assistente IA · HELL CREATOR OS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 10),
-                          ..._aiChat.map((m) => Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: m['role'] == 'ai' ? const Color(0xFF122E73) : const Color(0xFF1E78FF).withOpacity(0.25),
-                                  borderRadius: BorderRadius.circular(10),
+                          AnimatedBuilder(
+                            animation: _globeRotCtrl,
+                            builder: (_, __) => CustomPaint(size: const Size(265, 265), painter: _EarthDayNightPainter((_globeRotCtrl.value + _manualSpin) % 1.0)),
+                          ),
+                          ..._globeUserAvatars.map((u) => Transform.translate(
+                                offset: Offset((u['dx'] as double) * 195, (u['dy'] as double) * 195),
+                                child: CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Color(u['color'] as int),
+                                  child: Text(u['initial'].toString(), style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
                                 ),
-                                child: Text(m['text']!, style: const TextStyle(fontSize: 12.5)),
                               )),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _aiInputCtrl,
-                                  decoration: const InputDecoration(hintText: 'Escreve a tua dúvida aqui...', isDense: true, border: OutlineInputBorder()),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              IconButton(
-                                icon: const Icon(Icons.send, color: Color(0xFF38BDF8)),
-                                onPressed: () {
-                                  final q = _aiInputCtrl.text.trim();
-                                  if (q.isEmpty) return;
-                                  setState(() {
-                                    _aiChat.add({'role': 'user', 'text': q});
-                                    _aiChat.add({'role': 'ai', 'text': _generateAiReply(q)});
-                                    _aiInputCtrl.clear();
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-
-                // 3. FAQ, REGRAS DE CONDUTA, TERMOS & PRIVACIDADE
                 ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    const Text('📚 Guias Práticos (FAQ)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                    const SizedBox(height: 8),
-                    ..._faqTopics.map((f) => Card(
-                          color: const Color(0xFF0B1636),
-                          child: ExpansionTile(
-                            title: Text(f['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                                child: Text(f['example']!, style: const TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.45)),
-                              ),
-                            ],
-                          ),
-                        )),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1E429F))),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('⚖️ Regras de Conduta, Termos & Privacidade', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                          SizedBox(height: 8),
-                          Text(
-                            '• Respeito mútuo obrigatório na comunidade e nas transmissões.\n'
-                            '• Proibido spam, discurso de ódio ou partilha de links maliciosos.\n'
-                            '• Privacidade garantida: o HELL CREATOR OS não cruza automaticamente identidades de utilizadores entre TikTok, Twitch, YouTube e Kick.\n'
-                            '• Cada criador é responsável pelo conteúdo transmitido nos seus canais.',
-                            style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.5),
-                          ),
-                        ],
+                  padding: const EdgeInsets.all(14),
+                  children: sortedMembers.map((m) {
+                    final isVip = m['isVip'] == true;
+                    return Card(
+                      color: isVip ? const Color(0xFF122659) : const Color(0xFF0B1636),
+                      child: ListTile(
+                        leading: CircleAvatar(backgroundColor: Color(m['color'] as int), child: Text(m['initial'].toString())),
+                        title: Row(children: [Text(m['nick'].toString()), if (isVip) const Icon(Icons.verified_rounded, color: Colors.amberAccent, size: 16)]),
+                        subtitle: Text('${m['country']} · ${m['live'] == true ? "🔴 Em Direto" : "🟢 Online"}'),
                       ),
+                    );
+                  }).toList(),
+                ),
+                ListView(
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('🛡️ Moderação IA · Avisos: $_warningCount/3', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amberAccent)),
+                        TextButton(onPressed: _openInfractionsAndAppealDialog, child: const Text('Infrações / Recurso')),
+                      ],
+                    ),
+                    ..._communityMessages.map((m) => ListTile(dense: true, title: Text(m['user'].toString()), subtitle: Text(m['msg'].toString()))),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: _chatCtrl, enabled: !_isChatBanned, decoration: const InputDecoration(hintText: 'Escrever no chat...'))),
+                        IconButton(icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)), onPressed: _handleSendMessage),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HellRobotMascot extends StatelessWidget {
-  const _HellRobotMascot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 78,
-      height: 78,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(colors: [Colors.white, Color(0xFFE0F2FE)]),
-        border: Border.all(color: const Color(0xFF38BDF8), width: 2.5),
-        boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 16)],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: const Color(0xFF050B1E), borderRadius: BorderRadius.circular(10)),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF38BDF8)),
-                SizedBox(width: 8),
-                CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF38BDF8)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text('H', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1E78FF), height: 1.0)),
         ],
       ),
     );
