@@ -1727,8 +1727,7 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
                         ],
                       ),
                     ),
-                  ],
-                ),
+              
 
                 // 11.5 - 11.7 TEAM MANAGEMENT, SPONSOR MATCH AI & AGENCY DASHBOARD
                 ListView(
