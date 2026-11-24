@@ -12,12 +12,15 @@ class MusicDeckController {
   static AudioPlayer? sharedPlayer;
   static bool isPlaying = false;
   static int currentIndex = 0;
-  static final List<Map<String, String>> activeTracks = [
-    {'title': 'HELL Cyber Synth 4K (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_cyber.wav'},
-    {'title': 'Midnight Lo-Fi Stream (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_lofi.wav'},
-    {'title': 'Fanfarra Arena 4K HDR', 'artist': 'HELL Broadcast Pack', 'url': 'sounds/hell_startup.wav'},
-    ...DefaultMediaLibrary.royaltyFreeMusicRepo,
+    static final List<Map<String, String>> activeTracks = [
+    {'title': '📻 Rádio Comercial Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://bauermedia.pt'},
+    {'title': '📻 RFM Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://streamtheworld.com'},
+    {'title': '📻 Mega Hits Portugal · Ao Vivo', 'artist': 'Rádio Online Direta (PT)', 'url': 'https://streamtheworld.com'},
+    {'title': '🎧 Lo-Fi Hip Hop Radio · 24/7 Sem Copyright', 'artist': 'Stream Safe · Beats para Lives', 'url': 'https://streamafrica.net'},
+    {'title': '⚡ HELL Cyber Synth 4K (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_cyber.wav'},
+    {'title': '🌙 Midnight Lo-Fi Stream (Estéreo)', 'artist': 'HELL Studio Audio · Sem Copyright', 'url': 'sounds/music_lofi.wav'},
   ];
+
 
   static Future<void> _playSource(AudioPlayer player, String src) async {
     await player.stop();
