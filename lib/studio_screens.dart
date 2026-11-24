@@ -1712,7 +1712,7 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
                           OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
                             onPressed: () {
-                                                            Clipboard.setData(const ClipboardData('http://localhost:8080/overlay/sponsors_ticker))
+                                                                                          Clipboard.setData(const ClipboardData(text: 'http://localhost:8080/overlay/sponsors_ticker'));
                                                             ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('✅ Link OBS de Publicidades & Parcerias copiado!')),
                               );
