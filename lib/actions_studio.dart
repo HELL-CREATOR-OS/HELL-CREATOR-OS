@@ -769,7 +769,7 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
       ],
     );
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
