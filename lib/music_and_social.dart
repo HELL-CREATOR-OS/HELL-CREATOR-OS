@@ -457,127 +457,146 @@ class _CommunitySocialScreenState extends State<CommunitySocialScreen> with Sing
           },
           child: Column(
             children: [
-                        SizedBox(
-                height: 270,
-                child: Center(
-                  child: AnimatedBuilder(
-                    animation: _globeRotCtrl,
-                    builder: (_, __) {
-                      final orbitOffset = (_globeRotCtrl.value * 540) % 540;
-                      return GestureDetector(
-                        onTap: () => setState(() => _vipRotationSeed++),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Halo atmosférico azul brilhante no limbo do planeta
-                            Container(
-                              width: 244,
-                              height: 244,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 36, spreadRadius: 5),
-                                  BoxShadow(color: const Color(0xFF1D4ED8).withOpacity(0.45), blurRadius: 65, spreadRadius: 8),
-                                ],
-                              ),
-                            ),
-                            // Esfera 3D com textura NASA Earth at Night em rotação suave contínua
-                            Container(
-                              width: 236,
-                              height: 236,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFF7DD3FC).withOpacity(0.75), width: 1.8),
-                              ),
-                              child: ClipOval(
-                                child: Stack(
-                                  children: [
-                                    Positioned(
-                                      left: -orbitOffset,
-                                      top: 0,
-                                      bottom: 0,
-                                      width: 1080,
-                                      child: Row(
-                                        children: [
-                                          Image.network(
-                                            'https://wikimedia.org',
-                                            width: 540,
-                                            height: 236,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF040B1E)),
-                                          ),
-                                          Image.network(
-                                            'https://wikimedia.org',
-                                            width: 540,
-                                            height: 236,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF040B1E)),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    // Iluminação solar orbital e sombra esférica 3D
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: RadialGradient(
-                                          center: const Alignment(-0.32, -0.38),
-                                          radius: 0.96,
-                                          colors: [
-                                            const Color(0xFF38BDF8).withOpacity(0.18),
-                                            Colors.transparent,
-                                            Colors.black.withOpacity(0.82),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                             SizedBox(
+                  height: 335,
+                  child: Center(
+                    child: AnimatedBuilder(
+                      animation: _globeRotCtrl,
+                      builder: (_, __) {
+                        final orbitOffset = (_globeRotCtrl.value * 680) % 680;
+                        return GestureDetector(
+                          onTap: () => setState(() => _vipRotationSeed++),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Halo atmosférico orbital HDR (azul & dourado solar)
+                              Container(
+                                width: 318,
+                                height: 318,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.55), blurRadius: 34, spreadRadius: 4),
+                                    BoxShadow(color: const Color(0xFFF59E0B).withOpacity(0.28), blurRadius: 52, spreadRadius: 6),
                                   ],
                                 ),
                               ),
-                            ),
-                            ...visibleNodes.map((n) {
-                              final isFixedOwner = n['fixed'] == true;
-                              final dx = ((n['lon'] as double) - 0.5) * 170;
-                              final dy = ((n['lat'] as double) - 0.5) * 170;
-                              return Transform.translate(
-                                offset: Offset(dx, dy),
-                                child: GestureDetector(
-                                  onTap: () => _openNodeDetails(n),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
+                              // Esfera 3D Vista de Satélite NASA Realista em Rotação Suave
+                              Container(
+                                width: 306,
+                                height: 306,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.8), width: 1.5),
+                                ),
+                                child: ClipOval(
+                                  child: Stack(
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                        decoration: BoxDecoration(
-                                          color: isFixedOwner ? Colors.amberAccent : const Color(0xFF04091A).withOpacity(0.92),
-                                          borderRadius: BorderRadius.circular(999),
-                                          border: Border.all(color: isFixedOwner ? Colors.white : const Color(0xFF38BDF8), width: 1.2),
-                                        ),
-                                        child: Text(
-                                          isFixedOwner ? '🇵🇹 FUNDADOR' : '${n['flag']} ${n['nick'].toString().split('_').first}',
-                                          style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: isFixedOwner ? Colors.black : Colors.white),
+                                      Positioned(
+                                        left: -orbitOffset,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: 1360,
+                                        child: Row(
+                                          children: [
+                                            Image.network(
+                                              'https://wikimedia.org',
+                                              width: 680,
+                                              height: 306,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0A2463)),
+                                            ),
+                                            Image.network(
+                                              'https://wikimedia.org',
+                                              width: 680,
+                                              height: 306,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0A2463)),
+                                            ),
+                                          ],
                                         ),
                                       ),
+                                      // Iluminação orbital HDR (reflexo solar + profundidade esférica 3D)
                                       Container(
-                                        width: isFixedOwner ? 12 : 9,
-                                        height: isFixedOwner ? 12 : 9,
                                         decoration: BoxDecoration(
-                                          color: isFixedOwner ? Colors.amberAccent : const Color(0xFF38BDF8),
-                                          shape: BoxShape.circle,
-                                          boxShadow: [BoxShadow(color: isFixedOwner ? Colors.amberAccent : const Color(0xFF38BDF8), blurRadius: 12, spreadRadius: 2.5)],
+                                          gradient: RadialGradient(
+                                            center: const Alignment(-0.35, -0.35),
+                                            radius: 0.92,
+                                            colors: [
+                                              Colors.white.withOpacity(0.14),
+                                              const Color(0xFF38BDF8).withOpacity(0.08),
+                                              Colors.transparent,
+                                              Colors.black.withOpacity(0.76),
+                                            ],
+                                            stops: const [0.0, 0.35, 0.68, 1.0],
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              );
-                            }),
-                          ],
-                        ),
-                      );
-                    },
+                              ),
+                              ...visibleNodes.map((n) {
+                                final isFixedOwner = n['fixed'] == true;
+                                final isLive = n['live'] == true;
+                                final dx = ((n['lon'] as double) - 0.5) * 230;
+                                final dy = ((n['lat'] as double) - 0.5) * 230;
+                                return Transform.translate(
+                                  offset: Offset(dx, dy),
+                                  child: GestureDetector(
+                                    onTap: () => _openNodeDetails(n),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isFixedOwner ? const Color(0xFFF59E0B).withOpacity(0.95) : const Color(0xFF060E24).withOpacity(0.92),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isFixedOwner ? Colors.white : (isLive ? Colors.redAccent : const Color(0xFF38BDF8)),
+                                          width: 1.3,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (isLive ? Colors.redAccent : const Color(0xFF38BDF8)).withOpacity(0.5),
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 7,
+                                            height: 7,
+                                            decoration: BoxDecoration(
+                                              color: isLive ? Colors.redAccent : Colors.greenAccent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            isFixedOwner
+                                                ? '👑 ${n['flag']} ${n['nick'].toString().split('_').first}'
+                                                : '${n['flag']} ${n['nick'].toString().split('_').first} · ${isLive ? "AO VIVO" : "ONLINE"}',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: isFixedOwner ? Colors.black : Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
+
 
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
