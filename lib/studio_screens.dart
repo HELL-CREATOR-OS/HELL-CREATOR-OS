@@ -1654,46 +1654,75 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('📢 Patrocínios & Publicidades Ativas no Rodapé', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                          const SizedBox(height: 8),
-                          ...SponsorBannerManager.activeSponsors.asMap().entries.map((e) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(e.value['title']!, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                                trailing: widget.isOwner
-                                    ? IconButton(
-                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                                        onPressed: () => setState(() => SponsorBannerManager.activeSponsors.removeAt(e.key)),
-                                      )
-                                    : IconButton(
-                                        icon: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF38BDF8)),
-                                        onPressed: () => launchUrl(Uri.parse(e.value['url']!), mode: LaunchMode.externalApplication),
-                                      ),
-                              )),
-                          if (widget.isOwner) ...[
-                            const Divider(color: Colors.white12),
-                            const Text('👑 Painel Dono: Adicionar Publicidade no Rodapé', style: TextStyle(fontSize: 12, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 6),
-                            TextField(controller: _sponsorTitleCtrl, decoration: const InputDecoration(hintText: 'Texto da campanha / patrocinador...', isDense: true)),
-                            const SizedBox(height: 6),
-                            TextField(controller: _sponsorUrlCtrl, decoration: const InputDecoration(hintText: 'Link da campanha (https://...)', isDense: true)),
-                            const SizedBox(height: 8),
-                            ElevatedButton(
+                                   const Text('📢 Gestão de Publicidades & Parcerias (Live + Perfil + Stream Deck)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                      const SizedBox(height: 6),
+                      const Text('Gere aqui os teus patrocinadores e códigos. Sincroniza automaticamente com o teu Perfil, com o Overlay da Live e com o Botão de Ciclo do Stream Deck.', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                      const SizedBox(height: 10),
+                      ...SponsorBannerManager.activeSponsors.asMap().entries.map((e) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.campaign_rounded, color: Colors.amberAccent, size: 20),
+                        title: Text(e.value['title']!, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                        subtitle: Text(e.value['url']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: Colors.white54)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Abrir Link',
+                              icon: const Icon(Icons.open_in_new, size: 17, color: Color(0xFF38BDF8)),
+                              onPressed: () => launchUrl(Uri.parse(e.value['url']!), mode: LaunchMode.externalApplication),
+                            ),
+                            IconButton(
+                              tooltip: 'Remover Parceria',
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                              onPressed: () => setState(() => SponsorBannerManager.activeSponsors.removeAt(e.key)),
+                            ),
+                          ],
+                        ),
+                      )),
+                      const Divider(color: Colors.white12),
+                      const Text('➕ Adicionar Nova Publicidade ou Parceria', style: TextStyle(fontSize: 12, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      TextField(controller: _sponsorTitleCtrl, decoration: const InputDecoration(hintText: 'Texto / Código (ex: Usa código HELL15 · 15% OFF)', isDense: true)),
+                      const SizedBox(height: 6),
+                      TextField(controller: _sponsorUrlCtrl, decoration: const InputDecoration(hintText: 'Link do patrocinador ou perfil (https://...)', isDense: true)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
                               onPressed: () {
                                 if (_sponsorTitleCtrl.text.trim().isNotEmpty) {
                                   setState(() {
                                     SponsorBannerManager.activeSponsors.insert(0, {
                                       'title': _sponsorTitleCtrl.text.trim(),
-                                      'url': _sponsorUrlCtrl.text.trim().isEmpty ? 'mailto:hellcreatoros@gmail.com' : _sponsorUrlCtrl.text.trim(),
+                                      'url': _sponsorUrlCtrl.text.trim().isEmpty ? 'https://hellcreator.app' : _sponsorUrlCtrl.text.trim(),
                                     });
                                     _sponsorTitleCtrl.clear();
                                     _sponsorUrlCtrl.clear();
                                   });
                                 }
                               },
-                              child: const Text('Publicar no Rodapé da App', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              icon: const Icon(Icons.add_circle_outline, size: 16),
+                              label: const Text('Adicionar Parceria', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
+                            onPressed: () {
+                                                            Clipboard.setData(const ClipboardData('http://localhost:8080/overlay/sponsors_ticker))
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('✅ Link OBS de Publicidades & Parcerias copiado!')),
+                              );
+                            },
+                            icon: const Icon(Icons.copy_rounded, size: 15),
+                            label: const Text('Link OBS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
+                          ),
+                        ],
+                      ),
+
                           ],
                         ],
                       ),
