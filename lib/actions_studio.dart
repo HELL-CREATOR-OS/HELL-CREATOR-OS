@@ -120,54 +120,202 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
       ),
     );
   }
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 5,
-      child: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: const Color(0xFF08122E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45)),
-            ),
-            child: TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              indicator: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF38BDF8)]),
-                borderRadius: BorderRadius.circular(11),
+  Widget _buildOverlaysLibraryTab() {
+    final categories = ['Todos', 'Alertas', 'Chat', 'Metas', 'Interativos', 'Ecrãs & Parceiros'];
+    final allOverlays = [
+      {'cat': 'Alertas', 'title': 'Caixa de Alertas Cristal 4K HDR', 'desc': 'Animação 3D vidro com partículas e voz neural para novos seguidores e presentes.', 'route': 'alerts_crystal', 'sound': 'https://google.com'},
+      {'cat': 'Alertas', 'title': 'Explosão de Presentes & Combos', 'desc': 'Contador dinâmico de combos seguidos (x5, x10, x50) com brilho HDR.', 'route': 'gift_combo', 'sound': 'https://google.com'},
+      {'cat': 'Alertas', 'title': 'Alerta Doação Ouro Imperial', 'desc': 'Chuva de moedas douradas 3D com leitura automática da mensagem do doador.', 'route': 'donation_gold', 'sound': 'https://google.com'},
+      {'cat': 'Alertas', 'title': 'Alerta Raid & Host Épico', 'desc': 'Sirene luminosa de estúdio e destaque da equipa que chegou à live.', 'route': 'raid_epic', 'sound': 'https://google.com'},
+      {'cat': 'Chat', 'title': 'Chat Box Transparente Unificado', 'desc': 'Agrupa mensagens do TikTok, Twitch, YouTube e Kick num único feed cristalino.', 'route': 'chat_unified', 'sound': 'https://google.com'},
+      {'cat': 'Chat', 'title': 'Chat Bolhas Neon 3D Flutuantes', 'desc': 'Mensagens sobem suavemente com borda luminosa personalizável.', 'route': 'chat_bubbles', 'sound': 'https://google.com'},
+      {'cat': 'Chat', 'title': 'Destaque Mensagem VIP / SuperChat', 'desc': 'Fixa no ecrã a mensagem destacada com temporizador visual.', 'route': 'chat_vip_pin', 'sound': 'https://google.com'},
+      {'cat': 'Metas', 'title': 'Barra de Meta Líquida 4K HDR', 'desc': 'Progresso animado em tempo real para seguidores, rosas ou doações.', 'route': 'goal_liquid', 'sound': 'https://google.com'},
+      {'cat': 'Metas', 'title': 'Contador Geral Multiplataforma', 'desc': 'Soma automática de espectadores de todas as plataformas em direto.', 'route': 'viewers_total', 'sound': 'https://google.com'},
+      {'cat': 'Metas', 'title': 'Top 3 Apoiadores / Pódio ao Vivo', 'desc': 'Ranking automático em tempo real dos maiores apoiadores da sessão.', 'route': 'top_supporters', 'sound': 'https://google.com'},
+      {'cat': 'Interativos', 'title': 'Roleta 3D de Desafios & Prendas', 'desc': 'Gira automaticamente no ecrã quando entra um presente ou comando.', 'route': 'wheel_3d', 'sound': 'https://google.com'},
+      {'cat': 'Interativos', 'title': 'Votação / Enquete Rápida do Chat', 'desc': 'Barras interativas votadas pelos comentários do público (#1, #2, #3).', 'route': 'live_poll', 'sound': 'https://google.com'},
+      {'cat': 'Interativos', 'title': 'Barra de Vida / Boss Fight Live', 'desc': 'Cada presente ou gosto tira energia ao Boss até desbloquear o desafio.', 'route': 'boss_fight', 'sound': 'https://google.com'},
+      {'cat': 'Ecrãs & Parceiros', 'title': 'Ticker Corrido de Parcerias & Códigos', 'desc': 'Faixa contínua horizontal com os teus patrocinadores e códigos de desconto.', 'route': 'sponsors_ticker', 'sound': 'https://google.com'},
+      {'cat': 'Ecrãs & Parceiros', 'title': 'Banner Rotativo Aleatório de Sponsors', 'desc': 'Alterna automaticamente os banners dos parceiros com transição 3D.', 'route': 'sponsors_rotate', 'sound': 'https://google.com'},
+      {'cat': 'Ecrãs & Parceiros', 'title': 'Now Playing · Música & Rádio ao Vivo', 'desc': 'Mostra a faixa atual da rádio ou playlist com ondas sonoras animadas.', 'route': 'now_playing', 'sound': 'https://google.com'},
+      {'cat': 'Ecrãs & Parceiros', 'title': 'Ecrã Starting Soon / Já Volto / Fim 4K', 'desc': 'Cenas completas animadas com relógio de contagem decrescente HDR.', 'route': 'scenes_4k', 'sound': 'https://google.com'},
+    ];
+
+    final filtered = allOverlays.where((o) {
+      final matchCat = _overlayCategory == 'Todos' || o['cat'] == _overlayCategory;
+      final q = _overlaySearch.trim().toLowerCase();
+      final matchQ = q.isEmpty || o['title']!.toLowerCase().contains(q) || o['desc']!.toLowerCase().contains(q);
+      return matchCat && matchQ;
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        HellCockpitWindow(
+          title: 'BIBLIOTECA DE OVERLAYS & WIDGETS 4K HDR',
+          icon: Icons.layers_rounded,
+          accent: _overlayThemeColor,
+          badge: '${filtered.length} OVERLAYS PRONTOS',
+          onTestPressed: () async {
+            try {
+              await widget.sfxPlayer.stop();
+              await widget.sfxPlayer.play(UrlSource('https://google.com'));
+            } catch (_) {}
+            widget.onSpeakVoice('Pré-visualização do pacote de overlays H D R ativa!');
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('Cor Tema HDR:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white70)),
+                  const SizedBox(width: 8),
+                  ...[
+                    const Color(0xFF38BDF8),
+                    const Color(0xFFF59E0B),
+                    const Color(0xFF22C55E),
+                    const Color(0xFFEF4444),
+                    const Color(0xFFA855F7),
+                  ].map((c) => GestureDetector(
+                        onTap: () => setState(() => _overlayThemeColor = c),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _overlayThemeColor == c ? Colors.white : Colors.transparent, width: 2),
+                          ),
+                        ),
+                      )),
+                ],
               ),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white60,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5),
-              tabs: const [
-                Tab(text: '🎁 Presentes'),
-                Tab(text: '🔔 Alertas Padrão'),
-                Tab(text: '💶 Doações'),
-                Tab(text: '🎯 Metas & Desafios'),
-                Tab(text: '⚡ Regras & Histórico'),
-              ],
-            ),
+              const SizedBox(height: 10),
+              TextField(
+                style: const TextStyle(fontSize: 12),
+                decoration: InputDecoration(
+                  hintText: 'Pesquisar overlay (alertas, roleta, chat, meta, sponsors, starting soon...)',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  isDense: true,
+                  filled: true,
+                  fillColor: const Color(0xFF04091A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onChanged: (v) => setState(() => _overlaySearch = v),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: categories.map((cat) {
+                    final sel = _overlayCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(cat, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        selected: sel,
+                        selectedColor: _overlayThemeColor,
+                        onSelected: (_) => setState(() => _overlayCategory = cat),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildGiftsTab(),
-                _buildAlertsTab(),
-                _buildDonationsTab(),
-                _buildGoalsTab(),
-                _buildRulesTab(),
-              ],
+        ),
+        const SizedBox(height: 12),
+        ...filtered.map((ov) {
+          final hexColor = _overlayThemeColor.value.toRadixString(16);
+          final obsUrl = 'http://127.0.0{ov['route']}?theme=$hexColor';
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: HellCockpitWindow(
+              title: ov['title']!.toUpperCase(),
+              icon: Icons.auto_awesome_rounded,
+              accent: _overlayThemeColor,
+              badge: ov['cat']!.toUpperCase(),
+              onTestPressed: () async {
+                try {
+                  await widget.sfxPlayer.stop();
+                  await widget.sfxPlayer.play(UrlSource(ov['sound']!));
+                } catch (_) {}
+                if (!mounted) return;
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: const Color(0xFF0A1433),
+                    title: Text('Pré-visualização Ao Vivo · ${ov['title']}', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+                    content: Container(
+                      width: 340,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [const Color(0xFF04091A), _overlayThemeColor.withOpacity(0.28)]),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _overlayThemeColor, width: 1.8),
+                        boxShadow: [BoxShadow(color: _overlayThemeColor.withOpacity(0.45), blurRadius: 20)],
+                      ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: obsUrl));
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('✅ Link OBS copiado: $obsUrl')),
+                          );
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 15),
+                        label: const Text('Copiar Link OBS'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(ov['desc']!, style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF04091A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Text(obsUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: _overlayThemeColor, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: obsUrl));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('✅ Link OBS copiado: $obsUrl')),
+                          );
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 14),
+                        label: const Text('Copiar OBS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
+
 
   Widget _buildGiftsTab() {
     return ListView(
