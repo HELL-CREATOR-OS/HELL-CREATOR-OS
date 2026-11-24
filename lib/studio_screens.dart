@@ -1,147 +1,414 @@
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
-import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'platform_logos.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app_data.dart';
+import 'platform_logos.dart';
+import 'music_and_social.dart';
 import 'live_connectors.dart';
-import 'account_security.dart';
 
 BoxDecoration _neonBox() => BoxDecoration(
-  gradient: const LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
-    stops: [0.0, 0.55, 1.0],
-  ),
-  borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45), width: 1.3),
-  boxShadow: [
-    BoxShadow(color: Colors.black.withOpacity(0.65), blurRadius: 12, offset: const Offset(0, 6)),
-    BoxShadow(color: const Color(0xFF1E78FF).withOpacity(0.18), blurRadius: 16, spreadRadius: 0.5),
-  ],
-);
-
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF13275E), Color(0xFF0A1433), Color(0xFF050B1E)],
+        stops: [0.0, 0.55, 1.0],
+      ),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45), width: 1.3),
+    );
 
 class SponsorBannerManager {
   static final List<Map<String, String>> activeSponsors = [
-    {
-      'title': 'HELL CREATOR OS PRO · Controlo Total das Tuas Lives',
-      'url': 'mailto:hellcreatoros@gmail.com',
-    },
-    {
-      'title': 'Espaço Oficial Patrocinadores · Anuncie aqui: hellcreatoros@gmail.com',
-      'url': 'mailto:hellcreatoros@gmail.com',
-    },
+    {'title': 'HELL CREATOR · Controlo Total das Tuas Lives', 'url': 'mailto:hellcreatoros@gmail.com'},
+    {'title': 'Espaço Oficial Patrocinadores · Anuncie aqui: hellcreatoros@gmail.com', 'url': 'mailto:hellcreatoros@gmail.com'},
   ];
 }
-class HellVisualBanner extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color accent;
-  final String badge;
-  final Widget? trailing;
 
-  const HellVisualBanner({
+class HellFriendRobotAvatar extends StatelessWidget {
+  final String skinId;
+  final Color primaryColor;
+  final Color eyeColor;
+  final double size;
+
+  const HellFriendRobotAvatar({
     super.key,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    this.accent = const Color(0xFF38BDF8),
-    this.badge = 'STUDIO 4K HDR',
-    this.trailing,
+    required this.skinId,
+    required this.primaryColor,
+    required this.eyeColor,
+    this.size = 64,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withOpacity(0.28),
-            const Color(0xFF0E1D47),
-            const Color(0xFF04091A),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.65), width: 1.4),
-        boxShadow: [
-          BoxShadow(color: accent.withOpacity(0.22), blurRadius: 20, offset: const Offset(0, 6)),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(19),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -24,
-              top: -24,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [accent.withOpacity(0.35), Colors.transparent]),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: accent.withOpacity(0.6)),
-                    ),
-                    child: Icon(icon, color: accent, size: 26),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: accent.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: accent.withOpacity(0.5)),
-                          ),
-                          child: Text(badge, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: accent)),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.4)),
-                        const SizedBox(height: 2),
-                        Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
-                      ],
-                    ),
-                  ),
-                  if (trailing != null) trailing!,
-                ],
-              ),
-            ),
-          ],
-        ),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _HellRobotPainter(skinId: skinId, primaryColor: primaryColor, eyeColor: eyeColor),
       ),
     );
   }
 }
 
-// CENTRO DE CONTROLO - COCKPIT UNIFICADO OFF/LIVE (4K HDR + SCROLL INTERNO + ECRÃ COMPLETO + ARRASTO PC/TABLET)
+class _HellRobotPainter extends CustomPainter {
+  final String skinId;
+  final Color primaryColor;
+  final Color eyeColor;
+
+  _HellRobotPainter({required this.skinId, required this.primaryColor, required this.eyeColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final bodyPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.white, primaryColor.withOpacity(0.85), const Color(0xFF0A1433)],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+
+    final borderPaint = Paint()
+      ..color = eyeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.032;
+
+    final visorPaint = Paint()..color = const Color(0xFF04091A);
+    final eyeSolid = Paint()..color = eyeColor;
+
+    if (skinId == 'cyber_guardian' || skinId == 'classic_bot') {
+      canvas.drawLine(Offset(w * 0.5, h * 0.04), Offset(w * 0.5, h * 0.14), borderPaint);
+      canvas.drawCircle(Offset(w * 0.5, h * 0.04), w * 0.045, eyeSolid);
+    } else if (skinId == 'mecha_titan') {
+      canvas.drawLine(Offset(w * 0.30, h * 0.05), Offset(w * 0.34, h * 0.16), borderPaint);
+      canvas.drawLine(Offset(w * 0.70, h * 0.05), Offset(w * 0.66, h * 0.16), borderPaint);
+    }
+
+    final headRect = skinId == 'aero_orb'
+        ? RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.22, h * 0.12, w * 0.56, h * 0.38), Radius.circular(w * 0.28))
+        : RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.24, h * 0.14, w * 0.52, h * 0.36), Radius.circular(w * 0.12));
+    canvas.drawRRect(headRect, bodyPaint);
+    canvas.drawRRect(headRect, borderPaint);
+
+    final visorRect = RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.30, h * 0.22, w * 0.40, h * 0.18), Radius.circular(w * 0.08));
+    canvas.drawRRect(visorRect, visorPaint);
+
+    canvas.drawCircle(Offset(w * 0.41, h * 0.31), w * 0.034, eyeSolid);
+    canvas.drawCircle(Offset(w * 0.59, h * 0.31), w * 0.034, eyeSolid);
+
+    final torsoRect = skinId == 'mecha_titan'
+        ? RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.18, h * 0.53, w * 0.64, h * 0.40), Radius.circular(w * 0.10))
+        : RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.23, h * 0.53, w * 0.54, h * 0.39), Radius.circular(w * 0.16));
+    canvas.drawRRect(torsoRect, bodyPaint);
+    canvas.drawRRect(torsoRect, borderPaint);
+
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.10, h * 0.56, w * 0.10, h * 0.28), Radius.circular(w * 0.05)), bodyPaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(w * 0.80, h * 0.56, w * 0.10, h * 0.28), Radius.circular(w * 0.05)), bodyPaint);
+
+    // Emblema discreto HELL ("H") no peito esquerdo do robô
+    final badgeCenter = Offset(w * 0.62, h * 0.67);
+    final badgeRadius = w * 0.095;
+    canvas.drawCircle(badgeCenter, badgeRadius, Paint()..color = const Color(0xFF050B1E));
+    canvas.drawCircle(badgeCenter, badgeRadius, Paint()..color = const Color(0xFF38BDF8)..style = PaintingStyle.stroke..strokeWidth = w * 0.018);
+
+    final tp = TextPainter(
+      text: TextSpan(text: 'H', style: TextStyle(color: const Color(0xFF38BDF8), fontSize: w * 0.115, fontWeight: FontWeight.w900)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(badgeCenter.dx - tp.width / 2, badgeCenter.dy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _HellRobotPainter oldDelegate) =>
+      oldDelegate.skinId != skinId || oldDelegate.primaryColor != primaryColor || oldDelegate.eyeColor != eyeColor;
+}
+class HellVirtualFriendController {
+  static final ValueNotifier<String> botName = ValueNotifier<String>('Amigo HELL IA');
+  static final ValueNotifier<String> wakePhrase = ValueNotifier<String>('Olá Amigo HELL');
+  static final ValueNotifier<String> skinId = ValueNotifier<String>('cyber_guardian');
+  static final ValueNotifier<Color> primaryColor = ValueNotifier<Color>(const Color(0xFF38BDF8));
+  static final ValueNotifier<Color> eyeColor = ValueNotifier<Color>(const Color(0xFF38BDF8));
+  static final ValueNotifier<bool> floatingBubbleEnabled = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> voiceWakeEnabled = ValueNotifier<bool>(true);
+  static final List<Map<String, String>> alarms = List<Map<String, String>>.empty(growable: true);
+
+  static Future<void> loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    botName.value = prefs.getString('hell_ai_bot_name') ?? 'Amigo HELL IA';
+    wakePhrase.value = prefs.getString('hell_ai_wake_phrase') ?? 'Olá Amigo HELL';
+    skinId.value = prefs.getString('hell_ai_skin') ?? 'cyber_guardian';
+    primaryColor.value = Color(prefs.getInt('hell_ai_primary_color') ?? 0xFF38BDF8);
+    eyeColor.value = Color(prefs.getInt('hell_ai_eye_color') ?? 0xFF38BDF8);
+    floatingBubbleEnabled.value = prefs.getBool('hell_ai_floating_enabled') ?? true;
+    voiceWakeEnabled.value = prefs.getBool('hell_ai_voice_wake') ?? true;
+  }
+
+  static Future<void> savePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('hell_ai_bot_name', botName.value);
+    await prefs.setString('hell_ai_wake_phrase', wakePhrase.value);
+    await prefs.setString('hell_ai_skin', skinId.value);
+    await prefs.setInt('hell_ai_primary_color', primaryColor.value.value);
+    await prefs.setInt('hell_ai_eye_color', eyeColor.value.value);
+    await prefs.setBool('hell_ai_floating_enabled', floatingBubbleEnabled.value);
+    await prefs.setBool('hell_ai_voice_wake', voiceWakeEnabled.value);
+  }
+
+  static Future<String> processPrompt(String rawInput) async {
+    final q = rawInput.toLowerCase().trim();
+    final name = botName.value;
+
+    if (q.contains('piada') || q.contains('rir') || q.contains('anedota')) {
+      const jokes = <String>[
+        'Porque é que o streamer levou um guarda-chuva para o PC? Porque disseram que ia chover seguidores na live!',
+        'O que diz um teclado para o rato? Não cliques tanto em mim que eu hoje estou sensível!',
+        'Qual é o cúmulo de um gamer? Perder a partida e culpar o lag do micro-ondas!',
+      ];
+      final chosen = jokes[Random().nextInt(jokes.length)];
+      await HellNeuralVoiceEngine.speak(chosen);
+      return chosen;
+    }
+
+    if (q.contains('tocar') || q.contains('música') || q.contains('musica') || q.contains('rádio') || q.contains('radio')) {
+      int targetIdx = 0;
+      if (q.contains('rfm')) targetIdx = 1;
+      if (q.contains('mega')) targetIdx = 2;
+      if (q.contains('cidade')) targetIdx = 3;
+      if (q.contains('m80')) targetIdx = 4;
+      if (q.contains('lofi') || q.contains('lo-fi')) targetIdx = 10;
+      await MusicDeckController.playIndex(targetIdx);
+      final st = MusicDeckController.radioStations[targetIdx]['title'] ?? 'Rádio Online';
+      final reply = 'A colocar $st a tocar em segundo plano para ti!';
+      await HellNeuralVoiceEngine.speak(reply);
+      return reply;
+    }
+
+    if (q.contains('parar música') || q.contains('parar rádio') || q.contains('silêncio')) {
+      await MusicDeckController.stopImmediately();
+      const reply = 'Áudio e rádio desligados de imediato.';
+      await HellNeuralVoiceEngine.speak(reply);
+      return reply;
+    }
+
+    if (q.contains('tempo') || q.contains('meteorologia') || q.contains('hora') || q.contains('horas')) {
+      final now = TimeOfDay.now();
+      final hh = now.hour.toString().padLeft(2, '0');
+      final mm = now.minute.toString().padLeft(2, '0');
+      final reply = 'São agora $hh:$mm. Céu limpo e condições ideais para fazeres uma transmissão épica!';
+      await HellNeuralVoiceEngine.speak(reply);
+      return reply;
+    }
+
+    if (q.contains('alarme') || q.contains('avisa') || q.contains('lembrete') || q.contains('lembrar')) {
+      final minsMatch = RegExp(r'(\d+)').firstMatch(q);
+      final mins = int.tryParse(minsMatch?.group(1) ?? '15') ?? 15;
+      alarms.insert(0, {'label': rawInput, 'inMinutes': '$mins min', 'created': TimeOfDay.now().toString()});
+      Timer(Duration(minutes: mins), () {
+        HellNeuralVoiceEngine.speak('Atenção! O teu lembrete de $mins minutos chegou!');
+      });
+      final reply = 'Alarme criado! Vou avisar-te por voz daqui a $mins minutos.';
+      await HellNeuralVoiceEngine.speak(reply);
+      return reply;
+    }
+
+    if (q.contains('dica') || q.contains('crescer') || q.contains('ajuda') || q.contains('live')) {
+      const tip = 'Dica de crescimento: Nos primeiros 5 minutos de live, lança uma votação 1a, 1b ou 1c no chat para ativar o algoritmo de recomendação!';
+      await HellNeuralVoiceEngine.speak(tip);
+      return tip;
+    }
+
+    final generic = 'Olá! Eu sou o $name. Posso contar uma piada, ligar qualquer rádio ou música em segundo plano, dizer-te as horas, dar dicas para a live ou criar alarmes por voz!';
+    await HellNeuralVoiceEngine.speak(generic);
+    return generic;
+  }
+}
+
+class FloatingHellFriendBubble extends StatefulWidget {
+  const FloatingHellFriendBubble({super.key});
+
+  @override
+  State<FloatingHellFriendBubble> createState() => _FloatingHellFriendBubbleState();
+}
+
+class _FloatingHellFriendBubbleState extends State<FloatingHellFriendBubble> {
+  double _rightOffset = 14;
+  double _bottomOffset = 155;
+
+  void _openAssistantModal(BuildContext context) {
+    final inputCtrl = TextEditingController();
+    final List<Map<String, String>> chat = <Map<String, String>>[
+      {
+        'from': 'bot',
+        'text': 'Olá! Sou o ${HellVirtualFriendController.botName.value}. Pede uma piada, rádio, dica, horas ou um alarme!',
+      },
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1433),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: HellVirtualFriendController.primaryColor.value, width: 1.6),
+          ),
+          title: Row(
+            children: [
+              HellFriendRobotAvatar(
+                skinId: HellVirtualFriendController.skinId.value,
+                primaryColor: HellVirtualFriendController.primaryColor.value,
+                eyeColor: HellVirtualFriendController.eyeColor.value,
+                size: 42,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(HellVirtualFriendController.botName.value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                    Text('Voz: "${HellVirtualFriendController.wakePhrase.value}"', style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 390,
+            height: 300,
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: chat.length,
+                    itemBuilder: (_, i) {
+                      final m = chat[i];
+                      final isBot = m['from'] == 'bot';
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isBot ? const Color(0xFF13275E) : const Color(0xFF04091A),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+                      );
+                    },
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    ActionChip(
+                      label: const Text('😂 Piada', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () async {
+                        final r = await HellVirtualFriendController.processPrompt('conta uma piada');
+                        setModal(() {
+                          chat.add({'from': 'user', 'text': 'Conta uma piada'});
+                          chat.add({'from': 'bot', 'text': r});
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('📻 Rádio', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () async {
+                        final r = await HellVirtualFriendController.processPrompt('tocar rádio comercial');
+                        setModal(() {
+                          chat.add({'from': 'user', 'text': 'Tocar rádio'});
+                          chat.add({'from': 'bot', 'text': r});
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('⏰ Alarme 10m', style: TextStyle(fontSize: 10.5)),
+                      onPressed: () async {
+                        final r = await HellVirtualFriendController.processPrompt('criar alarme de 10 minutos');
+                        setModal(() {
+                          chat.add({'from': 'user', 'text': 'Alarme 10 min'});
+                          chat.add({'from': 'bot', 'text': r});
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: inputCtrl,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: const InputDecoration(hintText: 'Fala com o teu amigo IA...', isDense: true, border: OutlineInputBorder()),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+                      onPressed: () async {
+                        final q = inputCtrl.text.trim();
+                        if (q.isEmpty) return;
+                        inputCtrl.clear();
+                        final ans = await HellVirtualFriendController.processPrompt(q);
+                        setModal(() {
+                          chat.add({'from': 'user', 'text': q});
+                          chat.add({'from': 'bot', 'text': ans});
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: HellVirtualFriendController.floatingBubbleEnabled,
+      builder: (context, enabled, _) {
+        if (!enabled) return const SizedBox.shrink();
+        return Positioned(
+          right: _rightOffset,
+          bottom: _bottomOffset,
+          child: GestureDetector(
+            onPanUpdate: (d) {
+              setState(() {
+                _rightOffset = (_rightOffset - d.delta.dx).clamp(6.0, 280.0);
+                _bottomOffset = (_bottomOffset - d.delta.dy).clamp(70.0, 520.0);
+              });
+            },
+            onTap: () => _openAssistantModal(context),
+            child: ValueListenableBuilder<Color>(
+              valueListenable: HellVirtualFriendController.primaryColor,
+              builder: (_, pColor, __) => Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1433).withOpacity(0.95),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: pColor, width: 2),
+                ),
+                child: HellFriendRobotAvatar(
+                  skinId: HellVirtualFriendController.skinId.value,
+                  primaryColor: pColor,
+                  eyeColor: HellVirtualFriendController.eyeColor.value,
+                  size: 46,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final Function(Map<String, dynamic>) onUserUpdated;
@@ -151,6 +418,9 @@ class ControlCenterScreen extends StatefulWidget {
   final String syncCode;
   final bool isSecondScreenPaired;
   final Function(String) onValidateSyncCode;
+  final Widget Function()? buildOfficialAutomationsScreen;
+  final Widget Function()? buildOfficialVoiceScreen;
+  final Widget Function()? buildOfficialMusicScreen;
 
   const ControlCenterScreen({
     super.key,
@@ -162,6 +432,9 @@ class ControlCenterScreen extends StatefulWidget {
     required this.syncCode,
     required this.isSecondScreenPaired,
     required this.onValidateSyncCode,
+    this.buildOfficialAutomationsScreen,
+    this.buildOfficialVoiceScreen,
+    this.buildOfficialMusicScreen,
   });
 
   @override
@@ -170,8 +443,6 @@ class ControlCenterScreen extends StatefulWidget {
 
 class _ControlCenterScreenState extends State<ControlCenterScreen> {
   bool _ttsEnabled = true;
-  bool _isMusicPlaying = true;
-  bool _forceLiveMode = false;
   final TextEditingController _quickReplyCtrl = TextEditingController();
   final AudioPlayer _previewPlayer = AudioPlayer();
 
@@ -181,23 +452,21 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
   double _alertVol = 0.90;
   bool _micMuted = false;
 
-  final List<Map<String, String>> _liveChatBuffer = [
+  final List<Map<String, String>> _liveChatBuffer = <Map<String, String>>[
     {'platform': 'tiktok', 'user': '@joao_gamer', 'text': 'Que jogada absurda mano!!'},
     {'platform': 'twitch', 'user': 'SofiaLive', 'text': 'A imagem 4K está brutal!'},
     {'platform': 'youtube', 'user': 'CarlosPT', 'text': 'Salve para Portugal!'},
     {'platform': 'kick', 'user': 'Nitro_99', 'text': 'Rumo à meta de hoje!'},
   ];
 
-  final List<Map<String, dynamic>> _recentAlerts = [
+  final List<Map<String, dynamic>> _recentAlerts = <Map<String, dynamic>>[
     {'type': 'SUB', 'user': 'SofiaLive', 'detail': 'Sub Tier 1 · 3 Meses', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded},
     {'type': 'DONATION', 'user': 'CarlosPT', 'detail': '€15.00 · MB WAY', 'color': const Color(0xFF10B981), 'icon': Icons.euro_rounded},
     {'type': 'PRESENTE', 'user': '@joao_gamer', 'detail': 'Galáxia (1000 Moedas)', 'color': const Color(0xFFF43F5E), 'icon': Icons.auto_awesome},
     {'type': 'FOLLOW', 'user': 'Nitro_99', 'detail': 'Novo Seguidor Kick', 'color': const Color(0xFF38BDF8), 'icon': Icons.person_add_alt_1},
   ];
 
-  final List<double> _bitrateSamples = [6.1, 6.4, 6.2, 6.6, 6.5, 6.8, 6.4, 6.7, 6.5, 6.9];
-
-  bool get _isOnAir => _forceLiveMode || widget.activePlatforms.values.any((v) => v);
+  final List<double> _bitrateSamples = <double>[5.8, 6.2, 6.4, 6.1, 6.5, 6.7, 6.5, 6.6];
 
   @override
   void dispose() {
@@ -206,23 +475,39 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     super.dispose();
   }
 
-  Future<void> _executeAction(String moduleLabel, String assetOrMsg) async {
-    try {
-      await _previewPlayer.stop();
-      await _previewPlayer.play(AssetSource('sounds/tap_pulse.wav'));
-    } catch (_) {}
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isOnAir
-              ? '🔴 [NO AR · TRANSMITIDO] $moduleLabel: $assetOrMsg'
-              : '🎧 [ESTÚDIO OFF · NOS AUSCULTADORES] $moduleLabel: $assetOrMsg',
+  void _openOfficialModuleInsideControlCenter(String title, Widget officialScreen) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: const Color(0xFF050B1E),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF0A1433),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5)),
+          ),
+          body: officialScreen,
         ),
-        backgroundColor: _isOnAir ? const Color(0xFF059669) : const Color(0xFFB91C1C),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
       ),
+    );
+  }
+
+  void _simulateLiveAction({
+    required String moduleLabel,
+    required String title,
+    required String subtitle,
+    Color accent = const Color(0xFF38BDF8),
+    String soundAsset = 'sounds/tap_pulse.wav',
+    String? spokenText,
+  }) {
+    LiveActionSimulator.showSimulatedOverlay(
+      context,
+      category: moduleLabel,
+      title: title,
+      subtitle: subtitle,
+      accent: accent,
+      soundPathOrUrl: soundAsset,
+      spokenText: spokenText,
+      audioPlayer: _previewPlayer,
+      onSpeakVoice: (txt) => HellNeuralVoiceEngine.speak(txt),
     );
   }
 
@@ -239,363 +524,105 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     }
   }
 
-  final List<Map<String, dynamic>> _extraStreamPlatforms = [];
-  int? _customTotalViewers;
-
-  void _openAddPlatformDialog() {
-    final nameCtrl = TextEditingController();
-    final rtmpCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1433),
-        title: const Text('Adicionar Plataforma de Streaming', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Nome (ex.: Instagram, Facebook, Trovo)', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: rtmpCtrl,
-              decoration: const InputDecoration(labelText: 'Servidor RTMP / Stream Key', border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-            onPressed: () {
-              final n = nameCtrl.text.trim();
-              if (n.isNotEmpty) {
-                setState(() {
-                  _extraStreamPlatforms.add({
-                    'id': n.toLowerCase().replaceAll(' ', '_'),
-                    'name': n,
-                    'active': true,
-                    'viewers': 0,
-                  });
-                });
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('Adicionar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopCockpitHeader(bool isWide) {
-    final basePlatforms = [
+  Widget _buildTopMultiPlatformWindow(bool isWide) {
+    final basePlatforms = <Map<String, dynamic>>[
       {'id': 'tiktok', 'name': 'TikTok', 'active': widget.activePlatforms['tiktok'] == true, 'viewers': widget.activePlatforms['tiktok'] == true ? 142 : 0},
       {'id': 'twitch', 'name': 'Twitch', 'active': widget.activePlatforms['twitch'] == true, 'viewers': widget.activePlatforms['twitch'] == true ? 68 : 0},
       {'id': 'youtube', 'name': 'YouTube', 'active': widget.activePlatforms['youtube'] == true, 'viewers': widget.activePlatforms['youtube'] == true ? 95 : 0},
       {'id': 'kick', 'name': 'Kick', 'active': widget.activePlatforms['kick'] == true, 'viewers': widget.activePlatforms['kick'] == true ? 41 : 0},
-      ..._extraStreamPlatforms,
     ];
-
-    final int calculatedTotal = basePlatforms.fold<int>(0, (sum, p) => sum + ((p['active'] == true) ? (p['viewers'] as int? ?? 0) : 0));
-    final int displayTotal = _customTotalViewers ?? calculatedTotal;
-
-      final bool hasAnyPlatform = basePlatforms.any((p) => p['active'] == true);
+    final int displayTotal = basePlatforms.fold<int>(0, (sum, p) => sum + ((p['active'] == true) ? (p['viewers'] as int? ?? 0) : 0));
 
     return HellCockpitWindow(
       title: 'MULTIPLATAFORMAS · TRANSMISSÃO EM TEMPO REAL',
       icon: Icons.sensors_rounded,
       accent: const Color(0xFF38BDF8),
       badge: 'TOTAL: $displayTotal',
-      onTestPressed: () async {
-        if (!hasAnyPlatform) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Seleciona uma plataforma para testar'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        try {
-          final p = AudioPlayer();
-          await p.play(UrlSource('https://google.com'));
-        } catch (_) {}
-        if (!mounted) return;
-        Clipboard.setData(ClipboardData(text: 'http://127.0.0'));
-        _executeAction('Pré-visualização Ativa ($displayTotal espectadores)', 'Áudio e Overlay testados em tempo real!');
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              onTap: _openAddPlatformDialog,
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E78FF).withOpacity(0.22),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.6)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_rounded, size: 15, color: Color(0xFF38BDF8)),
-                    SizedBox(width: 4),
-                    Text('Adicionar Plataforma', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
-                  ],
+      onTestPressed: () => _simulateLiveAction(
+        moduleLabel: 'TESTE MULTIPLATAFORMA',
+        title: 'Sinal & Áudio Verificados ($displayTotal espectadores)',
+        subtitle: 'Overlays 4K, alertas e retorno de som operacionais.',
+        soundAsset: 'sounds/tap_cyber.wav',
+        spokenText: 'Teste multiplataforma concluído com sucesso!',
+      ),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: basePlatforms.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isWide ? 4 : 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: isWide ? 1.85 : 1.40,
+        ),
+        itemBuilder: (_, idx) {
+          final p = basePlatforms[idx];
+          final id = p['id'] as String;
+          final name = p['name'] as String;
+          final isOnline = p['active'] == true;
+          final viewers = isOnline ? (p['viewers'] as int? ?? 0) : 0;
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: PlatformGlassTile(
+                  platform: id,
+                  label: name,
+                  isActive: isOnline,
+                  onTap: () {
+                    setState(() => widget.activePlatforms[id] = !isOnline);
+                    _simulateLiveAction(
+                      moduleLabel: name.toUpperCase(),
+                      title: !isOnline ? '$name LIGADO (EM DIRETO)' : '$name DESLIGADO',
+                      subtitle: !isOnline ? 'Chat e alertas de $name sincronizados!' : 'Transmissão em $name terminada.',
+                      accent: !isOnline ? Colors.greenAccent : const Color(0xFF38BDF8),
+                      soundAsset: 'sounds/tap_glass.wav',
+                    );
+                  },
                 ),
               ),
-            ),
-          ),
-          GridView.builder(
-            
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: basePlatforms.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isWide ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: isWide ? 1.55 : 1.35,
-            ),
-            itemBuilder: (_, idx) {
-              final p = basePlatforms[idx];
-              final id = p['id'] as String;
-              final name = p['name'] as String;
-              final isOnline = p['active'] == true;
-              final viewers = isOnline ? (p['viewers'] as int? ?? 0) : 0;
-
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: PlatformGlassTile(
-                      platform: id,
-                      label: name,
-                      isActive: isOnline,
-                      onTap: () {
-                        setState(() {
-                          if (widget.activePlatforms.containsKey(id)) {
-                            widget.activePlatforms[id] = !isOnline;
-                          } else {
-                            p['active'] = !isOnline;
-                          }
-                        });
-                      },
-                      onLongPress: () => _executeAction(name, 'Configurações RTMP abertas'),
-                    ),
-                  ),
-                  // Quando em live: aparece "EM LIVE" a verde no canto superior direito; quando off: não aparece nada
-                  if (isOnline)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF16A34A),
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [BoxShadow(color: Colors.greenAccent.withOpacity(0.5), blurRadius: 8)],
-                        ),
-                        child: const Text('EM LIVE', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5)),
-                      ),
-                    ),
-                  // Contador de espectadores em tempo real na parte inferior da tecla
-                  Positioned(
-                    bottom: 6,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.68),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.visibility_rounded, size: 10, color: isOnline ? Colors.greenAccent : Colors.white54),
-                          const SizedBox(width: 3),
-                          Text('$viewers', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: isOnline ? Colors.white : Colors.white60)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+              Positioned(
+                bottom: 6,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.72), borderRadius: BorderRadius.circular(999)),
+                  child: Text('$viewers', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  bool _algoBotActive = true;
-  Color _chatCustomColor = const Color(0xFF38BDF8);
-  double _chatFontSize = 11.5;
-  int _algoBotSeconds = 60;
-  final List<String> _algoBotMessages = [
-    '👋 Sejam muito bem-vindos à live! Digam de onde estão a assistir!',
-    '🔔 Segue-nos nas redes vizinhas para não perderes as próximas lives!',
-    '🔥 Deixa o teu gosto e comenta no chat para ajudar o algoritmo a recomendar a live!',
-  ];
-
-  void _triggerAlgoBotNow() {
-    if (_algoBotMessages.isEmpty) return;
-    final msg = _algoBotMessages[DateTime.now().second % _algoBotMessages.length];
-    setState(() {
-      _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL BOT', 'text': msg});
-    });
-    _executeAction('Bot Algoritmo', 'Mensagem enviada no chat da live');
-  }
-
   Widget _buildChatModule() {
-    final allMsgs = [...widget.chatFeed, ..._liveChatBuffer];
+    final allMsgs = <Map<String, String>>[...widget.chatFeed, ..._liveChatBuffer];
     return HellCockpitWindow(
-      title: 'CHAT UNIFICADO · PERSONALIZAÇÃO & BOT ALGORITMO',
+      title: 'CHAT UNIFICADO & VOZ NEURAL',
       icon: Icons.forum_rounded,
-      accent: _chatCustomColor,
-      badge: _algoBotActive ? 'BOT ALGORITMO ON' : 'TTS ${_ttsEnabled ? "ON" : "OFF"}',
-      onTestPressed: _triggerAlgoBotNow,
+      accent: const Color(0xFF38BDF8),
+      badge: 'TTS ${_ttsEnabled ? "ON" : "OFF"}',
+      onExpandOfficialScreen: widget.buildOfficialVoiceScreen != null
+          ? () => _openOfficialModuleInsideControlCenter('Chat e Voz TTS', widget.buildOfficialVoiceScreen!())
+          : null,
+      onTestPressed: () => _simulateLiveAction(
+        moduleLabel: 'CHAT & VOZ NEURAL',
+        title: '@joao_gamer: "Que jogada absurda mano!!"',
+        subtitle: 'Mensagem lida pela Voz Neural ativa e destacada no ecrã.',
+        spokenText: 'João gamer diz: Que jogada absurda mano!',
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Barra de Personalização de Cores/Letra & Bot Algoritmo
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _chatCustomColor.withOpacity(0.45)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('Cor:', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white70)),
-                    const SizedBox(width: 6),
-                    ...[
-                      const Color(0xFF38BDF8),
-                      const Color(0xFF22C55E),
-                      const Color(0xFFF59E0B),
-                      const Color(0xFFA855F7),
-                      const Color(0xFFEF4444),
-                    ].map((col) => GestureDetector(
-                          onTap: () => setState(() => _chatCustomColor = col),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: col,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: _chatCustomColor == col ? Colors.white : Colors.transparent, width: 2),
-                            ),
-                          ),
-                        )),
-                    const Spacer(),
-                    const Text('Letra:', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
-                    const SizedBox(width: 4),
-                    DropdownButton<double>(
-                      value: _chatFontSize,
-                      dropdownColor: const Color(0xFF0A1433),
-                      underline: const SizedBox.shrink(),
-                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Colors.white),
-                      items: const [
-                        DropdownMenuItem(value: 11.5, child: Text('Normal')),
-                        DropdownMenuItem(value: 13.0, child: Text('Grande')),
-                        DropdownMenuItem(value: 14.5, child: Text('XL')),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) setState(() => _chatFontSize = v);
-                      },
-                    ),
-                  ],
-                ),
-                const Divider(height: 10, color: Colors.white12),
-                Row(
-                  children: [
-                    Icon(Icons.smart_toy_rounded, size: 15, color: _algoBotActive ? Colors.greenAccent : Colors.white54),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Bot Algoritmo (${_algoBotSeconds}s): ${_algoBotActive ? "Ativo" : "Pausado"}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white),
-                      ),
-                    ),
-                    Switch(
-                      value: _algoBotActive,
-                      activeColor: Colors.greenAccent,
-                      onChanged: (v) => setState(() => _algoBotActive = v),
-                    ),
-                    TextButton(
-                      onPressed: _triggerAlgoBotNow,
-                      child: const Text('Disparar Já', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Colors.greenAccent)),
-                    ),
-                  ],
-                ),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    ..._algoBotMessages.asMap().entries.map((e) => InputChip(
-                          label: Text(e.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5)),
-                          backgroundColor: const Color(0xFF0E1D47),
-                          onPressed: () {
-                            setState(() => _liveChatBuffer.insert(0, {'platform': 'tiktok', 'user': '🤖 HELL BOT', 'text': e.value}));
-                          },
-                          onDeleted: () => setState(() => _algoBotMessages.removeAt(e.key)),
-                        )),
-                    ActionChip(
-                      label: const Text('+ Mensagem Bot', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
-                      backgroundColor: const Color(0xFF0E1D47),
-                      onPressed: () {
-                        final msgCtrl = TextEditingController();
-                        showDialog(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            backgroundColor: const Color(0xFF0A1433),
-                            title: const Text('Nova Mensagem Automática do Bot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
-                            content: TextField(
-                              controller: msgCtrl,
-                              decoration: const InputDecoration(hintText: 'Ex.: Segue o canal e deixa o like!', border: OutlineInputBorder()),
-                            ),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-                              ElevatedButton(
-                                onPressed: () {
-                                  if (msgCtrl.text.trim().isNotEmpty) {
-                                    setState(() => _algoBotMessages.add(msgCtrl.text.trim()));
-                                  }
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('Guardar'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          ...allMsgs.map((m) {
+          ...allMsgs.take(4).map((m) {
             final plat = m['platform'] ?? 'tiktok';
             final c = _platColor(plat);
             return Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFF04091A).withOpacity(0.88),
+                color: const Color(0xFF04091A),
                 borderRadius: BorderRadius.circular(11),
                 border: Border.all(color: c.withOpacity(0.45)),
               ),
@@ -603,13 +630,12 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                 children: [
                   Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
-                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: _chatFontSize, color: c)),
-                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: TextStyle(fontSize: _chatFontSize, color: Colors.white))),
+                  Text('${m['user']}: ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5, color: c)),
+                  Expanded(child: Text(m['text'] ?? m['msg'] ?? '', style: const TextStyle(fontSize: 11.5, color: Colors.white))),
                 ],
               ),
             );
           }),
-          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -619,7 +645,7 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                     controller: _quickReplyCtrl,
                     style: const TextStyle(fontSize: 12),
                     decoration: InputDecoration(
-                      hintText: 'Responder no chat ou falar no TTS...',
+                      hintText: 'Responder no chat ou falar por voz...',
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                       filled: true,
                       fillColor: const Color(0xFF04091A),
@@ -628,21 +654,20 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
               IconButton(
                 icon: Icon(_ttsEnabled ? Icons.record_voice_over : Icons.voice_over_off, color: _ttsEnabled ? Colors.greenAccent : Colors.white38, size: 20),
                 onPressed: () => setState(() => _ttsEnabled = !_ttsEnabled),
               ),
               IconButton(
-                icon: Icon(Icons.send_rounded, color: _chatCustomColor, size: 20),
+                icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8), size: 20),
                 onPressed: () {
                   final t = _quickReplyCtrl.text.trim();
                   if (t.isEmpty) return;
                   setState(() {
-                    _liveChatBuffer.insert(0, {'platform': 'youtube', 'user': 'Streamer (Tu)', 'text': t});
+                    _liveChatBuffer.insert(0, {'platform': 'youtube', 'user': 'Tu (Streamer)', 'text': t});
                     _quickReplyCtrl.clear();
                   });
-                  _executeAction('Chat Unificado', t);
+                  _simulateLiveAction(moduleLabel: 'MENSAGEM ENVIADA', title: 'Tu (Streamer)', subtitle: t, spokenText: _ttsEnabled ? t : null);
                 },
               ),
             ],
@@ -652,61 +677,78 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
-
-  Widget _buildAlertsModule() {
+  Widget _buildAlertsAndAutomationsModule() {
     return HellCockpitWindow(
-      title: 'ALERTAS & INTERAÇÕES',
-      icon: Icons.notifications_active_rounded,
+      title: 'AUTOMAÇÕES, PRESENTES & ALERTAS',
+      icon: Icons.bolt_rounded,
       accent: const Color(0xFFA855F7),
       badge: '${_recentAlerts.length} EVENTOS',
-      onTestPressed: () {
-        setState(() {
-          _recentAlerts.insert(0, {'type': 'SUB', 'user': 'AlexPro_PT', 'detail': 'Sub Tier 1 · Validado', 'color': const Color(0xFFA855F7), 'icon': Icons.star_rounded});
-        });
-        _executeAction('Alerta Subscrição', 'Som + Overlay + Agradecimento Vocal executados!');
-      },
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _recentAlerts.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          mainAxisExtent: 64,
-        ),
-        itemBuilder: (_, i) {
-          final a = _recentAlerts[i];
-          final c = a['color'] as Color;
-          return InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _executeAction('Reproduzir ${a['type']}', '${a['user']} · ${a['detail']}'),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: c.withOpacity(0.14),
+      onExpandOfficialScreen: widget.buildOfficialAutomationsScreen != null
+          ? () => _openOfficialModuleInsideControlCenter('Automações', widget.buildOfficialAutomationsScreen!())
+          : null,
+      onTestPressed: () => _simulateLiveAction(
+        moduleLabel: 'ALERTA & PRESENTE EM LIVE',
+        title: 'SofiaLive enviou Galáxia (1000 Moedas)!',
+        subtitle: 'Overlay 4K + Som + Agradecimento Vocal executados!',
+        accent: const Color(0xFFA855F7),
+        soundAsset: 'sounds/hell_startup.wav',
+        spokenText: 'Muito obrigado Sofia Live pela Galáxia!',
+      ),
+      child: Column(
+        children: [
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _recentAlerts.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, mainAxisExtent: 64),
+            itemBuilder: (_, i) {
+              final a = _recentAlerts[i];
+              final c = a['color'] as Color;
+              return InkWell(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: c.withOpacity(0.55)),
-              ),
-              child: Row(
-                children: [
-                  Icon(a['icon'] as IconData, color: c, size: 20),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
-                        Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
+                onTap: () => _simulateLiveAction(
+                  moduleLabel: 'SIMULAÇÃO ${a['type']}',
+                  title: '${a['user']} · ${a['detail']}',
+                  subtitle: 'Reprodução simulada de como aparece no ecrã da live!',
+                  accent: c,
+                  soundAsset: 'sounds/tap_glass.wav',
+                  spokenText: 'Obrigado ${a['user']}!',
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: c.withOpacity(0.14), borderRadius: BorderRadius.circular(12), border: Border.all(color: c.withOpacity(0.55))),
+                  child: Row(
+                    children: [
+                      Icon(a['icon'] as IconData, color: c, size: 20),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(a['user'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white), overflow: TextOverflow.ellipsis),
+                            Text(a['detail'] as String, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: c), overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              );
+            },
+          ),
+          if (widget.buildOfficialAutomationsScreen != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openOfficialModuleInsideControlCenter('Automações', widget.buildOfficialAutomationsScreen!()),
+                icon: const Icon(Icons.open_in_new, size: 15, color: Color(0xFFA855F7)),
+                label: const Text('Abrir Painel Completo de Automações', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
               ),
             ),
-          );
-        },
+          ],
+        ],
       ),
     );
   }
@@ -716,47 +758,29 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
       return Expanded(
         child: Column(
           children: [
-            Container(
-              height: 82,
-              width: 26,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF04091A),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: c.withOpacity(0.5)),
-              ),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: FractionallySizedBox(
-                  heightFactor: val.clamp(0.05, 1.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [c.withOpacity(0.45), c]),
-                      borderRadius: BorderRadius.circular(7),
-                      boxShadow: [BoxShadow(color: c.withOpacity(0.45), blurRadius: 8)],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
             Text('${(val * 100).round()}%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c)),
-            Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white70)),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6)),
-              child: Slider(value: val, activeColor: c, onChanged: onChanged),
-            ),
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+            Slider(value: val, activeColor: c, onChanged: onChanged),
           ],
         ),
       );
     }
 
     return HellCockpitWindow(
-      title: 'MIXER DE ÁUDIO & VOZ',
+      title: 'MIXER DE ÁUDIO 48kHz & MÚSICA',
       icon: Icons.equalizer_rounded,
       accent: const Color(0xFF10B981),
-      badge: _micMuted ? 'MIC MUTADO' : 'ÁUDIO 48kHz',
-      onTestPressed: () => _executeAction('Mixer 48kHz', 'Retorno de áudio verificado nos canais!'),
+      badge: _micMuted ? 'MIC MUTADO' : '48kHz ATIVO',
+      onExpandOfficialScreen: widget.buildOfficialMusicScreen != null
+          ? () => _openOfficialModuleInsideControlCenter('Música & Rádios', widget.buildOfficialMusicScreen!())
+          : null,
+      onTestPressed: () => _simulateLiveAction(
+        moduleLabel: 'MIXER DE ÁUDIO',
+        title: 'Canais Calibrados (Mic ${(_micVol * 100).round()}% · Alertas ${(_alertVol * 100).round()}%)',
+        subtitle: 'Retorno estéreo sem distorção verificado!',
+        accent: const Color(0xFF10B981),
+        soundAsset: 'sounds/tap_glass.wav',
+      ),
       child: Column(
         children: [
           Row(
@@ -770,14 +794,10 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: _micMuted ? Colors.redAccent : const Color(0xFF1E78FF)),
               onPressed: () => setState(() => _micMuted = !_micMuted),
               icon: Icon(_micMuted ? Icons.mic_off : Icons.mic, size: 16),
-              label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+              label: Text(_micMuted ? 'Ativar Microfone' : 'Mutar Microfone', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
             ),
           ),
         ],
@@ -785,298 +805,33 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
     );
   }
 
-  Widget _buildDirectorAndClipsModule() {
+  Widget _buildDirectorAndHealthModule() {
     return HellCockpitWindow(
-      title: 'DIRETOR IA & CLIPES 9:16',
-      icon: Icons.auto_awesome_rounded,
-      accent: const Color(0xFFF59E0B),
-      badge: 'IA ATIVA',
-      onTestPressed: () => _executeAction('Replay Buffer 30s', 'Momento guardado na Fábrica de Conteúdos!'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.45)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.psychology_rounded, color: Color(0xFFF59E0B), size: 22),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Diretor IA: Pico de mensagens no chat! Ideal para puxar atrás e criar Clipe Vertical 9:16.',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E78FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => _executeAction('Clipe 9:16', 'Últimos 30s capturados para a Fábrica de Conteúdos!'),
-              icon: const Icon(Icons.movie_creation_rounded, size: 18),
-              label: const Text('CRIAR CLIPE 9:16 AGORA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.6)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.music_note_rounded, color: Color(0xFF38BDF8), size: 18),
-                const SizedBox(width: 6),
-                const Expanded(child: Text('HELL Beats · Cyber Stream Lo-Fi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800), overflow: TextOverflow.ellipsis)),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(_isMusicPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: const Color(0xFF38BDF8), size: 24),
-                  onPressed: () => setState(() => _isMusicPlaying = !_isMusicPlaying),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHealthGraphModule() {
-    return HellCockpitWindow(
-      title: 'SAÚDE DA LIVE & MÉTRICAS',
+      title: 'SAÚDE DA LIVE & CLIPE RÁPIDO 9:16',
       icon: Icons.show_chart_rounded,
-      accent: const Color(0xFF38BDF8),
-      badge: '60 FPS · ESTÁVEL',
-      onTestPressed: () => _executeAction('Diagnóstico Rede', 'Bitrate 6.5 Mbps · 0% Perda de Frames!'),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 92,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: true, border: Border.all(color: Colors.white12)),
-                lineBarsData: [
-                  LineChartBarData(
-                    isCurved: true,
-                    color: const Color(0xFF38BDF8),
-                    barWidth: 3,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: const Color(0xFF38BDF8).withOpacity(0.22)),
-                    spots: List.generate(_bitrateSamples.length, (i) => FlSpot(i.toDouble(), _bitrateSamples[i])),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _metricPill('BITRATE', '6.5 Mbps', const Color(0xFF38BDF8)),
-              _metricPill('FPS', '60.0', Colors.greenAccent),
-              _metricPill('PERDA', '0.0%', const Color(0xFFA855F7)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _metricPill(String label, String value, Color c) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF04091A),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c.withOpacity(0.45)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white54)),
-          Text(value, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: c)),
-        ],
-      ),
-    );
-  }
-  bool _defaultGiftsActive = true;
-  bool _followAlertsActive = true;
-  bool _goalsOverlayActive = true;
-  bool _donationsActive = true;
-
-  Widget _buildAutomationsControlModule() {
-    return HellCockpitWindow(
-      title: 'CONTROLO DE AUTOMAÇÕES · PRESENTES, ALERTAS & CC0',
-      icon: Icons.bolt_rounded,
       accent: const Color(0xFFF59E0B),
-      badge: _defaultGiftsActive ? 'PRESENTES PADRÃO ON' : 'MANUAL',
-      onTestPressed: () => _executeAction('Teste Automação', 'Presente Padrão + Voz + Overlay testados em off!'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SwitchListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Ativar Presentes Padrão (Som Global + Voz Dinâmica)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-            subtitle: const Text('Aplica reação imediata a todos os presentes sem regra individual', style: TextStyle(fontSize: 10.5, color: Colors.white60)),
-            value: _defaultGiftsActive,
-            activeColor: Colors.amberAccent,
-            onChanged: (v) => setState(() => _defaultGiftsActive = v),
-          ),
-          const Divider(height: 10, color: Colors.white12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              FilterChip(
-                label: const Text('Alertas Padrão', style: TextStyle(fontSize: 11)),
-                selected: _followAlertsActive,
-                selectedColor: const Color(0xFF1E78FF),
-                onSelected: (v) => setState(() => _followAlertsActive = v),
-              ),
-              FilterChip(
-                label: const Text('Metas & Desafios', style: TextStyle(fontSize: 11)),
-                selected: _goalsOverlayActive,
-                selectedColor: const Color(0xFF1E78FF),
-                onSelected: (v) => setState(() => _goalsOverlayActive = v),
-              ),
-              FilterChip(
-                label: const Text('Doações (MB WAY / PIX / PayPal)', style: TextStyle(fontSize: 11)),
-                selected: _donationsActive,
-                selectedColor: const Color(0xFF1E78FF),
-                onSelected: (v) => setState(() => _donationsActive = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF04091A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amberAccent.withOpacity(0.35)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.library_music_rounded, color: Colors.amberAccent, size: 18),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text('Biblioteca Gratuita CC0 & Personalização Individual: disponível aqui e na aba Automações do Menu Principal.', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
-                ),
-                TextButton(
-                  onPressed: () => _executeAction('Presente Individual', 'Regra individual aplicada ao overlay!'),
-                  child: const Text('Testar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.amberAccent)),
-                ),
-              ],
-            ),
-          ),
-        ],
+      badge: '60 FPS · 6.5 Mbps',
+      onTestPressed: () => _simulateLiveAction(
+        moduleLabel: 'CAPTURA INSTANTÂNEA 9:16',
+        title: 'Clipe de 30 Segundos Guardado!',
+        subtitle: 'Enviado para a Fábrica de Conteúdos (expira em 24h se não for guardado).',
+        accent: const Color(0xFFF59E0B),
+        soundAsset: 'sounds/tap_cyber.wav',
       ),
-    );
-  }
-  
-  final Set<String> _visiblePanels = {
-    'multi',
-    'chat',
-    'alerts',
-    'automations',
-    'mixer',
-    'director',
-    'health',
-  };
-
-  void _openWindowManagerDialog() {
-    final labels = {
-      'multi': 'Multiplataformas & Espectadores',
-      'chat': 'Chat Unificado & Bot Algoritmo',
-      'alerts': 'Alertas & Eventos em Tempo Real',
-      'automations': 'Controlo de Automações & Presentes',
-      'mixer': 'Mixer de Áudio 48kHz & VU',
-      'director': 'Diretor IA & Clipes Rápidos',
-      'health': 'Saúde da Live & Bitrate',
-    };
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: const Color(0xFF0A1433),
-          title: const Text('Adicionar / Remover Janelas', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-          content: SizedBox(
-            width: 340,
-            child: ListView(
-              shrinkWrap: true,
-              children: labels.entries.map((e) {
-                final active = _visiblePanels.contains(e.key);
-                return SwitchListTile(
-                  dense: true,
-                  title: Text(e.value, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                  value: active,
-                  activeColor: const Color(0xFF38BDF8),
-                  onChanged: (v) {
-                    setState(() {
-                      if (v) {
-                        _visiblePanels.add(e.key);
-                      } else {
-                        _visiblePanels.remove(e.key);
-                      }
-                    });
-                    setDlg(() {});
-                  },
-                );
-              }).toList(),
-            ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+          onPressed: () => _simulateLiveAction(
+            moduleLabel: 'FÁBRICA DE CONTEÚDOS',
+            title: 'Clipe 9:16 Capturado!',
+            subtitle: 'Disponível durante 24 horas no editor.',
+            accent: const Color(0xFFF59E0B),
+            soundAsset: 'sounds/tap_pulse.wav',
           ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Concluir'),
-            ),
-          ],
+          icon: const Icon(Icons.movie_creation_rounded, size: 17),
+          label: const Text('CRIAR CLIPE 9:16 AGORA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.5)),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPanelToolbar() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.dashboard_customize_rounded, size: 16, color: Color(0xFF38BDF8)),
-          const SizedBox(width: 6),
-          const Expanded(
-            child: Text('CENTRO DE CONTROLO', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Color(0xFF7DD3FC))),
-          ),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF38BDF8),
-              side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.55)),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: _openWindowManagerDialog,
-            icon: const Icon(Icons.add_box_outlined, size: 15),
-            label: const Text('Gerir Janelas', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
-          ),
-        ],
       ),
     );
   }
@@ -1085,83 +840,36 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final isDesktop = w > 1024;
-        final isTablet = w >= 650 && w <= 1024;
-
-        final allCards = <Widget>[
-          if (_visiblePanels.contains('multi')) ...[
-            _buildTopCockpitHeader(isDesktop || isTablet),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('chat')) ...[
-            _buildChatModule(),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('automations')) ...[
-            _buildAutomationsControlModule(),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('alerts')) ...[
-            _buildAlertsModule(),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('mixer')) ...[
-            _buildMixerModule(),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('director')) ...[
-            _buildDirectorAndClipsModule(),
-            const SizedBox(height: 12),
-          ],
-          if (_visiblePanels.contains('health')) ...[
-            _buildHealthGraphModule(),
-            const SizedBox(height: 12),
-          ],
-        ];
-
-        if (isDesktop || isTablet) {
+        final isWide = constraints.maxWidth >= 680;
+        if (isWide) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildPanelToolbar(),
-              if (_visiblePanels.contains('multi')) ...[
-                _buildTopCockpitHeader(true),
-                const SizedBox(height: 14),
-              ],
+              _buildTopMultiPlatformWindow(true),
+              const SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        if (_visiblePanels.contains('chat')) ...[_buildChatModule(), const SizedBox(height: 14)],
-                        if (_visiblePanels.contains('automations')) ...[_buildAutomationsControlModule(), const SizedBox(height: 14)],
-                        if (_visiblePanels.contains('director')) _buildDirectorAndClipsModule(),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: Column(children: [_buildChatModule(), const SizedBox(height: 14), _buildDirectorAndHealthModule()])),
                   const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        if (_visiblePanels.contains('alerts')) ...[_buildAlertsModule(), const SizedBox(height: 14)],
-                        if (_visiblePanels.contains('mixer')) ...[_buildMixerModule(), const SizedBox(height: 14)],
-                        if (_visiblePanels.contains('health')) _buildHealthGraphModule(),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: Column(children: [_buildAlertsAndAutomationsModule(), const SizedBox(height: 14), _buildMixerModule()])),
                 ],
               ),
             ],
           );
         }
-
         return ListView(
           padding: const EdgeInsets.all(14),
           children: [
-            _buildPanelToolbar(),
-            ...allCards,
+            _buildTopMultiPlatformWindow(false),
+            const SizedBox(height: 12),
+            _buildChatModule(),
+            const SizedBox(height: 12),
+            _buildAlertsAndAutomationsModule(),
+            const SizedBox(height: 12),
+            _buildMixerModule(),
+            const SizedBox(height: 12),
+            _buildDirectorAndHealthModule(),
           ],
         );
       },
@@ -1169,7 +877,168 @@ class _ControlCenterScreenState extends State<ControlCenterScreen> {
   }
 }
 
-// ABA 7: HELL GESTÃO IA (CÉREBRO INTELIGENTE 4K HDR)
+class ContentFactoryScreen extends StatefulWidget {
+  const ContentFactoryScreen({super.key});
+
+  @override
+  State<ContentFactoryScreen> createState() => _ContentFactoryScreenState();
+}
+
+class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
+  String _selectedAspect = '9:16';
+  String _selectedFilter = 'HDR Cyber';
+  double _playheadPos = 0.35;
+  double _trimStart = 0.10;
+  double _trimEnd = 0.90;
+  bool _autoCaptions = true;
+  Timer? _expiryTicker;
+  final TextEditingController _overlayTextCtrl = TextEditingController(text: 'CLUTCH ÉPICO AO VIVO! 🔥');
+
+  final List<Map<String, dynamic>> _capturedClips = <Map<String, dynamic>>[
+    {'id': 'c1', 'title': 'Clipe Auto #1 · Pico de Chat', 'duration': '00:28', 'expiresAt': DateTime.now().add(const Duration(hours: 23, minutes: 42)), 'savedForever': false},
+    {'id': 'c2', 'title': 'Clipe Manual #2 · Vitória Final', 'duration': '00:45', 'expiresAt': DateTime.now().add(const Duration(hours: 18, minutes: 15)), 'savedForever': false},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _purgeExpiredClips();
+    _expiryTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _purgeExpiredClips());
+    });
+  }
+
+  void _purgeExpiredClips() {
+    final now = DateTime.now();
+    _capturedClips.removeWhere((c) => c['savedForever'] != true && (c['expiresAt'] as DateTime).isBefore(now));
+  }
+
+  String _remaining24hLabel(Map<String, dynamic> clip) {
+    if (clip['savedForever'] == true) return 'Guardado na Galeria ✓';
+    final diff = (clip['expiresAt'] as DateTime).difference(DateTime.now());
+    if (diff.isNegative) return 'Expirado';
+    return 'Expira em ${diff.inHours}h ${(diff.inMinutes % 60)}m';
+  }
+
+  @override
+  void dispose() {
+    _expiryTicker?.cancel();
+    _overlayTextCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: _neonBox(),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('🎬 ESTÚDIO DE EDIÇÃO · CAPCUT PRO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8))),
+                  Chip(label: Text('Proporção $_selectedAspect', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900)), backgroundColor: const Color(0xFF1E78FF)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 150,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF0F296E), Color(0xFF04091A), Color(0xFF4C1D95)]),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.play_circle_filled_rounded, size: 44, color: Colors.white),
+                    const SizedBox(height: 6),
+                    Text(_overlayTextCtrl.text, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.amberAccent)),
+                    if (_autoCaptions) const Text('[Legendas IA PT-PT Ativas]', style: TextStyle(fontSize: 10.5, color: Color(0xFF7DD3FC))),
+                  ],
+                ),
+              ),
+              Slider(value: _playheadPos, activeColor: Colors.white, onChanged: (v) => setState(() => _playheadPos = v)),
+              RangeSlider(
+                values: RangeValues(_trimStart, _trimEnd),
+                activeColor: const Color(0xFFF43F5E),
+                onChanged: (r) => setState(() {
+                  _trimStart = r.start;
+                  _trimEnd = r.end;
+                }),
+              ),
+              Wrap(
+                spacing: 6,
+                children: <String>['9:16', '16:9', '1:1']
+                    .map((ratio) => ChoiceChip(
+                          label: Text(ratio),
+                          selected: _selectedAspect == ratio,
+                          onSelected: (_) => setState(() => _selectedAspect = ratio),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _overlayTextCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(labelText: 'Texto / Título no Vídeo', isDense: true, border: OutlineInputBorder()),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Legendas Automáticas IA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                value: _autoCaptions,
+                onChanged: (v) => setState(() => _autoCaptions = v),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
+                onPressed: () {
+                  setState(() {
+                    _capturedClips.insert(0, {
+                      'id': 'c_${DateTime.now().millisecondsSinceEpoch}',
+                      'title': 'Clipe Novo · ${_overlayTextCtrl.text}',
+                      'duration': '00:30',
+                      'expiresAt': DateTime.now().add(const Duration(hours: 24)),
+                      'savedForever': false,
+                    });
+                  });
+                },
+                icon: const Icon(Icons.fiber_manual_record, color: Colors.redAccent, size: 16),
+                label: const Text('Capturar Momento (Expira 24h)'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        HellCockpitWindow(
+          title: 'CLIPES CAPTADOS (EXPIRAÇÃO 24H)',
+          icon: Icons.auto_delete_outlined,
+          accent: const Color(0xFFF43F5E),
+          child: Column(
+            children: _capturedClips.map((clip) {
+              final saved = clip['savedForever'] == true;
+              return ListTile(
+                dense: true,
+                title: Text(clip['title'].toString()),
+                subtitle: Text('${clip['duration']} · ${_remaining24hLabel(clip)}'),
+                trailing: TextButton(
+                  onPressed: () => setState(() => clip['savedForever'] = true),
+                  child: Text(saved ? 'Guardado ✓' : 'Manter'),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class SmartBrainScreen extends StatefulWidget {
   const SmartBrainScreen({super.key});
 
@@ -1179,11 +1048,9 @@ class SmartBrainScreen extends StatefulWidget {
 
 class _SmartBrainScreenState extends State<SmartBrainScreen> {
   final TextEditingController _promptCtrl = TextEditingController();
-  final List<Map<String, String>> _directorFeed = [
-    {'tag': 'DIRETOR AO VIVO', 'msg': 'Pico de atividade no chat nos últimos 4 minutos. Boa altura para lançar a Roleta 3D!'},
-    {'tag': 'HORÁRIO NOBRE', 'msg': 'As tuas lives entre as 21h00 e as 23h30 têm +38% de retenção média.'},
-    {'tag': 'ENGAJAMENTO', 'msg': '64% da audiência interage mais durante desafios interativos e agradecimentos por voz.'},
-    {'tag': 'RELATÓRIO IA', 'msg': 'Última live gerou +42 novos seguidores e 1.250 gostos.'},
+  final List<Map<String, String>> _insights = <Map<String, String>>[
+    {'tag': 'MELHOR HORÁRIO DETETADO', 'msg': 'Entre as 21h15 e as 23h45 a tua retenção sobe +41% em Portugal e Brasil.'},
+    {'tag': 'AÇÃO RECOMENDADA AGORA', 'msg': 'Lança uma votação rápida (1a / 1b / 1c) nos primeiros 8 minutos para duplicar os comentários.'},
   ];
 
   @override
@@ -1198,57 +1065,35 @@ class _SmartBrainScreenState extends State<SmartBrainScreen> {
       padding: const EdgeInsets.all(14),
       children: [
         HellCockpitWindow(
-          title: 'HELL GESTÃO IA · AI STREAM DIRECTOR 4K',
+          title: 'GESTÃO IA EM TEMPO REAL · ESTRATÉGIA & RESULTADOS',
           icon: Icons.psychology_rounded,
           accent: const Color(0xFF8B5CF6),
-          badge: 'CÉREBRO ATIVO',
-          onTestPressed: () {
-            setState(() {
-              _directorFeed.insert(0, {'tag': 'DIAGNÓSTICO IA', 'msg': 'Retenção 94% · Recomendação: Ativar meta relâmpago nos próximos 5 minutos!'});
-            });
-          },
+          badge: 'ANÁLISE ATIVA',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ..._directorFeed.map((item) => Container(
+              ..._insights.map((item) => Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF04091A),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.45)),
-                    ),
+                    decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(12)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(item['tag'] ?? '', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
-                        const SizedBox(height: 3),
                         Text(item['msg'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white)),
                       ],
                     ),
                   )),
-              const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _promptCtrl,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: const InputDecoration(
-                        hintText: 'Pedir análise de horário, título ou ideia de live...',
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  Expanded(child: TextField(controller: _promptCtrl, decoration: const InputDecoration(hintText: 'Pedir estratégia IA...', isDense: true))),
                   IconButton(
                     icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
                     onPressed: () {
                       final q = _promptCtrl.text.trim();
                       if (q.isEmpty) return;
                       setState(() {
-                        _directorFeed.insert(0, {'tag': 'RESPOSTA IA', 'msg': 'Para "$q": Foca os primeiros 10 minutos num desafio rápido com o chat para maximizar o algoritmo.'});
+                        _insights.insert(0, {'tag': 'ESTRATÉGIA IA', 'msg': 'Para "$q": usa meta visível + votação 1a/1b/1c + clipes 9:16.'});
                         _promptCtrl.clear();
                       });
                     },
@@ -1262,282 +1107,42 @@ class _SmartBrainScreenState extends State<SmartBrainScreen> {
     );
   }
 }
-// ABA 8: HELL FÁBRICA DE CONTEÚDOS IA (EDITOR TIMELINE 9:16/16:9 + ESTILOS + ENGAJAMENTO + EXPORTAÇÃO)
-class ContentFactoryScreen extends StatefulWidget {
-  const ContentFactoryScreen({super.key});
 
-  @override
-  State<ContentFactoryScreen> createState() => _ContentFactoryScreenState();
-}
-
-class _ContentFactoryScreenState extends State<ContentFactoryScreen> {
-  String _captionLang = 'Português (PT-PT)';
-  String _selectedFormat = '9:16 Vertical (TikTok / Reels / Shorts)';
-  String _selectedMood = 'Épico / Cinematográfico';
-  String _selectedFilter = 'HDR Cyber Neon (Grátis)';
-  double _trimStart = 0.15;
-  double _trimEnd = 0.85;
-  int _viralScore = 92;
-  final TextEditingController _thumbTitleCtrl = TextEditingController(text: 'JOGADA ÉPICA AO VIVO!');
-  final TextEditingController _hashtagsCtrl = TextEditingController(text: '#gaming #portugal #livestream #viral #fyp');
-
-    final List<Map<String, dynamic>> _clipsQueue = [
-    {'title': 'Clipe #1 · Pico de Chat ao Vivo', 'format': '9:16 Vertical', 'mood': 'Divertido', 'score': '94%', 'createdAt': DateTime.now().subtract(const Duration(minutes: 25)), 'saved': false},
-    {'title': 'Clipe #2 · Vitória no Desafio Final', 'format': '9:16 Vertical', 'mood': 'Épico', 'score': '96%', 'createdAt': DateTime.now().subtract(const Duration(hours: 2)), 'saved': false},
-    {'title': 'Clipe #3 · Momento Galáxia Cósmica', 'format': '16:9 YouTube', 'mood': 'Alegre', 'score': '89%', 'createdAt': DateTime.now().subtract(const Duration(hours: 25)), 'saved': false},
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _clipsQueue.removeWhere((c) => c['saved'] != true && DateTime.now().difference(c['createdAt'] as DateTime).inHours >= 24);
-  }
-
-
-  @override
-  void dispose() {
-    _thumbTitleCtrl.dispose();
-    _hashtagsCtrl.dispose();
-    super.dispose();
-  }
-
-  void _runAiAnalysis() {
-    setState(() {
-      _viralScore = 88 + (_thumbTitleCtrl.text.length % 11);
-      if (_selectedMood.contains('Épico')) {
-        _thumbTitleCtrl.text = 'NINGUÉM ACREDITOU NISTO AO VIVO! 🔥';
-        _hashtagsCtrl.text = '#epico #gamingpt #twitch #tiktoklive #viral';
-      } else if (_selectedMood.contains('Divertido')) {
-        _thumbTitleCtrl.text = 'O MOMENTO MAIS ENGRAÇADO DA LIVE 😂';
-        _hashtagsCtrl.text = '#humor #live #clipes #funny #fyp';
-      } else if (_selectedMood.contains('Gaming')) {
-        _thumbTitleCtrl.text = 'CLUTCH IMPOSSÍVEL NO ÚLTIMO SEGUNDO! 🎯';
-        _hashtagsCtrl.text = '#gamer #clutch #highlights #proplay #shorts';
-      } else {
-        _thumbTitleCtrl.text = 'A VERDADE SOBRE ISTO EM DIRETO 🎙️';
-        _hashtagsCtrl.text = '#conversa #podcast #opiniao #livept #reels';
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('🤖 Análise IA concluída! Potencial Viral: $_viralScore/100'), behavior: SnackBarBehavior.floating),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        HellCockpitWindow(
-          title: 'ESTÚDIO DE EDIÇÃO & TIMELINE IA 4K HDR',
-          icon: Icons.movie_filter_rounded,
-          accent: const Color(0xFFF43F5E),
-          badge: 'BASE GRÁTIS · PRO VIP',
-          onTestPressed: _runAiAnalysis,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 92,
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF1E78FF), Color(0xFF0A1433), Color(0xFF7C3AED)]),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF38BDF8)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(_thumbTitleCtrl.text.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.1, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text('$_selectedFormat · $_selectedMood · $_selectedFilter', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF7DD3FC))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text('Corte Timeline (Início / Fim do Clipe):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white70)),
-              RangeSlider(
-                values: RangeValues(_trimStart, _trimEnd),
-                activeColor: const Color(0xFFF43F5E),
-                onChanged: (v) => setState(() {
-                  _trimStart = v.start;
-                  _trimEnd = v.end;
-                }),
-              ),
-              DropdownButtonFormField<String>(
-                value: _selectedFormat,
-                decoration: const InputDecoration(labelText: 'Formato de Entrega nas Redes', isDense: true, border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: '9:16 Vertical (TikTok / Reels / Shorts)', child: Text('9:16 Vertical (TikTok / Reels / Shorts)')),
-                  DropdownMenuItem(value: '16:9 Widescreen (YouTube 4K)', child: Text('16:9 Widescreen (YouTube 4K)')),
-                  DropdownMenuItem(value: '1:1 Quadrado (Feed Instagram / X)', child: Text('1:1 Quadrado (Feed Instagram / X)')),
-                ],
-                onChanged: (v) => setState(() => _selectedFormat = v ?? _selectedFormat),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedMood,
-                decoration: const InputDecoration(labelText: 'Estilo de Edição Automática IA', isDense: true, border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'Épico / Cinematográfico', child: Text('🔥 Épico / Cinematográfico')),
-                  DropdownMenuItem(value: 'Divertido / Memes & Zoom', child: Text('😂 Divertido / Memes & Zoom')),
-                  DropdownMenuItem(value: 'Gaming / Highlights Rápidos', child: Text('🎮 Gaming / Highlights Rápidos')),
-                  DropdownMenuItem(value: 'Sério / Conversa & Podcast', child: Text('🎙️ Sério / Conversa & Podcast')),
-                  DropdownMenuItem(value: 'Alegre / Vlogs & Presentes', child: Text('✨ Alegre / Vlogs & Presentes')),
-                ],
-                onChanged: (v) => setState(() => _selectedMood = v ?? _selectedMood),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedFilter,
-                decoration: const InputDecoration(labelText: 'Filtro & LUT de Cor (Grátis vs. VIP)', isDense: true, border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'HDR Cyber Neon (Grátis)', child: Text('HDR Cyber Neon (Grátis)')),
-                  DropdownMenuItem(value: 'Clean Broadcast 4K (Grátis)', child: Text('Clean Broadcast 4K (Grátis)')),
-                  DropdownMenuItem(value: '👑 Cinema Dolby Vision LUT (VIP)', child: Text('👑 Cinema Dolby Vision LUT (VIP)')),
-                  DropdownMenuItem(value: '👑 IA Auto-Zoom & Efeitos 3D (VIP)', child: Text('👑 IA Auto-Zoom & Efeitos 3D (VIP)')),
-                ],
-                onChanged: (v) => setState(() => _selectedFilter = v ?? _selectedFilter),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _captionLang,
-                decoration: const InputDecoration(labelText: 'Legendas Automáticas & Tradução', isDense: true, border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'Português (PT-PT)', child: Text('Português (PT-PT)')),
-                  DropdownMenuItem(value: 'English (EN)', child: Text('English (EN)')),
-                  DropdownMenuItem(value: 'Español (ES)', child: Text('Español (ES)')),
-                ],
-                onChanged: (v) => setState(() => _captionLang = v ?? _captionLang),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('🎬 Renderizado em $_selectedFormat e pronto para publicar!'), behavior: SnackBarBehavior.floating),
-                        );
-                      },
-                      icon: const Icon(Icons.publish_rounded, size: 17),
-                      label: const Text('Exportar & Publicar', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('💾 Ficheiro MP4 guardado na galeria para edição externa!'), behavior: SnackBarBehavior.floating),
-                      );
-                    },
-                    icon: const Icon(Icons.download_rounded, size: 17),
-                    label: const Text('Guardar MP4', style: TextStyle(fontSize: 11.5)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        HellCockpitWindow(
-          title: 'AVALIAÇÃO DE ENGAJAMENTO IA & HASHTAGS',
-          icon: Icons.insights_rounded,
-          accent: const Color(0xFF38BDF8),
-          badge: 'SCORE $_viralScore/100',
-          onTestPressed: _runAiAnalysis,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(controller: _thumbTitleCtrl, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: 'Título Otimizado por IA', isDense: true, border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: _hashtagsCtrl, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: 'Hashtags Recomendadas IA', isDense: true, border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              ..._clipsQueue.map((c) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.movie_creation_outlined, color: Color(0xFF38BDF8), size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(c['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                              Text('${c['format']} · Estilo ${c['mood']}', style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
-                            ],
-                          ),
-                        ),
-                        Text('Viral ${c['score']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.greenAccent)),
-                      ],
-                    ),
-                  )),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ABA 10: HELL CRESCIMENTO E NEGÓCIO (GRÁFICOS REAIS FL_CHART)
 class GrowthAnalyticsScreen extends StatelessWidget {
   const GrowthAnalyticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return Container(
       padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _neonBox(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('📈 Evolução de Seguidores (Últimos 7 Dias)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 170,
-                child: LineChart(
-                  LineChartData(
-                    gridData: const FlGridData(show: false),
-                    titlesData: const FlTitlesData(show: false),
-                    borderData: FlBorderData(show: true, border: Border.all(color: Colors.white12)),
-                    lineBarsData: [
-                      LineChartBarData(
-                        isCurved: true,
-                        color: const Color(0xFF38BDF8),
-                        barWidth: 3.5,
-                        dotData: const FlDotData(show: true),
-                        belowBarData: BarAreaData(show: true, color: const Color(0xFF38BDF8).withOpacity(0.18)),
-                        spots: const [
-                          FlSpot(1, 120),
-                          FlSpot(2, 185),
-                          FlSpot(3, 240),
-                          FlSpot(4, 310),
-                          FlSpot(5, 420),
-                          FlSpot(6, 510),
-                          FlSpot(7, 645),
-                        ],
-                      ),
-                    ],
+      decoration: _neonBox(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('📈 Evolução de Audiência', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
+          const SizedBox(height: 16),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    color: const Color(0xFF38BDF8),
+                    barWidth: 3.5,
+                    spots: const <FlSpot>[FlSpot(1, 120), FlSpot(2, 240), FlSpot(3, 420), FlSpot(4, 645)],
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-// ABA 11: HELL GESTÃO DO NEGÓCIO · PATROCÍNIOS & PUBLICIDADES PAGAS
 class CreatorBusinessScreen extends StatefulWidget {
   final bool isOwner;
   const CreatorBusinessScreen({super.key, this.isOwner = false});
@@ -1547,30 +1152,69 @@ class CreatorBusinessScreen extends StatefulWidget {
 }
 
 class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
-  final _descCtrl = TextEditingController();
-  final _valCtrl = TextEditingController();
-  String _txType = 'Receita';
-
-  final List<Map<String, dynamic>> _transactions = [
-    {'desc': 'Presentes & Subscrições Live', 'amount': 145.50, 'type': 'Receita'},
-    {'desc': 'Campanha Patrocinador Gaming', 'amount': 250.00, 'type': 'Receita'},
-    {'desc': 'Equipamento Áudio / Microfone', 'amount': 65.00, 'type': 'Despesa'},
+  final List<Map<String, dynamic>> _transactions = <Map<String, dynamic>>[
+    {'desc': 'Presentes & Apoios Diretos', 'amount': 145.50, 'type': 'Receita'},
+    {'desc': 'Parceria Patrocinador Gaming', 'amount': 250.00, 'type': 'Receita'},
   ];
-
-  final _sponsorTitleCtrl = TextEditingController();
-  final _sponsorUrlCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    double income = 0;
-    double expense = 0;
-    for (final t in _transactions) {
-      if (t['type'] == 'Receita') {
-        income += (t['amount'] as num).toDouble();
-      } else {
-        expense += (t['amount'] as num).toDouble();
-      }
-    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _neonBox(),
+      child: ListView(
+        children: [
+          const Text('💰 Finanças do Criador', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF38BDF8))),
+          ..._transactions.map((t) => ListTile(
+                dense: true,
+                title: Text(t['desc']),
+                trailing: Text('+${(t['amount'] as num).toStringAsFixed(2)} €', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+class HellInfoHubScreen extends StatefulWidget {
+  const HellInfoHubScreen({super.key});
+
+  @override
+  State<HellInfoHubScreen> createState() => _HellInfoHubScreenState();
+}
+
+class _HellInfoHubScreenState extends State<HellInfoHubScreen> {
+  final TextEditingController _botNameCtrl = TextEditingController();
+  final TextEditingController _wakePhraseCtrl = TextEditingController();
+  final TextEditingController _chatCtrl = TextEditingController();
+  final List<Map<String, String>> _aiConversation = <Map<String, String>>[
+    {'role': 'ai', 'text': 'Olá! Sou o teu Amigo HELL IA. Personaliza o meu nome, skin e cor de robô (com o H no peito esquerdo), ativa o botão flutuante ou chama-me por voz!'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _botNameCtrl.text = HellVirtualFriendController.botName.value;
+    _wakePhraseCtrl.text = HellVirtualFriendController.wakePhrase.value;
+  }
+
+  @override
+  void dispose() {
+    _botNameCtrl.dispose();
+    _wakePhraseCtrl.dispose();
+    _chatCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skins = <Map<String, String>>[
+      {'id': 'cyber_guardian', 'name': 'Cyber Guardian'},
+      {'id': 'aero_orb', 'name': 'Aero Orb'},
+      {'id': 'mecha_titan', 'name': 'Mecha Titan'},
+      {'id': 'classic_bot', 'name': 'Bot Clássico'},
+    ];
+    final colors = <Color>[const Color(0xFF38BDF8), const Color(0xFF10B981), const Color(0xFFA855F7), const Color(0xFFF59E0B), const Color(0xFFF43F5E)];
 
     return DefaultTabController(
       length: 3,
@@ -1579,72 +1223,11 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
           const TabBar(
             indicatorColor: Color(0xFF38BDF8),
             labelColor: Color(0xFF38BDF8),
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              Tab(text: '💰 Finanças'),
-              Tab(text: '📢 Patrocínios & Ads'),
-              Tab(text: '🏢 Agência & Equipa'),
-            ],
+            tabs: [Tab(text: '🤖 Amigo HELL IA'), Tab(text: '🎨 Skin & Voz IA'), Tab(text: '📄 Documentos Oficiais')],
           ),
           Expanded(
             child: TabBarView(
               children: [
-                // 11.1 FINANCE MANAGER
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: _neonBox(),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Column(children: [const Text('Receitas', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('+${income.toStringAsFixed(2)} €', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))]),
-                          Column(children: [const Text('Despesas', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('-${expense.toStringAsFixed(2)} €', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))]),
-                          Column(children: [const Text('Saldo', style: TextStyle(fontSize: 11, color: Colors.white60)), Text('${(income - expense).toStringAsFixed(2)} €', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.w900))]),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        DropdownButton<String>(
-                          value: _txType,
-                          dropdownColor: const Color(0xFF0B1636),
-                          items: ['Receita', 'Despesa'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                          onChanged: (v) => setState(() => _txType = v ?? 'Receita'),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(child: TextField(controller: _descCtrl, decoration: const InputDecoration(hintText: 'Descrição...', isDense: true))),
-                        const SizedBox(width: 6),
-                        SizedBox(width: 75, child: TextField(controller: _valCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: '€', isDense: true))),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle, color: Color(0xFF38BDF8)),
-                          onPressed: () {
-                            final v = double.tryParse(_valCtrl.text.replaceAll(',', '.')) ?? 0.0;
-                            if (_descCtrl.text.trim().isNotEmpty && v > 0) {
-                              setState(() {
-                                _transactions.insert(0, {'desc': _descCtrl.text.trim(), 'amount': v, 'type': _txType});
-                                _descCtrl.clear();
-                                _valCtrl.clear();
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    ..._transactions.map((t) => ListTile(
-                          dense: true,
-                          title: Text(t['desc'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          trailing: Text(
-                            '${t['type'] == 'Receita' ? '+' : '-'}${(t['amount'] as num).toStringAsFixed(2)} €',
-                            style: TextStyle(color: t['type'] == 'Receita' ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold),
-                          ),
-                        )),
-                  ],
-                ),
-
-                // 11.2 - 11.4 PATROCÍNIOS, CONTRATOS & PUBLICIDADES PAGAS (RODAPÉ)
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -1652,104 +1235,143 @@ class _CreatorBusinessScreenState extends State<CreatorBusinessScreen> {
                       padding: const EdgeInsets.all(14),
                       decoration: _neonBox(),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                                   const Text('📢 Gestão de Publicidades & Parcerias (Live + Perfil + Stream Deck)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                      const SizedBox(height: 6),
-                      const Text('Gere aqui os teus patrocinadores e códigos. Sincroniza automaticamente com o teu Perfil, com o Overlay da Live e com o Botão de Ciclo do Stream Deck.', style: TextStyle(fontSize: 11, color: Colors.white70)),
-                      const SizedBox(height: 10),
-                      ...SponsorBannerManager.activeSponsors.asMap().entries.map((e) => ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.campaign_rounded, color: Colors.amberAccent, size: 20),
-                        title: Text(e.value['title']!, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                        subtitle: Text(e.value['url']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: Colors.white54)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: 'Abrir Link',
-                              icon: const Icon(Icons.open_in_new, size: 17, color: Color(0xFF38BDF8)),
-                              onPressed: () => launchUrl(Uri.parse(e.value['url']!), mode: LaunchMode.externalApplication),
-                            ),
-                            IconButton(
-                              tooltip: 'Remover Parceria',
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                              onPressed: () => setState(() => SponsorBannerManager.activeSponsors.removeAt(e.key)),
-                            ),
-                          ],
-                        ),
-                      )),
-                      const Divider(color: Colors.white12),
-                      const Text('➕ Adicionar Nova Publicidade ou Parceria', style: TextStyle(fontSize: 12, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      TextField(controller: _sponsorTitleCtrl, decoration: const InputDecoration(hintText: 'Texto / Código (ex: Usa código HELL15 · 15% OFF)', isDense: true)),
-                      const SizedBox(height: 6),
-                      TextField(controller: _sponsorUrlCtrl, decoration: const InputDecoration(hintText: 'Link do patrocinador ou perfil (https://...)', isDense: true)),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
-                              onPressed: () {
-                                if (_sponsorTitleCtrl.text.trim().isNotEmpty) {
-                                  setState(() {
-                                    SponsorBannerManager.activeSponsors.insert(0, {
-                                      'title': _sponsorTitleCtrl.text.trim(),
-                                      'url': _sponsorUrlCtrl.text.trim().isEmpty ? 'https://hellcreator.app' : _sponsorUrlCtrl.text.trim(),
-                                    });
-                                    _sponsorTitleCtrl.clear();
-                                    _sponsorUrlCtrl.clear();
-                                  });
-                                }
-                              },
-                              icon: const Icon(Icons.add_circle_outline, size: 16),
-                              label: const Text('Adicionar Parceria', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
-                            ),
+                          HellFriendRobotAvatar(
+                            skinId: HellVirtualFriendController.skinId.value,
+                            primaryColor: HellVirtualFriendController.primaryColor.value,
+                            eyeColor: HellVirtualFriendController.eyeColor.value,
+                            size: 84,
                           ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
-                            onPressed: () {
-                                                                                          Clipboard.setData(const ClipboardData(text: 'http://localhost:8080/overlay/sponsors_ticker'));
-                                                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('✅ Link OBS de Publicidades & Parcerias copiado!')),
-                              );
-                            },
-                            icon: const Icon(Icons.copy_rounded, size: 15),
-                            label: const Text('Link OBS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 8),
+                          Text(HellVirtualFriendController.botName.value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF38BDF8))),
+                          const SizedBox(height: 8),
+                          ..._aiConversation.map((m) => ListTile(dense: true, title: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12.5)))),
+                          Row(
+                            children: [
+                              Expanded(child: TextField(controller: _chatCtrl, decoration: const InputDecoration(hintText: 'Pede piada, rádio, tempo ou alarme...', isDense: true))),
+                              IconButton(
+                                icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+                                onPressed: () async {
+                                  final q = _chatCtrl.text.trim();
+                                  if (q.isEmpty) return;
+                                  _chatCtrl.clear();
+                                  final ans = await HellVirtualFriendController.processPrompt(q);
+                                  setState(() {
+                                    _aiConversation.add({'role': 'user', 'text': q});
+                                    _aiConversation.add({'role': 'ai', 'text': ans});
+                                  });
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      ],
                     ),
-                  ),
-                ],
-              ),
-                // 11.5 - 11.7 TEAM MANAGEMENT, SPONSOR MATCH AI & AGENCY DASHBOARD
+                  ],
+                ),
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: _neonBox(),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('🏢 Agency Dashboard & Sponsor Match AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF38BDF8))),
-                          SizedBox(height: 8),
-                          Text('• Gestão de vários criadores, permissões de equipa e relatórios globais.\n• Sponsor Match AI: Setores recomendados para o teu perfil — Gaming Peripherals, Energia & Software.\n• Contacto Comercial Oficial: hellcreatoros@gmail.com', style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5)),
-                                              ],
+                          TextField(
+                            controller: _botNameCtrl,
+                            decoration: const InputDecoration(labelText: 'Nome do Amigo IA', isDense: true),
+                            onChanged: (v) async {
+                              HellVirtualFriendController.botName.value = v.trim().isEmpty ? 'Amigo HELL IA' : v.trim();
+                              await HellVirtualFriendController.savePrefs();
+                              setState(() {});
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _wakePhraseCtrl,
+                            decoration: const InputDecoration(labelText: 'Frase de Ativação por Voz', isDense: true),
+                            onChanged: (v) async {
+                              HellVirtualFriendController.wakePhrase.value = v.trim().isEmpty ? 'Olá Amigo HELL' : v.trim();
+                              await HellVirtualFriendController.savePrefs();
+                              setState(() {});
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            children: skins
+                                .map((s) => ChoiceChip(
+                                      label: Text(s['name']!),
+                                      selected: HellVirtualFriendController.skinId.value == s['id'],
+                                      onSelected: (_) async {
+                                        HellVirtualFriendController.skinId.value = s['id']!;
+                                        await HellVirtualFriendController.savePrefs();
+                                        setState(() {});
+                                      },
+                                    ))
+                                .toList(),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 10,
+                            children: colors
+                                .map((c) => GestureDetector(
+                                      onTap: () async {
+                                        HellVirtualFriendController.primaryColor.value = c;
+                                        HellVirtualFriendController.eyeColor.value = c;
+                                        await HellVirtualFriendController.savePrefs();
+                                        setState(() {});
+                                      },
+                                      child: CircleAvatar(radius: 14, backgroundColor: c),
+                                    ))
+                                .toList(),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Botão Flutuante num canto da tela'),
+                            value: HellVirtualFriendController.floatingBubbleEnabled.value,
+                            onChanged: (v) async {
+                              HellVirtualFriendController.floatingBubbleEnabled.value = v;
+                              await HellVirtualFriendController.savePrefs();
+                              setState(() {});
+                            },
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Ativação por Voz (Frase / Nome)'),
+                            value: HellVirtualFriendController.voiceWakeEnabled.value,
+                            onChanged: (v) async {
+                              HellVirtualFriendController.voiceWakeEnabled.value = v;
+                              await HellVirtualFriendController.savePrefs();
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _neonBox(),
+                      child: const Text(
+                        'HELL CREATOR OS — DOCUMENTO OFICIAL & TERMOS\n\n'
+                        'O sistema operativo HELL CREATOR OS (apresentado na app como HELL CREATOR) garante acesso gratuito às ferramentas base de transmissão. Assinantes VIP têm acesso ao estúdio comercial (com retenção de 30% pela plataforma nas vendas digitais) e loja pessoal de merchandising.',
+                        style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
-}
+
