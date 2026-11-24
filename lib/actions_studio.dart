@@ -233,7 +233,9 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
         const SizedBox(height: 12),
         ...filtered.map((ov) {
           final hexColor = _overlayThemeColor.value.toRadixString(16);
-          final obsUrl = 'http://127.0.0{ov['route']}?theme=$hexColor';
+                    final routeName = ov['route'] ?? 'alert';
+          final obsUrl = 'http://127.0.0';
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: HellCockpitWindow(
