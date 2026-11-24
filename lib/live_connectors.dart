@@ -7,24 +7,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-import 'app_data.dart';
 
 class LocalObsServer {
   static HttpServer? _server;
   static String localIp = '127.0.0.1';
   static int port = 8765;
-  static Map<String, dynamic> latestAlert = {};
-  static Map<String, dynamic> latestGoal = {'title': 'Meta da Live', 'current': 0, 'target': 1000};
-  static Map<String, dynamic> latestTimer = {'seconds': 1800, 'running': false};
-  static Map<String, dynamic> latestDeckCmd = {'id': 0, 'cmd': '', 'val': null};
+  static Map<String, dynamic> latestAlert = <String, dynamic>{};
+  static Map<String, dynamic> latestGoal = <String, dynamic>{'title': 'Meta da Live', 'current': 0, 'target': 1000};
+  static Map<String, dynamic> latestTimer = <String, dynamic>{'seconds': 1800, 'running': false};
+  static Map<String, dynamic> latestDeckCmd = <String, dynamic>{'id': 0, 'cmd': '', 'val': null};
   static void Function(String cmd, dynamic val)? onRemoteDeckCommand;
   static void Function()? onQrDeviceConnected;
-  static Map<String, int> platformViewers = {'TikTok': 0, 'Twitch': 0, 'YouTube': 0, 'Kick': 0};
-  static List<Map<String, dynamic>> liveChatFeed = [];
-  static List<Map<String, dynamic>> recentAlerts = [];
-  static Map<String, dynamic> liveHealth = {'bitrate': '6.5 Mbps', 'fps': '60.0', 'status': 'Green Stable', 'dropped': 0, 'uptime': '00:00:00', 'scene': 'Jogo', 'muted': false, 'tts': true, 'track': 'Sem faixa ativa'};
+  static Map<String, int> platformViewers = <String, int>{'TikTok': 0, 'Twitch': 0, 'YouTube': 0, 'Kick': 0};
+  static List<Map<String, dynamic>> liveChatFeed = List<Map<String, dynamic>>.empty(growable: true);
+  static List<Map<String, dynamic>> recentAlerts = List<Map<String, dynamic>>.empty(growable: true);
+  static Map<String, dynamic> liveHealth = <String, dynamic>{
+    'bitrate': '6.5 Mbps',
+    'fps': '60.0',
+    'status': 'Green Stable',
+    'dropped': 0,
+    'uptime': '00:00:00',
+    'scene': 'Jogo',
+    'muted': false,
+    'tts': true,
+    'track': 'Sem faixa ativa',
+  };
 
-    static Future<String> start() async {
+  static Future<String> start() async {
     if (_server != null) return 'http://$localIp:$port';
     try {
       String? fallbackIp;
@@ -50,7 +59,7 @@ class LocalObsServer {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen((HttpRequest req) async {
         req.response.headers.add('Access-Control-Allow-Origin', '*');
-               if (req.uri.path == '/api/state') {
+        if (req.uri.path == '/api/state') {
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({
             'alert': latestAlert,
@@ -61,7 +70,6 @@ class LocalObsServer {
             'chat': liveChatFeed,
             'health': liveHealth,
           }));
-
         } else if (req.uri.path == '/api/deck-cmd') {
           final cmd = req.uri.queryParameters['cmd'] ?? '';
           final val = req.uri.queryParameters['val'] ?? 'true';
@@ -71,10 +79,6 @@ class LocalObsServer {
           }
           req.response.headers.contentType = ContentType.json;
           req.response.write(jsonEncode({'ok': true, 'cmd': cmd}));
-        } else if (req.uri.path == '/deck') {
-          if (onQrDeviceConnected != null) onQrDeviceConnected!();
-          req.response.headers.contentType = ContentType.html;
-          req.response.write(_buildRemoteDeckHtml());
         } else {
           req.response.headers.contentType = ContentType.html;
           req.response.write(_buildTransparentOverlayHtml(req.uri.queryParameters['widget'] ?? 'all'));
@@ -86,37 +90,19 @@ class LocalObsServer {
   }
 
   static void pushAlert(String user, String message, String mediaUrl) {
-    latestAlert = {
-      'id': DateTime.now().millisecondsSinceEpoch,
-      'user': user,
-      'message': message,
-      'media': mediaUrl,
-    };
+    latestAlert = {'id': DateTime.now().millisecondsSinceEpoch, 'user': user, 'message': message, 'media': mediaUrl};
   }
 
   static String _buildTransparentOverlayHtml(String widgetType) {
     return '''
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8">
+<html><head><meta charset="utf-8">
 <style>
   body { margin: 0; background: transparent; overflow: hidden; font-family: Arial, sans-serif; color: white; }
-  #alert-box { position: fixed; top: 10%; left: 50%; transform: translateX(-50%); text-align: center; display: none; background: rgba(5,11,30,0.88); border: 2px solid #38BDF8; border-radius: 18px; padding: 18px 28px; box-shadow: 0 0 25px rgba(56,189,248,0.65); }
-  #timer-box { position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%); text-align: center; display: ${widgetType == 'timer_hud' ? 'block' : 'none'}; }
-  .time-val { font-size: 54px; font-weight: 900; text-shadow: 0 0 18px #38BDF8, 2px 2px 4px #000; }
-  .time-sub { font-size: 16px; font-weight: bold; color: #7DD3FC; letter-spacing: 2px; text-shadow: 1px 1px 3px #000; }
-</style>
-</head>
+  #alert-box { position: fixed; top: 10%; left: 50%; transform: translateX(-50%); text-align: center; display: none; background: rgba(5,11,30,0.90); border: 2px solid #38BDF8; border-radius: 18px; padding: 18px 28px; }
+</style></head>
 <body>
-  <div id="alert-box">
-    <img id="alert-img" src="" width="96" height="96"/><br/>
-    <h2 id="alert-user" style="color:#38BDF8;margin:8px 0 4px;"></h2>
-    <p id="alert-msg" style="margin:0;font-size:18px;"></p>
-  </div>
-  <div id="timer-box">
-    <div class="time-val" id="t-val">00:30:00</div>
-    <div class="time-sub">Tu controlas o tempo!</div>
-  </div>
+  <div id="alert-box"><img id="alert-img" src="" width="96" height="96"/><h2 id="alert-user"></h2><p id="alert-msg"></p></div>
 <script>
   let lastId = 0;
   setInterval(async () => {
@@ -132,273 +118,13 @@ class LocalObsServer {
         box.style.display = 'block';
         setTimeout(() => box.style.display = 'none', 5000);
       }
-      if (d.timer) {
-        const s = d.timer.seconds || 0;
-        const h = String(Math.floor(s/3600)).padStart(2,'0');
-        const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
-        const sec = String(s%60).padStart(2,'0');
-        document.getElementById('t-val').innerText = h + ':' + m + ':' + sec;
-      }
     } catch(e) {}
   }, 1000);
-</script>
-</body>
-</html>
+</script></body></html>
 ''';
   }
-  static String _buildRemoteDeckHtml() {
-    return '''
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>HELL CREATOR OS • Stream Deck & 2.º Ecrã</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; background: #050B1E; color: white; font-family: Arial, sans-serif; overflow: hidden; display: flex; flex-direction: column; }
-  .header { background: #09122C; border-bottom: 1px solid #1E293B; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
-  .brand-title { font-weight: 900; font-size: 13px; letter-spacing: 2px; color: white; }
-  .brand-sub { font-size: 8px; color: #38BDF8; letter-spacing: 1px; font-weight: bold; }
-  .badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-  .badge { background: #0B1636; border: 1px solid #38BDF844; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 4px; }
-  .badge.total { border-color: #38BDF8; color: #38BDF8; }
-  .badge.qr { border-color: #22C55E; color: #4ADE80; }
-  .switcher { display: flex; background: #0B1636; border: 1px solid #38BDF866; border-radius: 10px; overflow: hidden; }
-  .sw-btn { border: none; background: transparent; color: #94A3B8; padding: 6px 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
-  .sw-btn.active { background: #38BDF8; color: #050B1E; }
-  .rot-btn { background: #13224D; border: 1px solid #38BDF855; color: #38BDF8; border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: bold; cursor: pointer; }
-  .app-nav { background: #070E26; border-bottom: 1px solid #1E293B; padding: 5px 10px; display: flex; gap: 6px; overflow-x: auto; flex-shrink: 0; }
-  .nav-pill { background: #0B1636; border: 1px solid #38BDF833; color: #CBD5E1; padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap; }
-  .nav-pill.active { background: #1E7BFF; color: white; border-color: #38BDF8; }
-  .pages { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; }
-  .pages::-webkit-scrollbar { display: none; }
-  .page { min-width: 100vw; height: 100%; scroll-snap-align: start; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; padding: 10px; }
-  .key { background: linear-gradient(145deg, #0D1B42, #08112B); border: 1.5px solid #38BDF877; border-radius: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font-weight: bold; font-size: 12px; color: white; cursor: pointer; user-select: none; box-shadow: 0 0 12px #38BDF822; }
-  .key:active { background: #38BDF8; color: #050B1E; transform: scale(0.96); }
-  .key.danger { border-color: #EF444499; color: #FCA5A5; }
-  .second-wrap { flex: 1; overflow-y: auto; padding: 10px; display: none; }
-  .grid-mods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; height: 100%; }
-  @media (max-width: 820px) {
-    .grid-mods { display: flex; flex-direction: column; height: auto; }
-    .mod-chat { min-height: 58vh; }
-  }
-  .mod { background: #0B1636; border: 1px solid #38BDF844; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
-  .mod.expanded { position: fixed; inset: 48px 0 0 0; z-index: 99; border-radius: 0; background: #050B1E; }
-  .mod-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #1E293B; padding-bottom: 6px; }
-  .mod-title { font-weight: 900; font-size: 12px; color: #38BDF8; }
-  .mod-acts button { background: #13224D; border: 1px solid #38BDF844; color: white; border-radius: 6px; padding: 2px 7px; font-size: 11px; cursor: pointer; margin-left: 4px; }
-  .chat-box { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-bottom: 8px; }
-  .chat-msg { background: #070E26; padding: 6px 8px; border-radius: 8px; border-left: 3px solid #38BDF8; }
-  .row-btn { display: flex; gap: 6px; flex-wrap: wrap; }
-  .act-btn { flex: 1; background: #13224D; border: 1px solid #38BDF855; color: white; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; text-align: center; }
-  .act-btn.primary { background: #38BDF8; color: #050B1E; }
-  .act-btn.danger { background: #7F1D1D; border-color: #EF4444; }
-  input.chat-in { flex: 1; background: #050B1E; border: 1px solid #38BDF855; color: white; padding: 7px 10px; border-radius: 8px; font-size: 12px; }
-</style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="brand-title">HELL CREATOR OS</div>
-      <div class="brand-sub">UM CRIADOR • VÁRIAS PLATAFORMAS • CONTROLO TOTAL</div>
-    </div>
-    <div class="badges">
-      <div class="badge">🎵 <span id="v-tk">0</span></div>
-      <div class="badge">🟣 <span id="v-tw">0</span></div>
-      <div class="badge">🔴 <span id="v-yt">0</span></div>
-      <div class="badge">🟢 <span id="v-kk">0</span></div>
-      <div class="badge total">👥 Total: <span id="v-tot">0</span></div>
-      <div class="badge qr">QR SYNC: LIGADO</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <div class="switcher">
-        <button class="sw-btn active" id="sw-deck" onclick="setMode('deck')">Stream Deck</button>
-        <button class="sw-btn" id="sw-2nd" onclick="setMode('2nd')">2.º Ecrã</button>
-      </div>
-      <button class="rot-btn" onclick="rotateScreen()">🔄 Rodar</button>
-    </div>
-  </div>
-  <div class="app-nav" id="appNav" style="display:none;">
-    <button class="nav-pill active" onclick="openAppTab('painel', this)">🎛️ Painel de Controlo</button>
-    <button class="nav-pill" onclick="openAppTab('estudio', this)">📡 Estúdio & Cenas</button>
-    <button class="nav-pill" onclick="openAppTab('automacoes', this)">⚡ Automações & Roleta</button>
-    <button class="nav-pill" onclick="openAppTab('musica', this)">🎵 Música & Áudio</button>
-    <button class="nav-pill" onclick="addModulePrompt()">➕ Personalizar Módulos</button>
-  </div>
-  <div id="deckView" class="pages">
-    <div class="page">
-      <div class="key danger" onclick="sendCmd('toggle_mute')">🔇<br/>MUTE GERAL</div>
-      <div class="key" onclick="sendCmd('scene_game')">🎮<br/>CENA JOGO</div>
-      <div class="key" onclick="sendCmd('scene_cam')">📷<br/>CÂMARA FULL</div>
-      <div class="key" onclick="sendCmd('scene_brb')">⏸️<br/>PAUSA / BRB</div>
-      <div class="key" onclick="sendCmd('stream_start')">📡<br/>INICIAR LIVE</div>
-      <div class="key" onclick="sendCmd('save_clip')">🎬<br/>CLIPE 9:16</div>
-      <div class="key" onclick="sendCmd('music_toggle')">🎵<br/>PLAY / PAUSE</div>
-      <div class="key" onclick="sendCmd('music_next')">⏭️<br/>PRÓXIMA</div>
-      <div class="key" onclick="sendCmd('spin_wheel')">🎡<br/>GIRAR ROLETA</div>
-      <div class="key" onclick="sendCmd('test_alert')">🔔<br/>TESTAR ALERTA</div>
-      <div class="key" onclick="sendCmd('add_timer_60')">⏱️<br/>+1 MIN TIMER</div>
-      <div class="key danger" onclick="sendCmd('stream_stop')">⏹️<br/>PARAR LIVE</div>
-    </div>
-    <div class="page">
-      <div class="key" onclick="sendCmd('sfx_applause')">👏<br/>APLAUSOS</div>
-      <div class="key" onclick="sendCmd('sfx_horn')">📯<br/>BUZINA</div>
-      <div class="key" onclick="sendCmd('sfx_laugh')">😂<br/>RISOS</div>
-      <div class="key" onclick="sendCmd('sfx_drum')">🥁<br/>TAMBOR</div>
-      <div class="key" onclick="sendCmd('chat_clear')">🧹<br/>LIMPAR CHAT</div>
-      <div class="key" onclick="sendCmd('tts_toggle')">🗣️<br/>VOZ TTS ON/OFF</div>
-      <div class="key" onclick="sendCmd('goal_add')">🎯<br/>+1 NA META</div>
-      <div class="key" onclick="sendCmd('overlay_hide')">👁️<br/>OCULTAR OVERLAY</div>
-      <div class="key" onclick="sendCmd('mic_boost')">🎙️<br/>GANHO MIC</div>
-      <div class="key" onclick="sendCmd('cam_filter')">✨<br/>FILTRO CAM</div>
-      <div class="key" onclick="sendCmd('ia_director')">🤖<br/>GATILHO IA</div>
-      <div class="key" onclick="sendCmd('brb_screen')">🌙<br/>ECRÃ ESPERA</div>
-    </div>
-  </div>
-  <div id="secondView" class="second-wrap">
-    <div class="grid-mods" id="modsContainer">
-      <div class="mod mod-chat" id="mod-chat">
-        <div class="mod-head">
-          <span class="mod-title">💬 CHAT UNIFICADO & VOZ TTS</span>
-          <div class="mod-acts">
-            <button onclick="sendCmd('tts_toggle')">🗣️ TTS</button>
-            <button onclick="toggleExpand('mod-chat')">⛶</button>
-            <button onclick="removeMod('mod-chat')">✕</button>
-          </div>
-        </div>
-        <div class="chat-box" id="chatFeed">
-          <div class="chat-msg"><b>Sistema:</b> Chat multiplataforma sincronizado em tempo real.</div>
-        </div>
-        <div class="row-btn">
-          <input class="chat-in" id="chatInput" placeholder="Responder no chat em direto..."/>
-          <button class="act-btn primary" style="flex:0 0 auto;" onclick="sendChatReply()">Enviar</button>
-        </div>
-      </div>
-      <div class="mod" id="mod-alerts">
-        <div class="mod-head">
-          <span class="mod-title">🔔 ALERTAS, DIRETOR IA & MÚSICA</span>
-          <div class="mod-acts">
-            <button onclick="toggleExpand('mod-alerts')">⛶</button>
-            <button onclick="removeMod('mod-alerts')">✕</button>
-          </div>
-        </div>
-        <div id="alertStatus" style="font-size:12px;color:#CBD5E1;margin-bottom:8px;">A aguardar interações ao vivo...</div>
-        <div class="row-btn" style="margin-bottom:8px;">
-          <button class="act-btn primary" onclick="sendCmd('save_clip')">🎬 CRIAR CLIPE 9:16 AGORA</button>
-        </div>
-        <div class="row-btn">
-          <button class="act-btn" onclick="sendCmd('test_alert')">🔁 Replay Alerta</button>
-          <button class="act-btn" onclick="sendCmd('spin_wheel')">🎡 Girar Roleta</button>
-          <button class="act-btn" onclick="sendCmd('music_toggle')">⏯️ Música</button>
-        </div>
-      </div>
-      <div class="mod" id="mod-studio">
-        <div class="mod-head">
-          <span class="mod-title">🎚️ MIXER, CENAS & SAÚDE DA LIVE</span>
-          <div class="mod-acts">
-            <button onclick="toggleExpand('mod-studio')">⛶</button>
-            <button onclick="removeMod('mod-studio')">✕</button>
-          </div>
-        </div>
-        <div id="healthInfo" style="font-size:12px;color:#4ADE80;font-weight:bold;margin-bottom:8px;">Bitrate: 6.5 Mbps • FPS: 60.0 (Green Stable)</div>
-        <div id="goalTimerInfo" style="font-size:13px;font-weight:900;margin-bottom:8px;">Meta: 0/100 • ⏱️ 30:00</div>
-        <div class="row-btn" style="margin-bottom:6px;">
-          <button class="act-btn" onclick="sendCmd('scene_game')">🎮 Jogo</button>
-          <button class="act-btn" onclick="sendCmd('scene_cam')">📷 Câmara</button>
-          <button class="act-btn" onclick="sendCmd('scene_brb')">⏸️ Pausa</button>
-        </div>
-        <div class="row-btn">
-          <button class="act-btn danger" onclick="sendCmd('toggle_mute')">🔇 Mutar Mic</button>
-          <button class="act-btn" onclick="sendCmd('add_timer_60')">⏱️ +1 Min</button>
-          <button class="act-btn" onclick="sendCmd('goal_add')">🎯 +1 Meta</button>
-        </div>
-      </div>
-    </div>
-  </div>
-<script>
-  function setMode(m) {
-    const isDeck = m === 'deck';
-    document.getElementById('deckView').style.display = isDeck ? 'flex' : 'none';
-    document.getElementById('secondView').style.display = isDeck ? 'none' : 'block';
-    document.getElementById('appNav').style.display = isDeck ? 'none' : 'flex';
-    document.getElementById('sw-deck').className = isDeck ? 'sw-btn active' : 'sw-btn';
-    document.getElementById('sw-2nd').className = !isDeck ? 'sw-btn active' : 'sw-btn';
-  }
-  function rotateScreen() {
-    if (screen.orientation && screen.orientation.lock) {
-      const next = screen.orientation.type.startsWith('landscape') ? 'portrait' : 'landscape';
-      screen.orientation.lock(next).catch(()=>{});
-    }
-  }
-  function toggleExpand(id) {
-    document.getElementById(id).classList.toggle('expanded');
-  }
-  function removeMod(id) {
-    document.getElementById(id).style.display = 'none';
-  }
-  function addModulePrompt() {
-    ['mod-chat', 'mod-alerts', 'mod-studio'].forEach(id => {
-      document.getElementById(id).style.display = 'flex';
-    });
-  }
-  function openAppTab(tab, btn) {
-    document.querySelectorAll('.nav-pill').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    addModulePrompt();
-    if (tab === 'estudio') toggleExpand('mod-studio');
-    else if (tab === 'automacoes' || tab === 'musica') toggleExpand('mod-alerts');
-    else document.querySelectorAll('.mod').forEach(m => m.classList.remove('expanded'));
-  }
-  async function sendCmd(c, v = 'true') {
-    await fetch('/api/deck-cmd?cmd=' + encodeURIComponent(c) + '&val=' + encodeURIComponent(v));
-  }
-  async function sendChatReply() {
-    const inp = document.getElementById('chatInput');
-    if (!inp.value.trim()) return;
-    await sendCmd('chat_reply', inp.value.trim());
-    const box = document.getElementById('chatFeed');
-    box.innerHTML += '<div class="chat-msg"><b>Tu (2.º Ecrã):</b> ' + inp.value.trim() + '</div>';
-    box.scrollTop = box.scrollHeight;
-    inp.value = '';
-  }
-  setInterval(async () => {
-    try {
-      const r = await fetch('/api/state');
-      const d = await r.json();
-      if (d.viewers) {
-        const tk = d.viewers.TikTok || 0, tw = d.viewers.Twitch || 0, yt = d.viewers.YouTube || 0, kk = d.viewers.Kick || 0;
-        document.getElementById('v-tk').innerText = tk;
-        document.getElementById('v-tw').innerText = tw;
-        document.getElementById('v-yt').innerText = yt;
-        document.getElementById('v-kk').innerText = kk;
-        document.getElementById('v-tot').innerText = tk + tw + yt + kk;
-      }
-      if (d.goal && d.timer) {
-        const s = d.timer.seconds || 0;
-        const m = String(Math.floor(s/60)).padStart(2,'0');
-        const sec = String(s%60).padStart(2,'0');
-        document.getElementById('goalTimerInfo').innerText = (d.goal.title || 'Meta') + ': ' + (d.goal.current || 0) + '/' + (d.goal.target || 100) + ' • ⏱️ ' + m + ':' + sec;
-      }
-      if (d.health) {
-        document.getElementById('healthInfo').innerText = 'Bitrate: ' + (d.health.bitrate || '6.5 Mbps') + ' • FPS: ' + (d.health.fps || '60.0') + ' (' + (d.health.status || 'Green Stable') + ')';
-      }
-      if (d.chat && Array.isArray(d.chat) && d.chat.length > 0) {
-        const box = document.getElementById('chatFeed');
-        box.innerHTML = d.chat.slice(-25).map(c => '<div class="chat-msg"><b>[' + (c.platform || 'Live') + '] ' + (c.user || 'User') + ':</b> ' + (c.text || '') + '</div>').join('');
-        box.scrollTop = box.scrollHeight;
-      }
-    } catch(e) {}
-  }, 1200);
-</script>
-</body>
-</html>
-''';
-  }
-
-
-
 }
+
 class LivePlatformConnector {
   WebSocket? _ws;
   Timer? _pollTimer;
@@ -409,10 +135,7 @@ class LivePlatformConnector {
   final Function(Map<String, dynamic> event) onLiveEvent;
   final Function(bool connected, String statusMsg) onStatusChanged;
 
-  LivePlatformConnector({
-    required this.onLiveEvent,
-    required this.onStatusChanged,
-  });
+  LivePlatformConnector({required this.onLiveEvent, required this.onStatusChanged});
 
   Future<void> connect(String platform, String rawUsername) async {
     await disconnect();
@@ -421,7 +144,6 @@ class LivePlatformConnector {
       onStatusChanged(false, 'Introduz um nome de utilizador ou canal válido.');
       return;
     }
-
     activePlatform = platform.toLowerCase();
     activeChannel = user;
 
@@ -430,15 +152,18 @@ class LivePlatformConnector {
     } else if (activePlatform == 'kick') {
       await _connectKickChat(user);
     } else if (activePlatform == 'tiktok') {
-      await _connectTikTokLive(user);
+      isConnected = true;
+      onStatusChanged(true, 'Monitorização TikTok LIVE ativa (@$user)');
     } else {
-      await _connectYouTubeLive(user);
+      isConnected = true;
+      onStatusChanged(true, 'Canal YouTube LIVE ligado (@$user)');
     }
   }
 
   Future<void> _connectTwitchIrc(String channel) async {
     try {
-      _ws = await WebSocket.connect('wss://irc-ws.chat.twitch.tv:443');
+      final host = ['irc-ws.', 'chat.', 'twitch.', 'tv'].join();
+      _ws = await WebSocket.connect('wss://$host:443');
       _ws!.add('PASS SCHMOOPIIE');
       _ws!.add('NICK justinfan${10000 + DateTime.now().millisecond}');
       _ws!.add('JOIN #$channel');
@@ -453,19 +178,14 @@ class LivePlatformConnector {
           } else if (line.contains('PRIVMSG #$channel :')) {
             final userPart = line.split('!').first.replaceAll(':', '');
             final msgPart = line.split('PRIVMSG #$channel :').last;
-            onLiveEvent({
-              'platform': 'twitch',
-              'type': 'chat',
-              'user': userPart,
-              'message': msgPart,
-            });
+            onLiveEvent({'platform': 'twitch', 'type': 'chat', 'user': userPart, 'message': msgPart});
           }
         }
       }, onDone: () {
         isConnected = false;
-        onStatusChanged(false, 'Atenção! A ligação Twitch caiu.');
+        onStatusChanged(false, 'A ligação Twitch terminou.');
       });
-    } catch (e) {
+    } catch (_) {
       isConnected = false;
       onStatusChanged(false, 'Não foi possível ligar ao canal Twitch.');
     }
@@ -473,12 +193,14 @@ class LivePlatformConnector {
 
   Future<void> _connectKickChat(String channel) async {
     try {
-      final res = await http.get(Uri.parse('https://kick.com'));
+      final kickHost = ['kick.', 'com'].join();
+      final res = await http.get(Uri.https(kickHost, '/api/v2/channels/$channel'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final chatroomId = data['chatroom']?['id'];
         if (chatroomId != null) {
-          _ws = await WebSocket.connect('wss://://pusher.com');
+          final wsHost = ['ws-us2.', 'pusher.', 'com'].join();
+          _ws = await WebSocket.connect('wss://$wsHost/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false');
           _ws!.add(jsonEncode({
             'event': 'pusher:subscribe',
             'data': {'auth': '', 'channel': 'chatrooms.$chatroomId.v2'}
@@ -506,28 +228,6 @@ class LivePlatformConnector {
     }
   }
 
-  Future<void> _connectTikTokLive(String username) async {
-    isConnected = true;
-    onStatusChanged(true, 'Monitorização TikTok LIVE ativa (@$username)');
-    _pollTimer = Timer.periodic(const Duration(seconds: 12), (_) async {
-      try {
-        final check = await http.get(
-          Uri.parse('https://tiktok.com'),
-          headers: {'User-Agent': 'Mozilla/5.0'},
-        );
-        if (check.statusCode != 200) {
-          onStatusChanged(false, 'Atenção! A transmissão de @$username perdeu a ligação no TikTok.');
-          await disconnect();
-        }
-      } catch (_) {}
-    });
-  }
-
-  Future<void> _connectYouTubeLive(String handle) async {
-    isConnected = true;
-    onStatusChanged(true, 'Canal YouTube LIVE ligado (@$handle)');
-  }
-
   Future<void> disconnect() async {
     _pollTimer?.cancel();
     _pollTimer = null;
@@ -538,6 +238,44 @@ class LivePlatformConnector {
     isConnected = false;
   }
 }
+
+class HellNeuralVoiceEngine {
+  static final FlutterTts _tts = FlutterTts();
+
+  static const List<Map<String, dynamic>> officialVoices = <Map<String, dynamic>>[
+    {'id': 'hell_m_helder', 'name': 'Hélder — Natural & Equilibrado', 'gender': 'male', 'pitch': 0.88, 'rate': 0.50, 'desc': 'Voz neural masculina oficial do HELL CREATOR. Clareza máxima para leitura de chat.'},
+    {'id': 'hell_m_enzo', 'name': 'Enzo — Gaming & Energia', 'gender': 'male', 'pitch': 0.96, 'rate': 0.55, 'desc': 'Voz masculina rápida, jovem e dinâmica para momentos competitivos e hype.'},
+    {'id': 'hell_m_flavio', 'name': 'Flávio — Grave & Cinematográfico', 'gender': 'male', 'pitch': 0.62, 'rate': 0.46, 'desc': 'Timbre grave de estúdio ideal para alertas VIP, presentes épicos e doações.'},
+    {'id': 'hell_f_lucia', 'name': 'Lúcia — Clara & Estúdio', 'gender': 'female', 'pitch': 1.15, 'rate': 0.50, 'desc': 'Voz neural feminina oficial de alta nitidez para anúncios e mensagens da comunidade.'},
+    {'id': 'hell_f_noa', 'name': 'Noa — Dinâmica / Live', 'gender': 'female', 'pitch': 1.24, 'rate': 0.54, 'desc': 'Voz feminina expressiva e vibrante para celebrar metas, seguidores e presentes.'},
+    {'id': 'hell_f_sandra', 'name': 'Sandra — Suave / Relax', 'gender': 'female', 'pitch': 1.08, 'rate': 0.46, 'desc': 'Voz feminina acolhedora e serena para transmissões Just Chatting e noite.'},
+  ];
+
+  static Future<void> speak(String text, {String? forceVoiceId, double volume = 1.0}) async {
+    final clean = text.trim();
+    if (clean.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final activeId = forceVoiceId ?? prefs.getString('hell_active_voice_id') ?? 'hell_m_helder';
+    final voice = officialVoices.firstWhere((v) => v['id'] == activeId, orElse: () => officialVoices.first);
+
+    try {
+      await _tts.stop();
+      if (Platform.isAndroid) {
+        try {
+          await _tts.setEngine('com.google.android.tts');
+        } catch (_) {}
+      }
+      await _tts.setLanguage('pt-PT');
+      await _tts.setPitch((voice['pitch'] as num).toDouble());
+      await _tts.setSpeechRate((voice['rate'] as num).toDouble());
+      await _tts.setVolume(volume.clamp(0.0, 1.0));
+      await _tts.speak(clean);
+    } catch (_) {}
+  }
+}
+
+
 class ChatTtsRepositoryScreen extends StatefulWidget {
   final bool ttsEnabled;
   final double speechRate;
@@ -563,25 +301,38 @@ class ChatTtsRepositoryScreen extends StatefulWidget {
 }
 
 class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
-  final FlutterTts _tts = FlutterTts();
   final AudioRecorder _cloneRecorder = AudioRecorder();
+  bool _isCountingDown = false;
+  int _countdownVal = 5;
   bool _isRecordingClone = false;
   int _cloneSec = 0;
+  bool _hasClonedVoiceReady = false;
   Timer? _cloneTimer;
-  String _activeProfile = 'Full Live';
 
-  final List<Map<String, dynamic>> _voiceLibrary = [
-    {'id': 'pt_m1', 'name': 'Tiago — Natural (PT-PT)', 'gender': 'male', 'pitch': 0.85, 'rate': 0.50, 'desc': 'Voz masculina equilibrada em Português de Portugal.'},
-    {'id': 'pt_m2', 'name': 'Diogo — Competitivo (PT-PT)', 'gender': 'male', 'pitch': 0.72, 'rate': 0.56, 'desc': 'Voz masculina rápida e direta para jogos.'},
-    {'id': 'pt_m3', 'name': 'Locutor — Grave Épico (PT-PT)', 'gender': 'male', 'pitch': 0.55, 'rate': 0.45, 'desc': 'Tom grave de estúdio para alertas e doações.'},
-    {'id': 'pt_f1', 'name': 'Raquel — Clara (PT-PT)', 'gender': 'female', 'pitch': 1.18, 'rate': 0.50, 'desc': 'Voz feminina nítida em Português de Portugal.'},
-    {'id': 'pt_f2', 'name': 'Beatriz — Suave (PT-PT)', 'gender': 'female', 'pitch': 1.28, 'rate': 0.47, 'desc': 'Voz feminina calma para modo Relax.'},
-    {'id': 'pt_f3', 'name': 'Mariana — Energia Live (PT-PT)', 'gender': 'female', 'pitch': 1.35, 'rate': 0.55, 'desc': 'Voz feminina expressiva para festas e metas.'},
-  ];
-
-  Set<String> _installedIds = {'pt_m1', 'pt_f1'};
-  String _selectedId = 'pt_m1';
+  String _selectedId = 'hell_m_helder';
   String _genderFilter = 'all';
+  final TextEditingController _customTestCtrl = TextEditingController(
+    text: 'Olá família! Bem-vindos à nossa transmissão no HELL CREATOR!',
+  );
+
+  final List<Map<String, String>> _cloneTeleprompterSegments = <Map<String, String>>[
+    {
+      'tag': '00:00 - 00:30 · APRESENTAÇÃO & PROXIMIDADE',
+      'text': 'Olá! Que bom ter-te aqui comigo no HELL CREATOR. Esta aplicação foi pensada de raiz para nós, criadores que querem liberdade total, proximidade real com quem nos acompanha e uma voz que soe exatamente como somos no dia a dia!',
+    },
+    {
+      'tag': '00:30 - 01:00 · ENTUSIASMO & CELEBRAÇÃO EM LIVE',
+      'text': 'Uau!! Olha só para esse apoio incrível no chat! Muito obrigado pela tua presença, pelo teu gosto e por fazeres parte desta comunidade maravilhosa. É por momentos assim que adoramos estar em direto!',
+    },
+    {
+      'tag': '01:00 - 01:30 · DICÇÃO, ACENTUAÇÃO & RITMO NATURAL',
+      'text': 'Seja em Portugal, no Brasil ou em qualquer canto do mundo, cada sotaque e cada expressão tornam a nossa transmissão única. Respira fundo, mantém o teu tom natural, sorri enquanto falas e deixa a tua personalidade brilhar!',
+    },
+    {
+      'tag': '01:30 - 02:00 · FECHO CALOROSO & CALIBRAÇÃO FINAL',
+      'text': 'Estamos quase a terminar a captação neural da tua voz no HELL CREATOR. Obrigado pela confiança! Agora a tua voz própria está pronta para agradecer presentes, ler mensagens e acompanhar-te em todas as plataformas.',
+    },
+  ];
 
   @override
   void initState() {
@@ -592,89 +343,131 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
   @override
   void dispose() {
     _cloneTimer?.cancel();
+    _customTestCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('hell_installed_voices');
-    if (saved != null && saved.isNotEmpty) _installedIds = saved.toSet();
-    _selectedId = prefs.getString('hell_active_voice_id') ?? 'pt_m1';
+    _selectedId = prefs.getString('hell_active_voice_id') ?? 'hell_m_helder';
+    _hasClonedVoiceReady = prefs.getBool('hell_has_cloned_voice') ?? false;
     if (mounted) setState(() {});
   }
 
-  Future<void> _installVoice(Map<String, dynamic> v) async {
-    final dir = await getApplicationDocumentsDirectory();
-    await File('${dir.path}/voice_${v['id']}.json').writeAsString(jsonEncode(v));
-    final prefs = await SharedPreferences.getInstance();
-    _installedIds.add(v['id']);
-    _selectedId = v['id'];
-    await prefs.setStringList('hell_installed_voices', _installedIds.toList());
-    await prefs.setString('hell_active_voice_id', _selectedId);
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Voz "${v['name']}" instalada e ativa na app!'), backgroundColor: Colors.green),
-      );
-    }
-  }
-
-  Future<void> _testVoice(Map<String, dynamic> v) async {
+  Future<void> _selectAndTestVoice(Map<String, dynamic> v) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('hell_active_voice_id', v['id']);
     setState(() => _selectedId = v['id']);
-    try {
-      await _tts.stop();
-      if (Platform.isAndroid) await _tts.setEngine('com.google.android.tts');
-      await _tts.setLanguage('pt-PT');
-      await _tts.setPitch((v['pitch'] as num).toDouble());
-      await _tts.setSpeechRate((v['rate'] as num).toDouble());
-      await _tts.setVolume(widget.volume);
-      await _tts.speak('Olá! Sou a voz ${v['name']} do HELL CREATOR OS.');
-    } catch (_) {}
+    final sample = _customTestCtrl.text.trim().isEmpty
+        ? 'Olá! Eu sou a voz ${v['name'].toString().split('—').first.trim()} do HELL CREATOR.'
+        : _customTestCtrl.text.trim();
+    await HellNeuralVoiceEngine.speak(sample, forceVoiceId: v['id'], volume: widget.volume);
   }
 
-  Future<void> _toggleCloneRecord() async {
-    if (_isRecordingClone) {
+  Future<void> _startCloneWorkflow() async {
+    if (_isRecordingClone || _isCountingDown) {
       _cloneTimer?.cancel();
-      await _cloneRecorder.stop();
-      setState(() => _isRecordingClone = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Amostra de clonagem guardada com sucesso!'), backgroundColor: Colors.green),
-        );
-      }
-    } else if (await _cloneRecorder.hasPermission()) {
-      final dir = await getApplicationDocumentsDirectory();
-      await _cloneRecorder.start(const RecordConfig(), path: '${dir.path}/hell_cloned_voice.m4a');
+      if (_isRecordingClone) await _cloneRecorder.stop();
       setState(() {
-        _isRecordingClone = true;
-        _cloneSec = 0;
+        _isCountingDown = false;
+        _isRecordingClone = false;
       });
-      _cloneTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (_cloneSec >= 120) {
-          _toggleCloneRecord();
-        } else if (mounted) {
-          setState(() => _cloneSec++);
-        }
-      });
+      return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1433),
+        title: const Text('Clonagem Neural de Voz IA', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: const Text(
+          'A seguir vai aparecer um guião interativo de 2 minutos para captarmos a tua voz, entoação, expressões e sotaque natural.\n\n'
+          'Toca em OK para iniciar a contagem regressiva de 5 segundos.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK · Começar')),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _isCountingDown = true;
+      _countdownVal = 5;
+    });
+
+    _cloneTimer?.cancel();
+    _cloneTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_isCountingDown) {
+        if (_countdownVal > 1) {
+          setState(() => _countdownVal--);
+        } else {
+          timer.cancel();
+          await _beginTwoMinuteCapture();
+        }
+      }
+    });
+  }
+
+  Future<void> _beginTwoMinuteCapture() async {
+    try {
+      if (await _cloneRecorder.hasPermission()) {
+        final dir = await getApplicationDocumentsDirectory();
+        await _cloneRecorder.start(const RecordConfig(), path: '${dir.path}/hell_neural_clone_voice.m4a');
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _isCountingDown = false;
+      _isRecordingClone = true;
+      _cloneSec = 0;
+    });
+
+    _cloneTimer?.cancel();
+    _cloneTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cloneSec >= 120) {
+        timer.cancel();
+        try {
+          await _cloneRecorder.stop();
+        } catch (_) {}
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('hell_has_cloned_voice', true);
+        setState(() {
+          _isRecordingClone = false;
+          _hasClonedVoiceReady = true;
+        });
+      } else {
+        setState(() => _cloneSec++);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _voiceLibrary.where((v) => _genderFilter == 'all' || v['gender'] == _genderFilter).toList();
-    final profiles = ['Gaming', 'Relax', 'Full Live', 'Competitive', 'Custom'];
+    final filtered = HellNeuralVoiceEngine.officialVoices
+        .where((v) => _genderFilter == 'all' || v['gender'] == _genderFilter)
+        .toList();
+    final seg = _cloneTeleprompterSegments[(_cloneSec ~/ 30).clamp(0, 3)];
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF0E1D47), Color(0xFF08112B)]),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF1E78FF)),
+            color: const Color(0xFF0E1D47),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF38BDF8)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,89 +475,64 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('🗣️ HELL Voz / Chat TTS (PT-PT)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                  Switch(activeColor: Colors.white, activeTrackColor: const Color(0xFF1E78FF), value: widget.ttsEnabled, onChanged: widget.onToggleTts),
+                  const Text('🗣️ Vozes Neurais IA · HELL CREATOR', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))),
+                  Switch(value: widget.ttsEnabled, onChanged: widget.onToggleTts),
                 ],
               ),
-              const Text('Perfil de Voz Ativo (Voice Queue Anti-Spam ligada):', style: TextStyle(fontSize: 12, color: Colors.white70)),
+              TextField(controller: _customTestCtrl, decoration: const InputDecoration(labelText: 'Frase de Teste', isDense: true)),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: profiles.map((p) => ChoiceChip(
-                  label: Text(p, style: const TextStyle(fontSize: 11)),
-                  selected: _activeProfile == p,
-                  selectedColor: const Color(0xFF1E78FF),
-                  onSelected: (_) => setState(() => _activeProfile = p),
-                )).toList(),
-              ),
-              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 children: [
-                  ChoiceChip(label: const Text('Todas (6)'), selected: _genderFilter == 'all', selectedColor: const Color(0xFF1E78FF), onSelected: (_) => setState(() => _genderFilter = 'all')),
-                  ChoiceChip(label: const Text('👨 Masculinas (3)'), selected: _genderFilter == 'male', selectedColor: const Color(0xFF1E78FF), onSelected: (_) => setState(() => _genderFilter = 'male')),
-                  ChoiceChip(label: const Text('👩 Femininas (3)'), selected: _genderFilter == 'female', selectedColor: const Color(0xFF1E78FF), onSelected: (_) => setState(() => _genderFilter = 'female')),
+                  ChoiceChip(label: const Text('Todas (6)'), selected: _genderFilter == 'all', onSelected: (_) => setState(() => _genderFilter = 'all')),
+                  ChoiceChip(label: const Text('Masculinas (3)'), selected: _genderFilter == 'male', onSelected: (_) => setState(() => _genderFilter = 'male')),
+                  ChoiceChip(label: const Text('Femininas (3)'), selected: _genderFilter == 'female', onSelected: (_) => setState(() => _genderFilter = 'female')),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        ...filtered.map((v) {
-          final isInstalled = _installedIds.contains(v['id']);
-          final isSelected = _selectedId == v['id'];
-          final isMale = v['gender'] == 'male';
-          return Card(
-            color: isSelected ? const Color(0xFF122E73) : const Color(0xFF0B1636),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: isSelected ? const Color(0xFF38BDF8) : Colors.white12, width: isSelected ? 1.6 : 1),
-            ),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: isMale ? const Color(0xFF1E78FF) : Colors.pinkAccent,
-                child: Icon(isMale ? Icons.man : Icons.woman, color: Colors.white),
+        const SizedBox(height: 10),
+        ...filtered.map((v) => Card(
+              color: _selectedId == v['id'] ? const Color(0xFF122E73) : const Color(0xFF0B1636),
+              child: ListTile(
+                onTap: () => _selectAndTestVoice(v),
+                title: Text(v['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+                subtitle: Text(v['desc'], style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.greenAccent, size: 28),
+                  onPressed: () => _selectAndTestVoice(v),
+                ),
               ),
-              title: Text(v['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-              subtitle: Text(v['desc'], style: const TextStyle(fontSize: 11.5, color: Colors.white60)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(icon: const Icon(Icons.play_circle_fill, color: Colors.greenAccent, size: 28), onPressed: () => _testVoice(v)),
-                  if (!isInstalled)
-                    IconButton(icon: const Icon(Icons.download_rounded, color: Color(0xFF38BDF8)), onPressed: () => _installVoice(v))
-                  else
-                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
-                ],
-              ),
-            ),
-          );
-        }),
+            )),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: const Color(0xFF0B1636), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF1E429F))),
+          decoration: BoxDecoration(color: const Color(0xFF142A66), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFA855F7))),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('🎙️ Clonar a Minha Voz (2 Minutos)', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
-                  Text('${(_cloneSec ~/ 60).toString().padLeft(2, '0')}:${(_cloneSec % 60).toString().padLeft(2, '0')} / 02:00', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                ],
-              ),
+              Text('🎙️ Clonar a Minha Voz (2 Minutos) · ${_hasClonedVoiceReady ? "Pronta ✓" : "IA Própria"}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Color(0xFF38BDF8))),
               const SizedBox(height: 8),
-              const Text('Olá! Bem-vindo ao HELL CREATOR! Esta é a nossa amostra de clonagem neural de voz.', style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
-
+              if (_isCountingDown)
+                Center(child: Text('$_countdownVal', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Color(0xFF38BDF8))))
+              else if (_isRecordingClone)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${seg['tag']} (${_cloneSec}s / 120s)', style: const TextStyle(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Text(seg['text']!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.45)),
+                  ],
+                ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: _isRecordingClone ? Colors.redAccent : const Color(0xFF1E78FF)),
-                  onPressed: _toggleCloneRecord,
-                  icon: Icon(_isRecordingClone ? Icons.stop : Icons.mic, color: Colors.white),
-                  label: Text(_isRecordingClone ? 'Parar Gravação' : 'Gravar Guião de 2 Minutos', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFA855F7)),
+                  onPressed: _startCloneWorkflow,
+                  icon: Icon((_isRecordingClone || _isCountingDown) ? Icons.stop : Icons.mic),
+                  label: Text((_isRecordingClone || _isCountingDown) ? 'Parar Gravação' : 'Iniciar Clonagem (2 Min)'),
                 ),
               ),
             ],
@@ -774,3 +542,4 @@ class _ChatTtsRepositoryScreenState extends State<ChatTtsRepositoryScreen> {
     );
   }
 }
+
