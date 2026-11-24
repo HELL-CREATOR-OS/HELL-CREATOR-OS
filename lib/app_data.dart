@@ -138,7 +138,8 @@ class OnlineMediaRepository {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final pages = (data['query']?['pages'] as Map<String, dynamic>?) ?? {};
-        final out = <Map<String, String>>;
+        final out = List<Map<String, String>>.empty(growable: true);
+
         for (final entry in pages.values) {
           final title = (entry['title'] ?? '').toString().replaceFirst('File:', '');
           final info = (entry['imageinfo'] as List?)?.firstOrNull;
