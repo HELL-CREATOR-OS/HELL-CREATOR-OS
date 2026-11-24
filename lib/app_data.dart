@@ -151,7 +151,7 @@ class OnlineMediaRepository {
     return DefaultMediaLibrary.onlineSoundsRepository;
   }
 
-  static Future<Map<String, String>?> openOnlineLibraryPicker(
+    static Future<Map<String, String>?> openOnlineLibraryPicker(
     BuildContext context, {
     required String initialTab,
     AudioPlayer? previewPlayer,
@@ -160,7 +160,7 @@ class OnlineMediaRepository {
     final searchCtrl = TextEditingController(
       text: initialTab == 'sounds' ? 'applause' : (initialTab == 'gifs' ? 'celebration' : 'crown neon'),
     );
-    List<Map<String, String>> results =;
+    List<Map<String, String>> results = [];
     bool loading = true;
     bool initialized = false;
 
@@ -190,11 +190,7 @@ class OnlineMediaRepository {
           }
           return AlertDialog(
             backgroundColor: const Color(0xFF0A1433),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
-            ),
-            title: const Text('Biblioteca Online Gratuita (Milhares)', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+            title: const Text('Biblioteca Online Gratuita', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
             content: SizedBox(
               width: 460,
               height: 410,
@@ -202,40 +198,31 @@ class OnlineMediaRepository {
                 children: [
                   Row(
                     children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(child: Text('GIFs', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800))),
-                          selected: currentTab == 'gifs',
-                          selectedColor: const Color(0xFF1E78FF),
-                          onSelected: (_) {
-                            currentTab = 'gifs';
-                            runSearch(setModal);
-                          },
-                        ),
+                      ChoiceChip(
+                        label: const Text('GIFs'),
+                        selected: currentTab == 'gifs',
+                        onSelected: (_) {
+                          currentTab = 'gifs';
+                          runSearch(setModal);
+                        },
                       ),
                       const SizedBox(width: 6),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(child: Text('Imagens', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800))),
-                          selected: currentTab == 'images',
-                          selectedColor: const Color(0xFF1E78FF),
-                          onSelected: (_) {
-                            currentTab = 'images';
-                            runSearch(setModal);
-                          },
-                        ),
+                      ChoiceChip(
+                        label: const Text('Imagens'),
+                        selected: currentTab == 'images',
+                        onSelected: (_) {
+                          currentTab = 'images';
+                          runSearch(setModal);
+                        },
                       ),
                       const SizedBox(width: 6),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(child: Text('Sons', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800))),
-                          selected: currentTab == 'sounds',
-                          selectedColor: const Color(0xFF1E78FF),
-                          onSelected: (_) {
-                            currentTab = 'sounds';
-                            runSearch(setModal);
-                          },
-                        ),
+                      ChoiceChip(
+                        label: const Text('Sons'),
+                        selected: currentTab == 'sounds',
+                        onSelected: (_) {
+                          currentTab = 'sounds';
+                          runSearch(setModal);
+                        },
                       ),
                     ],
                   ),
@@ -245,67 +232,34 @@ class OnlineMediaRepository {
                       Expanded(
                         child: TextField(
                           controller: searchCtrl,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: const InputDecoration(hintText: 'Pesquisar online...', isDense: true, border: OutlineInputBorder()),
+                          decoration: const InputDecoration(hintText: 'Pesquisar milhares online...', isDense: true),
                           onSubmitted: (_) => runSearch(setModal),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      ElevatedButton(onPressed: () => runSearch(setModal), child: const Icon(Icons.search_rounded, size: 18)),
+                      IconButton(icon: const Icon(Icons.search), onPressed: () => runSearch(setModal)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Expanded(
                     child: loading
                         ? const Center(child: CircularProgressIndicator())
-                        : currentTab == 'sounds'
-                            ? ListView.builder(
-                                itemCount: results.length,
-                                itemBuilder: (_, i) {
-                                  final item = results[i];
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(item['name'] ?? 'Som', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.play_circle_fill, color: Colors.greenAccent),
-                                          onPressed: () async {
-                                            try {
-                                              final p = previewPlayer ?? AudioPlayer();
-                                              await p.stop();
-                                              await p.play(UrlSource(item['url']!));
-                                            } catch (_) {}
-                                          },
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            previewPlayer?.stop();
-                                            Navigator.pop(ctx, item);
-                                          },
-                                          child: const Text('Usar', style: TextStyle(fontSize: 11)),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              )
-                            : GridView.builder(
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                                itemCount: results.length,
-                                itemBuilder: (_, i) {
-                                  final item = results[i];
-                                  return InkWell(
-                                    onTap: () => Navigator.pop(ctx, item),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(color: const Color(0xFF04091A), borderRadius: BorderRadius.circular(10)),
-                                      child: Image.network(item['url']!, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.image)),
-                                    ),
-                                  );
-                                },
-                              ),
+                        : ListView.builder(
+                            itemCount: results.length,
+                            itemBuilder: (_, i) {
+                              final item = results[i];
+                              return ListTile(
+                                dense: true,
+                                title: Text(item['name'] ?? 'Recurso', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                trailing: ElevatedButton(
+                                  onPressed: () {
+                                    previewPlayer?.stop();
+                                    Navigator.pop(ctx, item);
+                                  },
+                                  child: const Text('Usar'),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -325,6 +279,7 @@ class OnlineMediaRepository {
     );
   }
 }
+
 
 class DefaultMediaLibrary {
   static String get _cdn {
