@@ -1271,7 +1271,7 @@ class StructuredProfileStorage {
           _msg('Dados copiados em JSON para a área de transferência!');
         },
       ),
-      ListTile(
+            ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.pause_circle_outline, color: Colors.amberAccent),
         title: const Text('Desativar Conta Temporariamente', style: TextStyle(color: Colors.amberAccent)),
