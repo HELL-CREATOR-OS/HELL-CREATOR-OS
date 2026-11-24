@@ -120,6 +120,10 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
       ),
     );
   }
+    String _overlayCategory = 'Todos';
+  String _overlaySearch = '';
+  Color _overlayThemeColor = const Color(0xFF38BDF8);
+
   Widget _buildOverlaysLibraryTab() {
     final categories = ['Todos', 'Alertas', 'Chat', 'Metas', 'Interativos', 'Ecrãs & Parceiros'];
     final allOverlays = [
@@ -248,6 +252,7 @@ class _ActionsStudioTabState extends State<ActionsStudioTab> with SingleTickerPr
                   builder: (ctx) => AlertDialog(
                     backgroundColor: const Color(0xFF0A1433),
                     title: Text('Pré-visualização Ao Vivo · ${ov['title']}', style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900)),
+
                     content: Container(
                       width: 340,
                       padding: const EdgeInsets.all(16),
