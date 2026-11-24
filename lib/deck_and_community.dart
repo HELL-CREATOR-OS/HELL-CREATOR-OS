@@ -385,6 +385,8 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
       {'cmd': 'chat_reply', 'name': '💬 Enviar Mensagem no Chat'},
       {'cmd': 'open_url', 'name': '🌐 Abrir Link / Webhook HTTP'},
       {'cmd': 'custom_action', 'name': '⚡ Comando / Macro Personalizado'},
+            {'cmd': 'sponsor_cycle', 'name': '🤝 Ciclo Publicidades / Parcerias (Próximo Banner)'},
+
     ];
 
     if (!actionsList.any((a) => a['cmd'] == selectedCmd)) {
@@ -940,22 +942,38 @@ bool _testMode = false;
               onVerticalDragUpdate: (d) {
                 if (d.delta.dy > 3) setState(() => _showTopBarInFull = true);
               },
-              child: Container(
-                width: double.infinity,
-                height: 22,
-                color: Colors.transparent,
-                alignment: Alignment.center,
-                child: Container(
-                  width: 58,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF38BDF8).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.6), blurRadius: 8)],
+                              child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(top: 6, bottom: 4),
+                  color: Colors.transparent,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 4.5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.6), blurRadius: 8)],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'STREAM DECK HELL',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.2,
+                          color: Colors.white.withOpacity(0.42),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            )
+              )
+
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
