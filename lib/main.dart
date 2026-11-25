@@ -957,6 +957,7 @@ class _MainShellState extends State<MainShell> {
         ),
         Expanded(child: _buildSettingsTab()),
       ]),
+    ];
 
 
     final sponsor = SponsorBannerManager.activeSponsors.isNotEmpty
