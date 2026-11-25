@@ -1587,11 +1587,13 @@ class _HellSeasonalAppIconStudioState extends State<HellSeasonalAppIconStudio> {
 class HellAvatarFramesStudio extends StatefulWidget {
   final Map<String, dynamic>? currentUser;
   final Function(String frameType, String frameValue)? onApplyFrameToProfile;
+  final Function(String avatarMedia)? onApplyAvatarToProfile;
 
   const HellAvatarFramesStudio({
     super.key,
     this.currentUser,
     this.onApplyFrameToProfile,
+    this.onApplyAvatarToProfile,
   });
 
   @override
@@ -1603,23 +1605,24 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _promptCtrl = TextEditingController();
   final TextEditingController _priceCtrl = TextEditingController(text: '0');
+  String _assetCategory = 'frame'; // 'frame' (Moldura Exterior) ou 'avatar' (Avatar Completo)
   bool _isPrivate = false;
   bool _isForSale = false;
-  List<Map<String, dynamic>> _frames = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
 
   @override
   void initState() {
     super.initState();
-    _loadFrames();
+    _loadItems();
   }
 
-  Future<void> _loadFrames() async {
+  Future<void> _loadItems() async {
     await HellOwnerAndVipPolicy.loadOwnerState();
     final p = await SharedPreferences.getInstance();
     final raw = p.getString(_kFramesRepoKey);
     if (raw != null && raw.isNotEmpty) {
       try {
-        _frames = List<Map<String, dynamic>>.from(
+        _items = List<Map<String, dynamic>>.from(
           (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)),
         );
       } catch (_) {}
@@ -1627,16 +1630,22 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _saveFrames() async {
+  Future<void> _saveItems() async {
     final p = await SharedPreferences.getInstance();
-    await p.setString(_kFramesRepoKey, jsonEncode(_frames));
+    await p.setString(_kFramesRepoKey, jsonEncode(_items));
   }
 
-  Future<void> _createFrame({String? importedLocalPath}) async {
+  Future<void> _createItem({String? importedLocalPath}) async {
     final prompt = _promptCtrl.text.trim();
     if (importedLocalPath == null && prompt.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Descreve a moldura para a IA gerar ou importa um ficheiro PNG.')),
+        SnackBar(
+          content: Text(
+            _assetCategory == 'avatar'
+                ? 'Descreve o avatar para a IA gerar ou importa um ficheiro de imagem.'
+                : 'Descreve a moldura para a IA gerar ou importa um ficheiro PNG.',
+          ),
+        ),
       );
       return;
     }
@@ -1646,13 +1655,20 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
     final bool finalForSale = isVip ? _isForSale : false;
     final double price = finalForSale ? (double.tryParse(_priceCtrl.text.trim()) ?? 2.5) : 0.0;
 
+    final String aiPromptTail = _assetCategory == 'avatar'
+        ? 'esports gaming creator avatar portrait, neon studio lighting, ultra detailed 4k, centered face'
+        : 'circular gaming avatar outer border frame, empty transparent center ring, glowing neon studio emblem, isolated png';
+
     final String mediaValue = importedLocalPath ??
-        'https://pollinations.ai{Uri.encodeComponent("$prompt, circular gaming avatar border frame, transparent center ring, glowing neon studio emblem, isolated icon")}?width=512&height=512&nologo=true';
+        'https://pollinations.ai{Uri.encodeComponent("$prompt, $aiPromptTail")}?width=512&height=512&nologo=true';
 
     final item = <String, dynamic>{
-      'id': 'frm_${DateTime.now().millisecondsSinceEpoch}',
+      'id': 'ast_${DateTime.now().millisecondsSinceEpoch}',
+      'category': _assetCategory,
       'title': _titleCtrl.text.trim().isEmpty
-          ? (importedLocalPath != null ? 'Moldura Importada PNG' : prompt)
+          ? (importedLocalPath != null
+              ? (_assetCategory == 'avatar' ? 'Avatar Importado' : 'Moldura PNG Importada')
+              : prompt)
           : _titleCtrl.text.trim(),
       'media': mediaValue,
       'isLocal': importedLocalPath != null,
@@ -1663,20 +1679,21 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
       'price': price,
     };
 
-    _frames.insert(0, item);
-    await _saveFrames();
+    _items.insert(0, item);
+    await _saveItems();
     _titleCtrl.clear();
     _promptCtrl.clear();
     if (mounted) {
       setState(() {});
+      final label = _assetCategory == 'avatar' ? 'Avatar' : 'Moldura';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             finalPrivate
-                ? 'Moldura guardada como Privada (VIP)!'
+                ? '$label guardado como Privado (VIP)!'
                 : finalForSale
-                    ? 'Moldura colocada à venda no Marketplace (€${price.toStringAsFixed(2)})!'
-                    : 'Moldura adicionada à Biblioteca Gratuita da Comunidade!',
+                    ? '$label colocado à venda no Marketplace (€${price.toStringAsFixed(2)})!'
+                    : '$label publicado gratuitamente na Biblioteca & Marketplace!',
           ),
         ),
       );
@@ -1689,7 +1706,7 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
     final isOwner = HellOwnerAndVipPolicy.isSovereignOwner(widget.currentUser);
     final myEmail = (widget.currentUser?['email'] ?? '').toString().trim().toLowerCase();
 
-    final visible = _frames.where((f) {
+    final visible = _items.where((f) {
       final priv = f['isPrivate'] == true;
       final author = (f['authorEmail'] ?? '').toString().trim().toLowerCase();
       return !priv || author == myEmail || isOwner;
@@ -1707,16 +1724,41 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const Text(
-            'BIBLIOTECA & CRIADOR DE MOLDURAS DE AVATAR (IA / IMPORTAR PNG)',
+            'BIBLIOTECA & CRIADOR DE MOLDURAS E AVATARES (IA / IMPORTAR)',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF38BDF8)),
           ),
           const SizedBox(height: 8),
-          TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Nome da Moldura (ex: Dragão Azul Néon)', isDense: true)),
+          DropdownButtonFormField<String>(
+            value: _assetCategory,
+            dropdownColor: const Color(0xFF0B1636),
+            decoration: const InputDecoration(labelText: 'O que queres criar ou importar?', isDense: true),
+            items: const <DropdownMenuItem<String>>[
+              DropdownMenuItem(value: 'frame', child: Text('Moldura Exterior (Anel à volta da foto)')),
+              DropdownMenuItem(value: 'avatar', child: Text('Avatar Personalizado (Imagem de Perfil)')),
+            ],
+            onChanged: (v) => setState(() => _assetCategory = v ?? 'frame'),
+          ),
           const SizedBox(height: 8),
-          TextField(controller: _promptCtrl, decoration: const InputDecoration(labelText: 'Gerar Moldura com IA (ex: aro cibernético dourado e azul)', isDense: true)),
+          TextField(
+            controller: _titleCtrl,
+            decoration: InputDecoration(
+              labelText: _assetCategory == 'avatar' ? 'Nome do Avatar (ex: Cyber Wolf Néon)' : 'Nome da Moldura (ex: Dragão Azul Néon)',
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _promptCtrl,
+            decoration: InputDecoration(
+              labelText: _assetCategory == 'avatar'
+                  ? 'Gerar Avatar com IA (ex: streamer futurista óculos neon azul)'
+                  : 'Gerar Moldura com IA (ex: aro cibernético dourado e azul)',
+              isDense: true,
+            ),
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text('Privada (Só para mim) ${isVip ? "" : "👑 Exclusivo VIP"}', style: const TextStyle(fontSize: 12)),
+            title: Text('Privado (Só para mim) ${isVip ? "" : "👑 Exclusivo VIP"}', style: const TextStyle(fontSize: 12)),
             value: isVip ? _isPrivate : false,
             onChanged: (v) {
               if (!isVip) return;
@@ -1747,9 +1789,9 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
             children: <Widget>[
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _createFrame(),
+                  onPressed: () => _createItem(),
                   icon: const Icon(Icons.auto_awesome, size: 16),
-                  label: const Text('Gerar Moldura IA', style: TextStyle(fontSize: 12)),
+                  label: Text(_assetCategory == 'avatar' ? 'Gerar Avatar IA' : 'Gerar Moldura IA', style: const TextStyle(fontSize: 12)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1757,21 +1799,22 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
                 onPressed: () async {
                   final r = await FilePicker.platform.pickFiles(
                     type: FileType.custom,
-                    allowedExtensions: <String>['png', 'webp'],
+                    allowedExtensions: <String>['png', 'jpg', 'jpeg', 'webp'],
                   );
                   final path = r?.files.single.path;
                   if (path != null && path.isNotEmpty) {
-                    await _createFrame(importedLocalPath: path);
+                    await _createItem(importedLocalPath: path);
                   }
                 },
                 icon: const Icon(Icons.upload_file, size: 16),
-                label: const Text('Importar PNG', style: TextStyle(fontSize: 12)),
+                label: const Text('Importar', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
           if (visible.isNotEmpty) ...<Widget>[
             const Divider(height: 20),
             ...visible.map((f) {
+              final cat = (f['category'] ?? 'frame').toString();
               final media = (f['media'] ?? '').toString();
               final forSale = f['isForSale'] == true;
               final price = (f['price'] is num) ? (f['price'] as num).toDouble() : 0.0;
@@ -1783,17 +1826,39 @@ class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
                       ? NetworkImage(media) as ImageProvider
                       : (File(media).existsSync() ? FileImage(File(media)) : null),
                 ),
-                title: Text((f['title'] ?? '').toString(), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                title: Text(
+                  '${cat == "avatar" ? "[AVATAR]" : "[MOLDURA]"} ${f['title']}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text(
                   'Por ${f['authorName']} · ${forSale ? "€${price.toStringAsFixed(2)}" : "Grátis na Biblioteca"}',
                   style: TextStyle(fontSize: 11, color: forSale ? Colors.amberAccent : Colors.greenAccent),
                 ),
-                trailing: widget.onApplyFrameToProfile != null
-                    ? ElevatedButton(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (cat == 'frame' && widget.onApplyFrameToProfile != null)
+                      ElevatedButton(
                         onPressed: () => widget.onApplyFrameToProfile!('custom_media', media),
-                        child: const Text('Usar', style: TextStyle(fontSize: 11)),
-                      )
-                    : null,
+                        child: const Text('Usar Moldura', style: TextStyle(fontSize: 11)),
+                      ),
+                    if (cat == 'avatar' && widget.onApplyAvatarToProfile != null)
+                      ElevatedButton(
+                        onPressed: () => widget.onApplyAvatarToProfile!(media),
+                        child: const Text('Usar Avatar', style: TextStyle(fontSize: 11)),
+                      ),
+                    if (isOwner)
+                      IconButton(
+                        tooltip: 'Moderação Dono: Remover',
+                        icon: const Icon(Icons.delete_outline, size: 17, color: Colors.redAccent),
+                        onPressed: () async {
+                          _items.removeWhere((x) => x['id'] == f['id']);
+                          await _saveItems();
+                          setState(() {});
+                        },
+                      ),
+                  ],
+                ),
               );
             }),
           ],
