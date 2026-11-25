@@ -66,6 +66,8 @@ jobs:
         shell: pwsh
         run: |
           flutter create --platforms=windows --project-name hell_creator_os .
+                    pip install pillow
+          python -c "from PIL import Image; img = Image.open('icon.png'); img.save('windows/runner/resources/app_icon.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
           $cmake = Get-Content "windows/CMakeLists.txt" -Raw
           $cmake = $cmake -replace "project\(", "add_definitions(/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`nproject("
           Set-Content "windows/CMakeLists.txt" $cmake
