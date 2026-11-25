@@ -868,7 +868,7 @@ class _MainShellState extends State<MainShell> {
           setState(() => _ttsEnabled = v);
           _saveSettings();
         },
-        onParamChanged: (r, p, vol) {
+        onParamsChanged: (r, p, vol) {
           setState(() {
             _speechRate = r;
             _voicePitch = p;
