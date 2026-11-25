@@ -572,7 +572,8 @@ class _HellOfficialMenuBannerState extends State<HellOfficialMenuBanner> {
                       final prompt = aiPromptCtrl.text.trim().isEmpty
                           ? 'HELL CREATOR ${widget.menuId} banner cyberpunk'
                           : aiPromptCtrl.text.trim();
-                      final url = 'https://pollinations.ai{Uri.encodeComponent('$prompt, ultra hd 4k, dark neon blue studio banner, no text')}?width=1280&height=360&nologo=true';
+                    final url = 'https://pollinations.ai{Uri.encodeComponent("$prompt, ultra hd 4k, dark neon blue studio banner, no text")}?width=1280&height=360&nologo=true';
+
                       await HellOwnerAndVipPolicy.submitBannerChange(
                         actor: widget.currentUser,
                         menuId: widget.menuId,
@@ -789,9 +790,7 @@ class _HellAiBannerMarketplaceStudioState extends State<HellAiBannerMarketplaceS
     final bool finalForSale = isVip ? _isForSale : false;
     final double price = finalForSale ? (double.tryParse(_priceCtrl.text.trim()) ?? 5.0) : 0.0;
 
-    final imageUrl =
-      final imageUrl = 'https://pollinations.ai{Uri.encodeComponent("$prompt, gaming streamer banner ultra hd 4k, clean neon art, no watermark")}?width=1280&height=420&nologo=true';
-
+   final imageUrl = 'https://pollinations.ai{Uri.encodeComponent("$prompt, gaming streamer banner ultra hd 4k, clean neon art, no watermark")}?width=1280&height=420&nologo=true';
 
     final item = <String, dynamic>{
       'id': 'bnr_${DateTime.now().millisecondsSinceEpoch}',
