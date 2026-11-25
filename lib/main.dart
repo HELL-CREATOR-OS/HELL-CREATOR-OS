@@ -20,6 +20,8 @@ import 'music_and_social.dart';
 import 'actions_studio.dart';
 import 'live_connectors.dart';
 import 'user_profile_screen.dart';
+import 'visual_banners_studio.dart';
+
 
 
 void main() {
@@ -911,25 +913,51 @@ class _MainShellState extends State<MainShell> {
         },
         onTestVoice: (sample) => _speakRealVoice(sample),
       ),
-      MusicBackgroundScreen(bgPlayer: bgMusicPlayer),
-      const ContentFactoryScreen(),
-                CommunitySocialScreen(serverUrl: 'http://127.0.0.1:8080', currentUser: widget.user),
-
-      MarketplacePublicScreen(hasFreeOwnerOrStaffAccess: isOwner),
-                    ListView(
-                padding: const EdgeInsets.all(14),
-                children: [
-                  SizedBox(height: 360, child: const SmartBrainScreen()),
-                  const SizedBox(height: 12),
-                  SizedBox(height: 360, child: const GrowthAnalyticsScreen()),
-                  const SizedBox(height: 12),
-                  SizedBox(height: 380, child: CreatorBusinessScreen(isOwner: isOwner)),
-                ],
-              ),
-
+            Column(children: <Widget>[
+        Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: HellOfficialMenuBanner(menuId: 'music', currentUser: widget.user)),
+        Expanded(child: MusicBackgroundScreen(bgPlayer: bgMusicPlayer)),
+      ]),
+      Column(children: <Widget>[
+        Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: HellOfficialMenuBanner(menuId: 'content_factory', currentUser: widget.user)),
+        const Expanded(child: ContentFactoryScreen()),
+      ]),
+      Column(children: <Widget>[
+        Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: HellOfficialMenuBanner(menuId: 'community', currentUser: widget.user)),
+        Expanded(child: CommunitySocialScreen(serverUrl: 'http://127.0.0.1:8080', currentUser: widget.user)),
+      ]),
+      ListView(
+        padding: const EdgeInsets.all(14),
+        children: <Widget>[
+          HellOfficialMenuBanner(menuId: 'marketplace', currentUser: widget.user),
+          HellAiBannerMarketplaceStudio(currentUser: widget.user),
+          const SizedBox(height: 16),
+          SizedBox(height: 520, child: MarketplacePublicScreen(hasFreeOwnerOrStaffAccess: isOwner)),
+        ],
+      ),
+      ListView(
+        padding: const EdgeInsets.all(14),
+        children: <Widget>[
+          const SizedBox(height: 360, child: SmartBrainScreen()),
+          const SizedBox(height: 12),
+          const SizedBox(height: 360, child: GrowthAnalyticsScreen()),
+          const SizedBox(height: 12),
+          SizedBox(height: 380, child: CreatorBusinessScreen(isOwner: isOwner)),
+        ],
+      ),
       const HellInfoHubScreen(),
-      _buildSettingsTab(),
-    ];
+      Column(children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Column(
+            children: <Widget>[
+              HellGovernanceAndDevPanel(currentUser: widget.user, onStateChanged: () => setState(() {})),
+              HellSeasonalAppIconStudio(currentUser: widget.user),
+            ],
+          ),
+        ),
+        Expanded(child: _buildSettingsTab()),
+      ]),
+
 
     final sponsor = SponsorBannerManager.activeSponsors.isNotEmpty
         ? SponsorBannerManager.activeSponsors[_sponsorIndex % SponsorBannerManager.activeSponsors.length]
