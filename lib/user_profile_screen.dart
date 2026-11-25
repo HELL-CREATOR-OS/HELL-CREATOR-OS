@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'account_security.dart';
+import 'visual_banners_studio.dart';
+
 
 class CloudFirestoreSync {
   static String get _projectId => ['hell-creator', '-os-1914'].join();
@@ -252,11 +254,34 @@ class ProfileManager {
     u['securityHistory'] = list.take(40).toList();
   }
 
-  static Widget buildTransparentAvatar(Map<String, dynamic> user, {double radius = 20, double? scale, Offset? offset}) {
+   static const Map<String, Map<String, dynamic>> avatarFrameStyles = <String, Map<String, dynamic>>{
+    'none': <String, dynamic>{'label': 'Sem Moldura (Ocultar Anel)', 'color': 0x00000000, 'width': 0.0},
+    'neon_blue': <String, dynamic>{'label': 'Azul Néon HELL', 'color': 0xFF38BDF8, 'width': 2.0},
+    'gold_vip': <String, dynamic>{'label': 'Ouro Soberano / VIP', 'color': 0xFFFBBF24, 'width': 2.4},
+    'cyber_purple': <String, dynamic>{'label': 'Roxo Cyber', 'color': 0xFFA855F7, 'width': 2.2},
+    'emerald': <String, dynamic>{'label': 'Esmeralda', 'color': 0xFF10B981, 'width': 2.2},
+    'crimson': <String, dynamic>{'label': 'Fogo Carmesim', 'color': 0xFFF43F5E, 'width': 2.2},
+    'studio_white': <String, dynamic>{'label': 'Branco Estúdio', 'color': 0xFFFFFFFF, 'width': 2.0},
+  };
+
+  static Widget buildTransparentAvatar(
+    Map<String, dynamic> user, {
+    double radius = 20,
+    double? scale,
+    Offset? offset,
+    String? overrideFrameId,
+    String? overrideCustomFrameMedia,
+  }) {
     final u = ensureAccountStructure(user);
     final path = (u['avatarPath'] ?? '').toString();
     final url = (u['photoUrl'] ?? '').toString();
     final presetId = (u['presetAvatarId'] ?? '').toString();
+    final frameId = overrideFrameId ?? (u['avatarFrameStyle'] ?? 'neon_blue').toString();
+    final customMedia = overrideCustomFrameMedia ?? (u['avatarCustomFrameMedia'] ?? '').toString();
+    final frameSpec = avatarFrameStyles[frameId] ?? avatarFrameStyles['neon_blue']!;
+    final double borderW = (frameSpec['width'] as num).toDouble();
+    final Color borderC = Color(frameSpec['color'] as int);
+
     final s = scale ?? ((u['avatarScale'] is num) ? (u['avatarScale'] as num).toDouble() : 1.0);
     final dx = offset?.dx ?? ((u['avatarDx'] is num) ? (u['avatarDx'] as num).toDouble() : 0.0);
     final dy = offset?.dy ?? ((u['avatarDy'] is num) ? (u['avatarDy'] as num).toDouble() : 0.0);
@@ -276,18 +301,15 @@ class ProfileManager {
       );
     }
 
-    return Container(
+    final Widget corePhoto = SizedBox(
       width: radius * 2,
       height: radius * 2,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.transparent,
-        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55), width: 1.5),
-      ),
       child: ClipOval(
         child: media != null
             ? Transform.translate(offset: Offset(dx, dy), child: Transform.scale(scale: s, child: media))
-            : Center(
+            : Container(
+                color: Colors.transparent,
+                alignment: Alignment.center,
                 child: Text(
                   (u['displayName'] ?? 'U').toString().substring(0, 1).toUpperCase(),
                   style: TextStyle(color: const Color(0xFF38BDF8), fontWeight: FontWeight.w900, fontSize: radius * 0.85),
@@ -295,8 +317,56 @@ class ProfileManager {
               ),
       ),
     );
+
+    if (frameId == 'none') return corePhoto;
+
+    final double outerPad = radius * 0.16;
+    final double outerSize = (radius + outerPad) * 2;
+
+    Widget? customFrameWidget;
+    if (frameId == 'custom_media' && customMedia.isNotEmpty) {
+      if (customMedia.startsWith('http')) {
+        customFrameWidget = Image.network(customMedia, width: outerSize, height: outerSize, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox());
+      } else if (File(customMedia).existsSync()) {
+        customFrameWidget = Image.file(File(customMedia), width: outerSize, height: outerSize, fit: BoxFit.contain);
+      }
+    }
+
+    return SizedBox(
+      width: radius * 2,
+      height: radius * 2,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: <Widget>[
+          corePhoto,
+          if (customFrameWidget != null)
+            Positioned(
+              left: -outerPad,
+              top: -outerPad,
+              width: outerSize,
+              height: outerSize,
+              child: IgnorePointer(child: customFrameWidget),
+            )
+          else if (borderW > 0)
+            Positioned(
+              left: -borderW,
+              top: -borderW,
+              right: -borderW,
+              bottom: -borderW,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: borderC.withOpacity(0.9), width: borderW),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
-}
 
 class TopLeftProfileAvatarButton extends StatelessWidget {
   final Map<String, dynamic> user;
@@ -809,13 +879,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       ),
     );
   }
-  Future<void> _editAvatar() async {
+   Future<void> _editAvatar() async {
     double s = (_u['avatarScale'] is num) ? (_u['avatarScale'] as num).toDouble() : 1.0;
     double dx = (_u['avatarDx'] is num) ? (_u['avatarDx'] as num).toDouble() : 0.0;
     double dy = (_u['avatarDy'] is num) ? (_u['avatarDy'] as num).toDouble() : 0.0;
     String path = (_u['avatarPath'] ?? '').toString();
     String url = (_u['photoUrl'] ?? '').toString();
     String preset = (_u['presetAvatarId'] ?? '').toString();
+    String frameStyle = (_u['avatarFrameStyle'] ?? 'neon_blue').toString();
+    String customFrameMedia = (_u['avatarCustomFrameMedia'] ?? '').toString();
 
     await showDialog(
       context: context,
@@ -827,70 +899,153 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
             ..['presetAvatarId'] = preset
             ..['avatarScale'] = s
             ..['avatarDx'] = dx
-            ..['avatarDy'] = dy;
+            ..['avatarDy'] = dy
+            ..['avatarFrameStyle'] = frameStyle
+            ..['avatarCustomFrameMedia'] = customFrameMedia;
+
           return AlertDialog(
             backgroundColor: const Color(0xFF0B1636),
-            title: const Text('Fotografia & Recorte', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  GestureDetector(
-                    onPanUpdate: (d) => setM(() {
-                      dx = (dx + d.delta.dx).clamp(-60.0, 60.0);
-                      dy = (dy + d.delta.dy).clamp(-60.0, 60.0);
-                    }),
-                    child: ProfileManager.buildTransparentAvatar(prev, radius: 55, scale: s, offset: Offset(dx, dy)),
-                  ),
-                  Slider(value: s, min: 1.0, max: 2.5, onChanged: (v) => setM(() => s = v)),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      ElevatedButton(
-                        onPressed: () async {
-                          final r = await FilePicker.platform.pickFiles(
-                            type: FileType.custom,
-                            allowedExtensions: <String>['jpg', 'jpeg', 'png', 'webp'],
-                          );
-                          final p = r?.files.single.path;
-                          if (p != null && p.isNotEmpty) {
-                            setM(() {
-                              path = p;
-                              url = '';
-                              preset = '';
-                              s = 1.0;
-                              dx = 0;
-                              dy = 0;
-                            });
-                          }
-                        },
-                        child: const Text('Carregar Foto'),
+            title: const Text('Fotografia, Recorte & Moldura Exterior', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
+            content: SizedBox(
+              width: 440,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onPanUpdate: (d) => setM(() {
+                        dx = (dx + d.delta.dx).clamp(-60.0, 60.0);
+                        dy = (dy + d.delta.dy).clamp(-60.0, 60.0);
+                      }),
+                      child: ProfileManager.buildTransparentAvatar(
+                        prev,
+                        radius: 55,
+                        scale: s,
+                        offset: Offset(dx, dy),
+                        overrideFrameId: frameStyle,
+                        overrideCustomFrameMedia: customFrameMedia,
                       ),
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: () => setM(() {
-                          path = '';
-                          url = '';
-                          preset = '';
-                        }),
-                        child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
-                      ),
-                    ],
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: ProfileManager.presetAvatars
-                        .map((a) => IconButton(
-                              icon: Icon(a['icon'] as IconData, color: Color(a['color'] as int)),
-                              onPressed: () => setM(() {
-                                preset = a['id'] as String;
-                                path = '';
+                    ),
+                    const SizedBox(height: 12),
+                    Slider(value: s, min: 1.0, max: 2.5, onChanged: (v) => setM(() => s = v)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        ElevatedButton(
+                          onPressed: () async {
+                            final r = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: <String>['jpg', 'jpeg', 'png', 'webp'],
+                            );
+                            final p = r?.files.single.path;
+                            if (p != null && p.isNotEmpty) {
+                              setM(() {
+                                path = p;
                                 url = '';
-                              }),
-                            ))
-                        .toList(),
-                  ),
-                ],
+                                preset = '';
+                                s = 1.0;
+                                dx = 0;
+                                dy = 0;
+                              });
+                            }
+                          },
+                          child: const Text('Carregar Foto'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: () => setM(() {
+                            path = '';
+                            url = '';
+                            preset = '';
+                          }),
+                          child: const Text('Remover Foto', style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: ProfileManager.presetAvatars
+                          .map((a) => IconButton(
+                                icon: Icon(a['icon'] as IconData, color: Color(a['color'] as int)),
+                                onPressed: () => setM(() {
+                                  preset = a['id'] as String;
+                                  path = '';
+                                  url = '';
+                                }),
+                              ))
+                          .toList(),
+                    ),
+                    const Divider(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: ProfileManager.avatarFrameStyles.containsKey(frameStyle) ? frameStyle : 'none',
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'Moldura Exterior (Ocultar ou Estilo)', isDense: true),
+                      items: ProfileManager.avatarFrameStyles.entries
+                          .map((e) => DropdownMenuItem<String>(value: e.key, child: Text(e.value['label'].toString())))
+                          .toList(),
+                      onChanged: (v) => setM(() => frameStyle = v ?? 'none'),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: <Widget>[
+                        OutlinedButton.icon(
+                          onPressed: () => setM(() {
+                            frameStyle = 'none';
+                            customFrameMedia = '';
+                          }),
+                          icon: const Icon(Icons.visibility_off_outlined, size: 16, color: Colors.amberAccent),
+                          label: const Text('Sem Anel (Ocultar)', style: TextStyle(fontSize: 12)),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final r = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: <String>['png', 'webp'],
+                            );
+                            final p = r?.files.single.path;
+                            if (p != null && p.isNotEmpty) {
+                              setM(() {
+                                frameStyle = 'custom_media';
+                                customFrameMedia = p;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.upload_file, size: 16),
+                          label: const Text('Importar Moldura PNG', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    HellAvatarFramesStudio(
+                      currentUser: _u,
+                      onApplyFrameToProfile: (type, media) {
+                        setM(() {
+                          frameStyle = type;
+                          customFrameMedia = media;
+                        });
+                      },
+                      onApplyAvatarToProfile: (media) {
+                        setM(() {
+                          if (media.startsWith('http')) {
+                            url = media;
+                            path = '';
+                          } else {
+                            path = media;
+                            url = '';
+                          }
+                          preset = '';
+                          s = 1.0;
+                          dx = 0;
+                          dy = 0;
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: <Widget>[
@@ -903,7 +1058,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                   _u['avatarScale'] = s;
                   _u['avatarDx'] = dx;
                   _u['avatarDy'] = dy;
-                  ProfileManager.logChange(_u, 'Fotografia', 'Avatar atualizado');
+                  _u['avatarFrameStyle'] = frameStyle;
+                  _u['avatarCustomFrameMedia'] = customFrameMedia;
+                  ProfileManager.logChange(_u, 'Fotografia', 'Avatar e moldura exterior atualizados');
                   Navigator.pop(ctx);
                   await _save();
                 },
@@ -915,6 +1072,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
       ),
     );
   }
+
   // ABA 1: MEU PERFIL (VITRINE PUBLICIDADES & PARCERIAS + PERFIL PÚBLICO + INFORMAÇÕES PESSOAIS)
   Widget _secMeuPerfilCompleto() {
     final genders = <String>['Prefiro não dizer', 'Masculino', 'Feminino', 'Não-binário', 'Outro'];
