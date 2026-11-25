@@ -1584,3 +1584,221 @@ class _HellSeasonalAppIconStudioState extends State<HellSeasonalAppIconStudio> {
     );
   }
 }
+class HellAvatarFramesStudio extends StatefulWidget {
+  final Map<String, dynamic>? currentUser;
+  final Function(String frameType, String frameValue)? onApplyFrameToProfile;
+
+  const HellAvatarFramesStudio({
+    super.key,
+    this.currentUser,
+    this.onApplyFrameToProfile,
+  });
+
+  @override
+  State<HellAvatarFramesStudio> createState() => _HellAvatarFramesStudioState();
+}
+
+class _HellAvatarFramesStudioState extends State<HellAvatarFramesStudio> {
+  static const String _kFramesRepoKey = 'hell_marketplace_avatar_frames_v1';
+  final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _promptCtrl = TextEditingController();
+  final TextEditingController _priceCtrl = TextEditingController(text: '0');
+  bool _isPrivate = false;
+  bool _isForSale = false;
+  List<Map<String, dynamic>> _frames = <Map<String, dynamic>>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFrames();
+  }
+
+  Future<void> _loadFrames() async {
+    await HellOwnerAndVipPolicy.loadOwnerState();
+    final p = await SharedPreferences.getInstance();
+    final raw = p.getString(_kFramesRepoKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        _frames = List<Map<String, dynamic>>.from(
+          (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+      } catch (_) {}
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveFrames() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kFramesRepoKey, jsonEncode(_frames));
+  }
+
+  Future<void> _createFrame({String? importedLocalPath}) async {
+    final prompt = _promptCtrl.text.trim();
+    if (importedLocalPath == null && prompt.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Descreve a moldura para a IA gerar ou importa um ficheiro PNG.')),
+      );
+      return;
+    }
+
+    final isVip = HellOwnerAndVipPolicy.hasVipOrOwnerAccess(widget.currentUser);
+    final bool finalPrivate = isVip ? _isPrivate : false;
+    final bool finalForSale = isVip ? _isForSale : false;
+    final double price = finalForSale ? (double.tryParse(_priceCtrl.text.trim()) ?? 2.5) : 0.0;
+
+    final String mediaValue = importedLocalPath ??
+        'https://pollinations.ai{Uri.encodeComponent("$prompt, circular gaming avatar border frame, transparent center ring, glowing neon studio emblem, isolated icon")}?width=512&height=512&nologo=true';
+
+    final item = <String, dynamic>{
+      'id': 'frm_${DateTime.now().millisecondsSinceEpoch}',
+      'title': _titleCtrl.text.trim().isEmpty
+          ? (importedLocalPath != null ? 'Moldura Importada PNG' : prompt)
+          : _titleCtrl.text.trim(),
+      'media': mediaValue,
+      'isLocal': importedLocalPath != null,
+      'authorEmail': (widget.currentUser?['email'] ?? 'criador@hellcreator.app').toString(),
+      'authorName': (widget.currentUser?['displayName'] ?? 'Criador HELL').toString(),
+      'isPrivate': finalPrivate,
+      'isForSale': finalForSale,
+      'price': price,
+    };
+
+    _frames.insert(0, item);
+    await _saveFrames();
+    _titleCtrl.clear();
+    _promptCtrl.clear();
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            finalPrivate
+                ? 'Moldura guardada como Privada (VIP)!'
+                : finalForSale
+                    ? 'Moldura colocada à venda no Marketplace (€${price.toStringAsFixed(2)})!'
+                    : 'Moldura adicionada à Biblioteca Gratuita da Comunidade!',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isVip = HellOwnerAndVipPolicy.hasVipOrOwnerAccess(widget.currentUser);
+    final isOwner = HellOwnerAndVipPolicy.isSovereignOwner(widget.currentUser);
+    final myEmail = (widget.currentUser?['email'] ?? '').toString().trim().toLowerCase();
+
+    final visible = _frames.where((f) {
+      final priv = f['isPrivate'] == true;
+      final author = (f['authorEmail'] ?? '').toString().trim().toLowerCase();
+      return !priv || author == myEmail || isOwner;
+    }).toList();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1636),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'BIBLIOTECA & CRIADOR DE MOLDURAS DE AVATAR (IA / IMPORTAR PNG)',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF38BDF8)),
+          ),
+          const SizedBox(height: 8),
+          TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Nome da Moldura (ex: Dragão Azul Néon)', isDense: true)),
+          const SizedBox(height: 8),
+          TextField(controller: _promptCtrl, decoration: const InputDecoration(labelText: 'Gerar Moldura com IA (ex: aro cibernético dourado e azul)', isDense: true)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('Privada (Só para mim) ${isVip ? "" : "👑 Exclusivo VIP"}', style: const TextStyle(fontSize: 12)),
+            value: isVip ? _isPrivate : false,
+            onChanged: (v) {
+              if (!isVip) return;
+              setState(() {
+                _isPrivate = v;
+                if (v) _isForSale = false;
+              });
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('Colocar à Venda no Marketplace ${isVip ? "" : "👑 Exclusivo VIP"}', style: const TextStyle(fontSize: 12)),
+            value: isVip ? _isForSale : false,
+            onChanged: (v) {
+              if (!isVip) return;
+              setState(() {
+                _isForSale = v;
+                if (v) _isPrivate = false;
+              });
+            },
+          ),
+          if (isVip && _isForSale)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(controller: _priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Preço (€)', isDense: true)),
+            ),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _createFrame(),
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Gerar Moldura IA', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final r = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: <String>['png', 'webp'],
+                  );
+                  final path = r?.files.single.path;
+                  if (path != null && path.isNotEmpty) {
+                    await _createFrame(importedLocalPath: path);
+                  }
+                },
+                icon: const Icon(Icons.upload_file, size: 16),
+                label: const Text('Importar PNG', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+          if (visible.isNotEmpty) ...<Widget>[
+            const Divider(height: 20),
+            ...visible.map((f) {
+              final media = (f['media'] ?? '').toString();
+              final forSale = f['isForSale'] == true;
+              final price = (f['price'] is num) ? (f['price'] as num).toDouble() : 0.0;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: Colors.transparent,
+                  backgroundImage: media.startsWith('http')
+                      ? NetworkImage(media) as ImageProvider
+                      : (File(media).existsSync() ? FileImage(File(media)) : null),
+                ),
+                title: Text((f['title'] ?? '').toString(), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  'Por ${f['authorName']} · ${forSale ? "€${price.toStringAsFixed(2)}" : "Grátis na Biblioteca"}',
+                  style: TextStyle(fontSize: 11, color: forSale ? Colors.amberAccent : Colors.greenAccent),
+                ),
+                trailing: widget.onApplyFrameToProfile != null
+                    ? ElevatedButton(
+                        onPressed: () => widget.onApplyFrameToProfile!('custom_media', media),
+                        child: const Text('Usar', style: TextStyle(fontSize: 11)),
+                      )
+                    : null,
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
