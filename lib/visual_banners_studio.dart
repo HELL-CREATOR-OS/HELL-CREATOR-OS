@@ -1389,3 +1389,198 @@ class _HellGovernanceAndDevPanelState extends State<HellGovernanceAndDevPanel> {
     );
   }
 }
+class HellSeasonalAppIconStudio extends StatefulWidget {
+  final Map<String, dynamic>? currentUser;
+  const HellSeasonalAppIconStudio({super.key, this.currentUser});
+
+  @override
+  State<HellSeasonalAppIconStudio> createState() => _HellSeasonalAppIconStudioState();
+}
+
+class _HellSeasonalAppIconStudioState extends State<HellSeasonalAppIconStudio> {
+  final TextEditingController _seasonCtrl = TextEditingController(text: 'Edição Oficial Natal');
+  final TextEditingController _ghTokenCtrl = TextEditingController();
+  String _selectedIconPath = '';
+  bool _publishing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final p = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _selectedIconPath = p.getString('hell_active_seasonal_icon_path') ?? '';
+        _ghTokenCtrl.text = p.getString('hell_owner_github_pat_token') ?? '';
+      });
+    }
+  }
+
+  Future<void> _pickIconFile() async {
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: <String>['png', 'jpg', 'jpeg', 'webp'],
+    );
+    final path = r?.files.single.path;
+    if (path != null && path.isNotEmpty) {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('hell_active_seasonal_icon_path', path);
+      if (mounted) setState(() => _selectedIconPath = path);
+    }
+  }
+
+  Future<void> _publishIconToAppAndGithub() async {
+    if (!HellOwnerAndVipPolicy.isSovereignOwner(widget.currentUser)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Apenas Proprietários Soberanos podem publicar o ícone oficial da app.')),
+      );
+      return;
+    }
+    if (_selectedIconPath.isEmpty || !File(_selectedIconPath).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escolhe primeiro a imagem do novo ícone sazonal (PNG 1024x1024).')),
+      );
+      return;
+    }
+
+    setState(() => _publishing = true);
+    final p = await SharedPreferences.getInstance();
+    await p.setString('hell_active_seasonal_icon_path', _selectedIconPath);
+    final token = _ghTokenCtrl.text.trim();
+    if (token.isNotEmpty) {
+      await p.setString('hell_owner_github_pat_token', token);
+    }
+
+    if (token.isEmpty) {
+      setState(() => _publishing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ícone atualizado dentro da app! Cola o Token GitHub para enviar também para Android/Windows.')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final bytes = await File(_selectedIconPath).readAsBytes();
+      final b64Content = base64Encode(bytes);
+      const apiUrl = 'https://github.com';
+
+      final client = HttpClient();
+      final getReq = await client.getUrl(Uri.parse(apiUrl));
+      getReq.headers.set('Authorization', 'Bearer $token');
+      getReq.headers.set('Accept', 'application/vnd.github+json');
+      getReq.headers.set('User-Agent', 'HELL-CREATOR-APP');
+      final getRes = await getReq.close();
+      final getBody = await getRes.transform(utf8.decoder).join();
+      final currentSha = (jsonDecode(getBody) as Map)['sha']?.toString() ?? '';
+
+      final putReq = await client.putUrl(Uri.parse(apiUrl));
+      putReq.headers.set('Authorization', 'Bearer $token');
+      putReq.headers.set('Accept', 'application/vnd.github+json');
+      putReq.headers.set('User-Agent', 'HELL-CREATOR-APP');
+      putReq.headers.set('Content-Type', 'application/json');
+      putReq.write(jsonEncode(<String, dynamic>{
+        'message': 'Atualizar icon.png oficial (${_seasonCtrl.text.trim()})',
+        'content': b64Content,
+        if (currentSha.isNotEmpty) 'sha': currentSha,
+      }));
+      final putRes = await putReq.close();
+      client.close();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              putRes.statusCode == 200 || putRes.statusCode == 201
+                  ? 'Ícone oficial atualizado dentro da app e enviado ao GitHub (Android & Windows a compilar)!'
+                  : 'Ícone atualizado na app, mas o GitHub devolveu código ${putRes.statusCode}. Verifica o token.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ícone aplicado dentro da app. Erro de ligação GitHub: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _publishing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!HellOwnerAndVipPolicy.isSovereignOwner(widget.currentUser) || !HellOwnerAndVipPolicy.isDevModeActive()) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF04091A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'ESTÚDIO DE ÍCONE OFICIAL SAZONAL (NATAL / ANIVERSÁRIO / EVENTOS)',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFF38BDF8)),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: (_selectedIconPath.isNotEmpty && File(_selectedIconPath).existsSync())
+                    ? Image.file(File(_selectedIconPath), width: 54, height: 54, fit: BoxFit.cover)
+                    : Image.asset('icon.png', width: 54, height: 54, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  children: <Widget>[
+                    TextField(
+                      controller: _seasonCtrl,
+                      decoration: const InputDecoration(labelText: 'Nome da Edição (ex: Natal 2026, Aniversário)', isDense: true),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _ghTokenCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'GitHub Token (1 toque para Android & Windows)', isDense: true),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: _pickIconFile,
+                icon: const Icon(Icons.image_outlined, size: 16),
+                label: const Text('Escolher Ícone', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _publishing ? null : _publishIconToAppAndGithub,
+                  icon: const Icon(Icons.rocket_launch_rounded, size: 16),
+                  label: Text(_publishing ? 'A publicar...' : 'Atualizar Ícone Dentro & Fora da App', style: const TextStyle(fontSize: 11.5)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
