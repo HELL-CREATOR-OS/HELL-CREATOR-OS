@@ -367,6 +367,8 @@ class ProfileManager {
       ),
     );
   }
+ }
+ 
 
 class TopLeftProfileAvatarButton extends StatelessWidget {
   final Map<String, dynamic> user;
