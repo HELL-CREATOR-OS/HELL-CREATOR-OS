@@ -790,7 +790,8 @@ class _HellAiBannerMarketplaceStudioState extends State<HellAiBannerMarketplaceS
     final double price = finalForSale ? (double.tryParse(_priceCtrl.text.trim()) ?? 5.0) : 0.0;
 
     final imageUrl =
-        'https://pollinations.ai{Uri.encodeComponent('$prompt, gaming streamer banner ultra hd 4k, clean neon art, no watermark')}?width=1280&height=420&nologo=true';
+      final imageUrl = 'https://pollinations.ai{Uri.encodeComponent("$prompt, gaming streamer banner ultra hd 4k, clean neon art, no watermark")}?width=1280&height=420&nologo=true';
+
 
     final item = <String, dynamic>{
       'id': 'bnr_${DateTime.now().millisecondsSinceEpoch}',
