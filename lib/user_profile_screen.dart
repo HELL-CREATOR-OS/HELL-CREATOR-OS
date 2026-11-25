@@ -335,6 +335,147 @@ class StructuredProfileStorage {
     CloudFirestoreSync.sync(s, buildTables(s));
   }
 }
+class UserProfileScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final Function(Map<String, dynamic>) onUserUpdated;
+  final VoidCallback onAccountDeletedOrSuspended;
+
+  const UserProfileScreen({
+    super.key,
+    required this.user,
+    required this.onUserUpdated,
+    required this.onAccountDeletedOrSuspended,
+  });
+
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
+
+class _UserProfileScreenState extends State<UserProfileScreen> with TickerProviderStateMixin {
+  late Map<String, dynamic> _u;
+  late TabController _tabs;
+  late AnimationController _coverAnimCtrl;
+
+  late TextEditingController _dispCtrl, _userCtrl, _bioCtrl, _locCtrl;
+  late TextEditingController _fnCtrl, _lnCtrl, _pronCtrl, _cityCtrl, _zipCtrl, _addrCtrl;
+  late TextEditingController _newEmailCtrl, _recEmailCtrl, _phoneCtrl, _bizCtrl;
+  String? _pendingToken, _pendingEmail;
+
+  final List<String> _titles = const <String>[
+    'Meu Perfil',
+    'Redes Sociais / Contactos',
+    'Segurança / Privacidade',
+    'Gestão de Conta',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _u = ProfileManager.ensureAccountStructure(widget.user);
+    _u['showPartnersShowcase'] ??= true;
+    _u['partnersList'] ??= <dynamic>[
+      <String, dynamic>{
+        'brand': 'HELL CREATOR · Programa Oficial',
+        'code': 'HELLVIP10',
+        'url': 'https://hellcreator.app',
+        'imageUrl': 'https://jsdelivr.net',
+        'visible': true,
+      },
+    ];
+
+    if ((_u['sessions'] as List).length < 2) {
+      final list = List<Map<String, dynamic>>.from(
+        (_u['sessions'] as List).map((e) => Map<String, dynamic>.from(e)),
+      );
+      list.add(<String, dynamic>{
+        'id': 'sess_sec_device',
+        'device': Platform.isAndroid ? 'Windows Desktop (Sessão Remota)' : 'Android Mobile (Sessão Remota)',
+        'location': '${_u['country'] ?? 'Portugal'} · App Associada',
+        'lastAccess': DateTime.now().subtract(const Duration(hours: 2)).toUtc().toIso8601String(),
+        'isCurrent': false,
+      });
+      _u['sessions'] = list;
+    }
+
+    _tabs = TabController(length: _titles.length, vsync: this);
+    _coverAnimCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat(reverse: true);
+
+    _dispCtrl = TextEditingController(text: (_u['displayName'] ?? '').toString());
+    _userCtrl = TextEditingController(text: (_u['username'] ?? '').toString());
+    _bioCtrl = TextEditingController(text: (_u['bio'] ?? '').toString());
+    _locCtrl = TextEditingController(text: (_u['publicLocation'] ?? '').toString());
+    _fnCtrl = TextEditingController(text: (_u['firstName'] ?? '').toString());
+    _lnCtrl = TextEditingController(text: (_u['lastName'] ?? '').toString());
+    _pronCtrl = TextEditingController(text: (_u['pronouns'] ?? '').toString());
+    _cityCtrl = TextEditingController(text: (_u['city'] ?? '').toString());
+    _zipCtrl = TextEditingController(text: (_u['postalCode'] ?? '').toString());
+    _addrCtrl = TextEditingController(text: (_u['address'] ?? '').toString());
+    _newEmailCtrl = TextEditingController();
+    _recEmailCtrl = TextEditingController(text: (_u['recoveryEmail'] ?? '').toString());
+    _phoneCtrl = TextEditingController(text: (_u['phone'] ?? '').toString());
+    _bizCtrl = TextEditingController(text: (_u['businessContact'] ?? '').toString());
+  }
+
+  @override
+  void dispose() {
+    _coverAnimCtrl.dispose();
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  void _msg(String t, {bool err = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(t),
+        backgroundColor: err ? const Color(0xFFB91C1C) : const Color(0xFF0F766E),
+      ),
+    );
+  }
+
+  Future<void> _save([String? customMsg]) async {
+    await StructuredProfileStorage.saveAndSync(_u, widget.onUserUpdated);
+    if (mounted) {
+      setState(() {});
+      _msg(customMsg ?? 'As informações foram atualizadas com sucesso.');
+    }
+  }
+
+  Future<bool> _authAction(String title) async {
+    final c = TextEditingController();
+    bool ok = false;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1636),
+        title: Text('Confirmar Identidade • $title', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 15)),
+        content: TextField(
+          controller: c,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'Palavra-passe atual', isDense: true),
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () {
+              final e = c.text.trim();
+              if (e.isNotEmpty &&
+                  (e == (_u['passwordSecret'] ?? '').toString() ||
+                      ProfileManager.hashPass(e, (_u['internalAccountId'] ?? '').toString()) == _u['passwordHash'])) {
+                ok = true;
+                Navigator.pop(ctx);
+              } else {
+                _msg('Palavra-passe incorreta.', err: true);
+              }
+            },
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    return ok;
+  }
+
 
   Future<void> _openPartnerDialog({int? editIndex}) async {
     final partners = List<Map<String, dynamic>>.from((_u['partnersList'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)));
