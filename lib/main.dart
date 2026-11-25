@@ -66,7 +66,7 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
   Widget build(BuildContext context) {
         return MaterialApp(
 
-      title: 'HELL CREATOR OS',
+      title: 'HELL CREATOR',
             locale: const Locale('pt', 'PT'),
       supportedLocales: const [
         Locale('pt', 'PT'),
@@ -848,6 +848,37 @@ class _MainShellState extends State<MainShell> {
             _showSnack('Aparelho Sincronizado! Streamdeck HELL ativo.');
           }
         },
+              buildOfficialAutomationsScreen: () => ActionsStudioTab(
+        alertsList: _alertsList,
+        goalsList: _goalsList,
+        sounds: _sounds,
+        sfxPlayer: sfxAudioPlayer,
+        voiceRecorder: _voiceRecorder,
+        allGiftsEnabled: _allGiftsEnabled,
+        onToggleAllGifts: (v) => setState(() => _allGiftsEnabled = v),
+        onSpeakVoice: (txt) => _speakRealVoice(txt),
+        onStateChanged: () => setState(() {}),
+      ),
+      buildOfficialVoiceScreen: () => ChatTtsRepositoryScreen(
+        ttsEnabled: _ttsEnabled,
+        speechRate: _speechRate,
+        pitch: _voicePitch,
+        volume: _voiceVolume,
+        onToggleTts: (v) {
+          setState(() => _ttsEnabled = v);
+          _saveSettings();
+        },
+        onParamChanged: (r, p, vol) {
+          setState(() {
+            _speechRate = r;
+            _voicePitch = p;
+            _voiceVolume = vol;
+          });
+          _saveSettings();
+        },
+        onTestVoice: (sample) => _speakRealVoice(sample),
+      ),
+      buildOfficialMusicScreen: () => MusicBackgroundScreen(bgPlayer: bgMusicPlayer),
       ),
       const SizedBox(),
       ActionsStudioTab(
@@ -990,7 +1021,14 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
               ),
-              body: screens[_selectedIndex],
+                   body: Stack(
+        children: <Widget>[
+          screens[_selectedIndex],
+          FloatingMusicEdgeHandle(onOpenMusicScreen: () => setState(() => _selectedIndex = 5)),
+          const FloatingHellFriendBubble(),
+        ],
+      ),
+
               bottomNavigationBar: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
