@@ -412,7 +412,8 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                builder: (_) => Padding(
                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
                  child: SingleChildScrollView(
-                   child: HellEpisodeRecorderPanel(onSendDeckCommand: widget.onSendDeckCommand),
+                   child: HellEpisodeRecorderPanel(onSendDeckCommand: widget.onSendCommand),
+
                  ),
                ),
              ),
