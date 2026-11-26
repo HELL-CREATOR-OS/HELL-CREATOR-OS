@@ -36,196 +36,136 @@ class HellOriginalVoiceProfile {
   final String id;
   final String label;
   final String gender; // 'M' ou 'F'
-  final double basePitchHz;
-  final double formantShift;
-  final double speedFactor;
-  final double wobbleIntensity;
+  final String voiceCode; // Voz humana masculina/feminina real
+  final double playbackRate; // Velocidade real de reprodução no AudioPlayer
+  final double fallbackPitch;
 
   const HellOriginalVoiceProfile({
     required this.id,
     required this.label,
     required this.gender,
-    required this.basePitchHz,
-    required this.formantShift,
-    required this.speedFactor,
-    this.wobbleIntensity = 0.0,
+    required this.voiceCode,
+    this.playbackRate = 1.0,
+    this.fallbackPitch = 1.0,
   });
 }
 
-class HellOriginalVoiceSynthesizer {
-  static Future<String> synthesizeToWavFile(String rawText, HellOriginalVoiceProfile profile) async {
-    const int sampleRate = 22050;
+class HellHumanNeuralVoiceEngine {
+  static Future<String> synthesizeHumanSpeechFile(String rawText, HellOriginalVoiceProfile profile) async {
     final clean = rawText
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-zàáâãéêíóôõúüç0-9\s\.,!\?]'), ' ')
+        .replaceAll(RegExp(r'[\r\n]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-
-    final String text = clean.isEmpty ? 'olá' : clean;
-    final List<int> pcmSamples = <int>[];
-    final math.Random rng = math.Random(text.hashCode);
-
-    double phase = 0.0;
-    int globalSample = 0;
-
-    for (int i = 0; i < text.length; i++) {
-      final String ch = text[i];
-      if (ch == ' ') {
-        final int pauseSamples = (sampleRate * 0.065 / profile.speedFactor).round();
-        pcmSamples.addAll(List<int>.filled(pauseSamples, 0));
-        globalSample += pauseSamples;
-        continue;
-      }
-      if (ch == ',' || ch == '.' || ch == '!' || ch == '?') {
-        final int punctSamples = (sampleRate * 0.16 / profile.speedFactor).round();
-        pcmSamples.addAll(List<int>.filled(punctSamples, 0));
-        globalSample += punctSamples;
-        continue;
-      }
-
-      final bool isVowel = 'aàáâãeéêiíoóôõuúü'.contains(ch);
-      final double charDurSec = (isVowel ? 0.088 : 0.052) / profile.speedFactor;
-      final int numSamples = (sampleRate * charDurSec).round();
-
-      double f1 = 500.0 * profile.formantShift;
-      double f2 = 1500.0 * profile.formantShift;
-      if ('aàáâã'.contains(ch)) {
-        f1 = 730.0 * profile.formantShift;
-        f2 = 1090.0 * profile.formantShift;
-      } else if ('eéê'.contains(ch)) {
-        f1 = 530.0 * profile.formantShift;
-        f2 = 1840.0 * profile.formantShift;
-      } else if ('ií'.contains(ch)) {
-        f1 = 270.0 * profile.formantShift;
-        f2 = 2290.0 * profile.formantShift;
-      } else if ('oóôõ'.contains(ch)) {
-        f1 = 570.0 * profile.formantShift;
-        f2 = 840.0 * profile.formantShift;
-      } else if ('uúü'.contains(ch)) {
-        f1 = 300.0 * profile.formantShift;
-        f2 = 870.0 * profile.formantShift;
-      }
-
-      for (int s = 0; s < numSamples; s++) {
-        final double t = globalSample / sampleRate;
-        final double env = math.sin((s / numSamples) * math.pi);
-
-        double pitchMod = 1.0 - (i / math.max(1, text.length)) * 0.08;
-        if (profile.wobbleIntensity > 0) {
-          pitchMod += math.sin(t * 7.5) * profile.wobbleIntensity;
-        }
-        final double f0 = (profile.basePitchHz * pitchMod).clamp(65.0, 420.0);
-        phase += (2.0 * math.pi * f0) / sampleRate;
-
-        final double glottal = math.sin(phase) + 0.5 * math.sin(2 * phase) + 0.25 * math.sin(3 * phase);
-        final double formantWave = 0.6 * math.sin(2 * math.pi * f1 * t) + 0.35 * math.sin(2 * math.pi * f2 * t);
-        final double consonantNoise = isVowel ? 0.0 : (rng.nextDouble() * 2.0 - 1.0) * 0.28;
-
-        final double sampleVal = ((glottal * 0.45 + formantWave * 0.45 + consonantNoise) * env * 14500.0).clamp(-32000.0, 32000.0);
-        pcmSamples.add(sampleVal.round());
-        globalSample++;
-      }
-    }
-
-    final int dataByteLen = pcmSamples.length * 2;
-    final ByteData header = ByteData(44);
-    header.setUint32(0, 0x52494646, Endian.big);
-    header.setUint32(4, 36 + dataByteLen, Endian.little);
-    header.setUint32(8, 0x57415645, Endian.big);
-    header.setUint32(12, 0x666d7420, Endian.big);
-    header.setUint32(16, 16, Endian.little);
-    header.setUint16(20, 1, Endian.little);
-    header.setUint16(22, 1, Endian.little);
-    header.setUint32(24, sampleRate, Endian.little);
-    header.setUint32(28, sampleRate * 2, Endian.little);
-    header.setUint16(32, 2, Endian.little);
-    header.setUint16(34, 16, Endian.little);
-    header.setUint32(36, 0x64617461, Endian.big);
-    header.setUint32(40, dataByteLen, Endian.little);
-
-    final BytesBuilder out = BytesBuilder();
-    out.add(header.buffer.asUint8List());
-    final ByteData pcmBytes = ByteData(dataByteLen);
-    for (int k = 0; k < pcmSamples.length; k++) {
-      pcmBytes.setInt16(k * 2, pcmSamples[k], Endian.little);
-    }
-    out.add(pcmBytes.buffer.asUint8List());
+    final String text = clean.isEmpty ? 'Olá, bem-vindos à live!' : clean;
 
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/hell_voice_${DateTime.now().microsecondsSinceEpoch}.wav');
-    await file.writeAsBytes(out.toBytes(), flush: true);
-    return file.path;
+    final outFile = File('${dir.path}/hell_human_tts_${DateTime.now().microsecondsSinceEpoch}.mp3');
+
+    // Endpoint público de síntese neural humana por género e idioma (sem depender das vozes instaladas no dispositivo)
+    final String tl = profile.gender == 'M' ? 'pt-BR' : 'pt-PT';
+    final uri = Uri.https('://google.com', '/translate_tts', <String, String>{
+      'ie': 'UTF-8',
+      'client': 'tw-ob',
+      'tl': tl,
+      'q': text.length > 180 ? text.substring(0, 180) : text,
+    });
+
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+    final req = await client.getUrl(uri);
+    req.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    final res = await req.close();
+    if (res.statusCode == 200) {
+      final bytes = await res.fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
+      client.close();
+      if (bytes.length > 512) {
+        await outFile.writeAsBytes(bytes, flush: true);
+        return outFile.path;
+      }
+    }
+    client.close();
+    throw Exception('Falha ao obter áudio neural');
   }
 }
+
 class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
     HellOriginalVoiceProfile(
       id: 'adult_announcer_m',
       label: 'Adulto Locutor (Masculina Real)',
       gender: 'M',
-      basePitchHz: 106.0,
-      formantShift: 0.86,
-      speedFactor: 0.96,
+      voiceCode: 'pt-BR',
+      playbackRate: 0.96,
+      fallbackPitch: 0.85,
     ),
     HellOriginalVoiceProfile(
       id: 'young_energetic_m',
       label: 'Jovem Enérgico (Masculina)',
       gender: 'M',
-      basePitchHz: 142.0,
-      formantShift: 0.95,
-      speedFactor: 1.18,
+      voiceCode: 'pt-BR',
+      playbackRate: 1.18,
+      fallbackPitch: 1.05,
     ),
     HellOriginalVoiceProfile(
       id: 'adult_calm_m',
       label: 'Adulto Calmo (Masculina)',
       gender: 'M',
-      basePitchHz: 116.0,
-      formantShift: 0.89,
-      speedFactor: 0.84,
+      voiceCode: 'pt-BR',
+      playbackRate: 0.86,
+      fallbackPitch: 0.88,
     ),
     HellOriginalVoiceProfile(
       id: 'adult_stressed_m',
       label: 'Adulto Stressado (Masculina)',
       gender: 'M',
-      basePitchHz: 164.0,
-      formantShift: 0.98,
-      speedFactor: 1.28,
-      wobbleIntensity: 0.08,
+      voiceCode: 'pt-BR',
+      playbackRate: 1.32,
+      fallbackPitch: 1.14,
     ),
     HellOriginalVoiceProfile(
       id: 'adult_tipsy_m',
       label: 'Adulto Embriagado · Humor Live',
       gender: 'M',
-      basePitchHz: 104.0,
-      formantShift: 0.85,
-      speedFactor: 0.72,
-      wobbleIntensity: 0.18,
+      voiceCode: 'pt-BR',
+      playbackRate: 0.74,
+      fallbackPitch: 0.78,
     ),
     HellOriginalVoiceProfile(
       id: 'adult_tired_m',
       label: 'Adulto Cansado / Sonolento',
       gender: 'M',
-      basePitchHz: 96.0,
-      formantShift: 0.84,
-      speedFactor: 0.76,
+      voiceCode: 'pt-BR',
+      playbackRate: 0.78,
+      fallbackPitch: 0.80,
     ),
     HellOriginalVoiceProfile(
       id: 'child_voice',
       label: 'Criança / Juvenil (Aguda)',
       gender: 'F',
-      basePitchHz: 285.0,
-      formantShift: 1.24,
-      speedFactor: 1.14,
+      voiceCode: 'pt-PT',
+      playbackRate: 1.16,
+      fallbackPitch: 1.35,
     ),
     HellOriginalVoiceProfile(
       id: 'adult_announcer_f',
       label: 'Adulta Locutora (Feminina Real)',
       gender: 'F',
-      basePitchHz: 215.0,
-      formantShift: 1.12,
-      speedFactor: 1.00,
+      voiceCode: 'pt-PT',
+      playbackRate: 1.00,
+      fallbackPitch: 1.02,
     ),
   ];
+
+  static HellChatTtsController? activeInstance;
+
+  static Future<void> speakGlobal(String text) async {
+    if (activeInstance != null) {
+      activeInstance!.enqueueSpeech(text);
+      return;
+    }
+    final temp = HellChatTtsController();
+    await temp.init();
+    await temp.speakImmediateTest(text);
+  }
 
   final AudioPlayer _player = AudioPlayer();
   final List<HellLiveChatMessage> messages = <HellLiveChatMessage>[];
@@ -242,12 +182,11 @@ class HellChatTtsController extends ChangeNotifier {
   bool filterSpam = true;
 
   List<String> blockedWords = <String>['http://', 'https://', 'www.'];
-Map<String, String> chatCommands = <String, String>{
-  '!discord': 'Entra na nossa comunidade oficial no Discord!',
-  '!loja': 'Visita o Marketplace oficial HELL CREATOR na app!',
-  '!comandos': 'Comandos disponíveis: !discord · !loja · !pedir <música> · !falar <texto>',
-};
-
+  Map<String, String> chatCommands = <String>{
+    '!discord': 'Entra na nossa comunidade oficial no Discord!',
+    '!loja': 'Visita o Marketplace oficial HELL CREATOR na app!',
+    '!comandos': 'Comandos disponíveis: !discord · !loja · !pedir <música> · !falar <texto>',
+  };
 
   WebSocket? _twitchSocket;
   bool twitchConnected = false;
@@ -262,6 +201,7 @@ Map<String, String> chatCommands = <String, String>{
       );
 
   Future<void> init() async {
+    activeInstance = this;
     final p = await SharedPreferences.getInstance();
     ttsEnabled = p.getBool('hell_tts_enabled_v3') ?? true;
     selectedVoiceId = p.getString('hell_tts_voice_id_v3') ?? 'adult_announcer_m';
@@ -281,9 +221,9 @@ Map<String, String> chatCommands = <String, String>{
             id: m['id'].toString(),
             label: m['label'].toString(),
             gender: (m['gender'] ?? 'M').toString(),
-            basePitchHz: (m['basePitchHz'] as num).toDouble(),
-            formantShift: (m['formantShift'] as num).toDouble(),
-            speedFactor: (m['speedFactor'] as num).toDouble(),
+            voiceCode: (m['voiceCode'] ?? 'pt-BR').toString(),
+            playbackRate: ((m['playbackRate'] ?? 1.0) as num).toDouble(),
+            fallbackPitch: ((m['fallbackPitch'] ?? 1.0) as num).toDouble(),
           ));
         }
       } catch (_) {}
@@ -303,13 +243,14 @@ Map<String, String> chatCommands = <String, String>{
     required double measuredSpeedFactor,
   }) async {
     final id = 'clone_${DateTime.now().millisecondsSinceEpoch}';
+    final bool isMale = measuredPitchHz < 170;
     final profile = HellOriginalVoiceProfile(
       id: id,
       label: '🎙️ Voz Clonada · $name',
-      gender: measuredPitchHz < 170 ? 'M' : 'F',
-      basePitchHz: measuredPitchHz.clamp(85.0, 260.0),
-      formantShift: measuredFormantShift.clamp(0.82, 1.20),
-      speedFactor: measuredSpeedFactor.clamp(0.80, 1.25),
+      gender: isMale ? 'M' : 'F',
+      voiceCode: isMale ? 'pt-BR' : 'pt-PT',
+      playbackRate: measuredSpeedFactor.clamp(0.84, 1.18),
+      fallbackPitch: (measuredPitchHz / 150.0).clamp(0.75, 1.35),
     );
     clonedVoices.insert(0, profile);
     selectedVoiceId = id;
@@ -321,15 +262,16 @@ Map<String, String> chatCommands = <String, String>{
                 'id': v.id,
                 'label': v.label,
                 'gender': v.gender,
-                'basePitchHz': v.basePitchHz,
-                'formantShift': v.formantShift,
-                'speedFactor': v.speedFactor,
+                'voiceCode': v.voiceCode,
+                'playbackRate': v.playbackRate,
+                'fallbackPitch': v.fallbackPitch,
               })
           .toList()),
     );
     await p.setString('hell_tts_voice_id_v3', id);
     notifyListeners();
   }
+
   Future<void> setSelectedVoice(String voiceId) async {
     selectedVoiceId = voiceId;
     final p = await SharedPreferences.getInstance();
@@ -382,13 +324,19 @@ Map<String, String> chatCommands = <String, String>{
     return clean.trim();
   }
 
+  Future<void> _playHumanAudio(String text) async {
+    final v = currentVoice;
+    final mp3Path = await HellHumanNeuralVoiceEngine.synthesizeHumanSpeechFile(text, v);
+    await _player.setPlaybackRate(v.playbackRate);
+    await _player.play(DeviceFileSource(mp3Path));
+  }
+
   Future<void> speakImmediateTest(String sampleText) async {
     await _player.stop();
     isSpeaking = true;
     notifyListeners();
     try {
-      final wavPath = await HellOriginalVoiceSynthesizer.synthesizeToWavFile(sampleText, currentVoice);
-      await _player.play(DeviceFileSource(wavPath));
+      await _playHumanAudio(sampleText);
     } catch (_) {
       isSpeaking = false;
       notifyListeners();
@@ -413,8 +361,7 @@ Map<String, String> chatCommands = <String, String>{
     notifyListeners();
     final nextText = _speechQueue.removeAt(0);
     try {
-      final wavPath = await HellOriginalVoiceSynthesizer.synthesizeToWavFile(nextText, currentVoice);
-      await _player.play(DeviceFileSource(wavPath));
+      await _playHumanAudio(nextText);
     } catch (_) {
       isSpeaking = false;
       _processNextInQueue();
@@ -456,7 +403,6 @@ Map<String, String> chatCommands = <String, String>{
     }
     notifyListeners();
   }
-
   Future<void> connectTwitchPublicChat(String rawChannel) async {
     final clean = rawChannel.replaceAll('@', '').trim().toLowerCase();
     if (clean.isEmpty) return;
@@ -521,6 +467,7 @@ Map<String, String> chatCommands = <String, String>{
     notifyListeners();
   }
 }
+
 class HellChatAndTtsLiveScreen extends StatefulWidget {
   final Map<String, dynamic>? currentUser;
   const HellChatAndTtsLiveScreen({super.key, this.currentUser});
@@ -812,26 +759,52 @@ class HellVoiceCloneTeleprompterDialog extends StatefulWidget {
 }
 
 class _HellVoiceCloneTeleprompterDialogState extends State<HellVoiceCloneTeleprompterDialog> {
-  static const String _teleprompterScript435Words = '''
-Olá a todos e sejam muito bem-vindos a mais uma transmissão ao vivo aqui no nosso canal. Hoje vamos conversar com calma, partilhar boas ideias, responder às vossas perguntas no chat e testar novas ferramentas criativas para melhorar ainda mais a qualidade das nossas lives. Sintam-se em casa, puxem uma cadeira, ajustem o volume do vosso dispositivo e digam de onde nos estão a acompanhar neste momento.
-
-Quando começamos um projeto digital do zero, cada pequeno detalhe faz toda a diferença no resultado final. A clareza da voz, o ritmo natural das palavras, a energia com que cumprimentamos quem chega pela primeira vez e a atenção que damos à nossa comunidade criam uma ligação verdadeira. Não precisamos de falar depressa nem de forçar expressões artificiais; basta sermos autênticos, transparentes e mantermos sempre o nosso estilo próprio.
-
-Ao longo desta semana estivemos a preparar novidades incríveis para os criadores de conteúdo, desde alertas interativos em tempo real até sistemas inteligentes de leitura de mensagens. Imaginem poder ouvir os comentários dos seguidores com naturalidade, sem interromper o vosso raciocínio durante um jogo intenso ou uma conversa importante. É exatamente para isso que serve esta gravação: captar o timbre real, a cadência e a personalidade única da tua voz.
-
-Vamos agora variar um pouco a entoação para registar diferentes emoções e registos vocais. Primeiro, num tom sereno e confiante: tudo está a funcionar perfeitamente e o som está limpo e equilibrado. Agora, com um pouco mais de entusiasmo e energia: que jogada espetacular, muito obrigado pelo apoio incrível e pelos presentes enviados agora mesmo no chat! E em tom de pergunta: qual é a vossa opinião sobre esta funcionalidade?
-
-Nos dias mais longos, quando já estamos há várias horas em direto, a voz fica naturalmente mais tranquila, pausada e grave. Respirar fundo entre frases ajuda a manter o conforto vocal e evita qualquer cansaço desnecessário. Por outro lado, nos momentos de celebração com a comunidade, o sorriso nota-se logo na forma como pronunciamos cada sílaba, tornando a experiência muito mais próxima e envolvente para quem assiste.
-
-Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por dedicares este tempo a calibrar a tua assinatura vocal com tanta atenção e cuidado. Assim que terminares, o sistema vai analisar a frequência, o ritmo e as características naturais da tua fala para criar um perfil exclusivo, pronto a ser utilizado sempre que quiseres nas tuas transmissões. Até já no estúdio!
-''';
+  static const List<String> _teleprompterShortLines = <String>[
+    'Olá a todos e sejam muito bem-vindos à live.',
+    'Hoje vamos conversar com calma e partilhar boas ideias.',
+    'Sintam-se em casa e puxem uma cadeira.',
+    'Digam no chat de onde nos estão a acompanhar.',
+    'Quando começamos um projeto digital do zero,',
+    'cada pequeno detalhe faz toda a diferença.',
+    'A clareza da voz e o ritmo natural das palavras',
+    'criam uma ligação verdadeira com quem assiste.',
+    'Não precisamos de falar depressa nem forçar nada.',
+    'Basta sermos autênticos e manter o nosso estilo.',
+    'Esta semana preparámos novidades incríveis para criadores.',
+    'Alertas interativos e leitura inteligente de mensagens.',
+    'Imaginem ouvir os comentários com toda a naturalidade,',
+    'sem interromper o raciocínio durante um jogo intenso.',
+    'É para isso que serve esta gravação vocal.',
+    'Captar o timbre real e a cadência da tua voz.',
+    'Agora vamos variar um pouco a entoação.',
+    'Primeiro num tom sereno e muito confiante:',
+    'Tudo está a funcionar perfeitamente e com som limpo.',
+    'Agora com um pouco mais de entusiasmo e energia:',
+    'Que jogada espetacular, muito obrigado pelo apoio!',
+    'Obrigado pelos presentes enviados agora mesmo no chat!',
+    'E agora em tom de pergunta para a comunidade:',
+    'Qual é a vossa opinião sobre esta nova função?',
+    'Nos dias mais longos de transmissão ao vivo,',
+    'a voz fica naturalmente mais tranquila e pausada.',
+    'Respirar fundo entre frases ajuda no conforto vocal.',
+    'Nos momentos de celebração com a comunidade,',
+    'o sorriso nota-se logo na forma como falamos.',
+    'Estamos quase a concluir a leitura de calibração.',
+    'Obrigado por dedicares este tempo com tanta calma.',
+    'O sistema vai analisar a frequência e o ritmo,',
+    'criando um perfil exclusivo pronto para as tuas lives.',
+    'Até já no estúdio oficial HELL CREATOR!',
+  ];
 
   final AudioRecorder _recorder = AudioRecorder();
-  final ScrollController _scrollCtrl = ScrollController();
   late final TextEditingController _voiceNameCtrl;
   bool _legalConsentAccepted = false;
   bool _isRecording = false;
+  bool _isPaused = false;
   int _elapsedSeconds = 0;
+  int _currentLineIndex = 0;
+  double _secondsPerLine = 3.8;
+  double _lineTimerAcc = 0.0;
   String _recordedFilePath = '';
   Timer? _timer;
 
@@ -845,7 +818,6 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
   void dispose() {
     _timer?.cancel();
     _recorder.dispose();
-    _scrollCtrl.dispose();
     _voiceNameCtrl.dispose();
     super.dispose();
   }
@@ -868,26 +840,38 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
 
     setState(() {
       _isRecording = true;
+      _isPaused = false;
       _elapsedSeconds = 0;
+      _currentLineIndex = 0;
+      _lineTimerAcc = 0.0;
       _recordedFilePath = path;
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) async {
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (t) async {
       if (!mounted) {
         t.cancel();
         return;
       }
-      setState(() => _elapsedSeconds++);
-      if (_scrollCtrl.hasClients && _scrollCtrl.position.maxScrollExtent > 0) {
-        final target = (_elapsedSeconds / 120.0).clamp(0.0, 1.0) * _scrollCtrl.position.maxScrollExtent;
-        _scrollCtrl.animateTo(target, duration: const Duration(milliseconds: 900), curve: Curves.linear);
+      if (_isPaused) return;
+
+      _lineTimerAcc += 0.5;
+      if (_lineTimerAcc >= _secondsPerLine) {
+        _lineTimerAcc = 0.0;
+        if (_currentLineIndex < _teleprompterShortLines.length - 1) {
+          _currentLineIndex++;
+        }
       }
+
+      if ((t.tick % 2) == 0) {
+        _elapsedSeconds++;
+      }
+      setState(() {});
+
       if (_elapsedSeconds >= 120) {
         await _finishAndAnalyzeVoice();
       }
     });
   }
-
   Future<void> _finishAndAnalyzeVoice() async {
     _timer?.cancel();
     final stoppedPath = await _recorder.stop() ?? _recordedFilePath;
@@ -895,7 +879,7 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
 
     double measuredPitch = 118.0;
     double measuredFormant = 0.90;
-    double measuredSpeed = 1.00;
+    double measuredSpeed = 0.96;
 
     try {
       final f = File(stoppedPath);
@@ -923,7 +907,7 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
             measuredPitch = (estHz * 0.42).clamp(88.0, 245.0);
             measuredFormant = (0.82 + ((measuredPitch - 88.0) / 157.0) * 0.34).clamp(0.82, 1.18);
             final double density = activeSamples / totalSamples;
-            measuredSpeed = (0.85 + density * 0.35).clamp(0.82, 1.22);
+            measuredSpeed = (0.86 + density * 0.28).clamp(0.85, 1.16);
           }
         }
       }
@@ -939,15 +923,19 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
     final int mins = _elapsedSeconds ~/ 60;
     final int secs = _elapsedSeconds % 60;
     final String timeStr = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')} / 02:00';
+    final String currentLine = _teleprompterShortLines[_currentLineIndex];
+    final String nextLine = (_currentLineIndex + 1 < _teleprompterShortLines.length)
+        ? _teleprompterShortLines[_currentLineIndex + 1]
+        : 'Fim do texto — podes concluir quando quiseres!';
 
     return AlertDialog(
       backgroundColor: const Color(0xFF0B1636),
       title: const Text(
-        '🎙️ ESTÚDIO DE CLONAGEM VOCAL · TELEPONTO (2 MINUTOS)',
-        style: TextStyle(color: Color(0xFF38BDF8), fontSize: 14, fontWeight: FontWeight.w900),
+        '🎙️ CLONAGEM VOCAL · TELEPONTO LENTO POR FRASES',
+        style: TextStyle(color: Color(0xFF38BDF8), fontSize: 13.5, fontWeight: FontWeight.w900),
       ),
       content: SizedBox(
-        width: 520,
+        width: 500,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -973,20 +961,50 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
                 ],
               ),
               const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text('Ritmo: ${_secondsPerLine.toStringAsFixed(1)}s / frase', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                  Row(
+                    children: <Widget>[
+                      TextButton(
+                        onPressed: () => setState(() => _secondsPerLine = (_secondsPerLine + 0.6).clamp(2.2, 7.0)),
+                        child: const Text('+ Mais Lento', style: TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8))),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _secondsPerLine = (_secondsPerLine - 0.6).clamp(2.2, 7.0)),
+                        child: const Text('- Mais Rápido', style: TextStyle(fontSize: 11.5, color: Colors.amberAccent)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
               Container(
-                height: 210,
-                padding: const EdgeInsets.all(14),
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFF04091A),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _isRecording ? Colors.redAccent : const Color(0xFF38BDF8).withOpacity(0.5)),
                 ),
-                child: SingleChildScrollView(
-                  controller: _scrollCtrl,
-                  child: const Text(
-                    _teleprompterScript435Words,
-                    style: TextStyle(fontSize: 15.5, height: 1.65, color: Colors.white, fontWeight: FontWeight.w500),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Frase ${_currentLineIndex + 1} de ${_teleprompterShortLines.length}:',
+                      style: const TextStyle(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currentLine,
+                      style: const TextStyle(fontSize: 19, height: 1.45, color: Colors.white, fontWeight: FontWeight.w800),
+                    ),
+                    const Divider(height: 22, color: Colors.white12),
+                    Text(
+                      'A seguir: $nextLine',
+                      style: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white54),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -1007,6 +1025,11 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
       actions: <Widget>[
         if (!_isRecording)
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        if (_isRecording)
+          TextButton(
+            onPressed: () => setState(() => _isPaused = !_isPaused),
+            child: Text(_isPaused ? 'Retomar' : 'Pausar', style: const TextStyle(color: Colors.amberAccent)),
+          ),
         if (!_isRecording)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -1017,9 +1040,9 @@ Estamos quase a concluir estes dois minutos de leitura contínua. Obrigado por d
         else
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: _elapsedSeconds >= 15 ? _finishAndAnalyzeVoice : null,
+            onPressed: _elapsedSeconds >= 12 ? _finishAndAnalyzeVoice : null,
             icon: const Icon(Icons.check_circle, size: 16),
-            label: Text(_elapsedSeconds >= 15 ? 'Concluir e Criar Voz' : 'Lê pelo menos 15s...'),
+            label: Text(_elapsedSeconds >= 12 ? 'Concluir e Criar Voz' : 'Lê pelo menos 12s...'),
           ),
       ],
     );
