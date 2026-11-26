@@ -890,6 +890,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
     String preset = (_u['presetAvatarId'] ?? '').toString();
     String frameStyle = (_u['avatarFrameStyle'] ?? 'neon_blue').toString();
     String customFrameMedia = (_u['avatarCustomFrameMedia'] ?? '').toString();
+final List<String> avatarHistory = List<String>.from(
+  (_u['avatarHistory'] as List? ?? <dynamic>[]).map((e) => e.toString()),
+);
 
     await showDialog(
       context: context,
@@ -978,6 +981,70 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                               ))
                           .toList(),
                     ),
+                                         if (avatarHistory.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 10),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Galeria de Fotos Usadas (Toca para reverter · X para eliminar):',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 62,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: avatarHistory.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (_, idx) {
+                            final item = avatarHistory[idx];
+                            final isHttp = item.startsWith('http');
+                            final exists = isHttp || File(item).existsSync();
+                            if (!exists) return const SizedBox.shrink();
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: <Widget>[
+                                GestureDetector(
+                                  onTap: () => setM(() {
+                                    if (isHttp) {
+                                      url = item;
+                                      path = '';
+                                    } else {
+                                      path = item;
+                                      url = '';
+                                    }
+                                    preset = '';
+                                    s = 1.0;
+                                    dx = 0;
+                                    dy = 0;
+                                  }),
+                                  child: ClipOval(
+                                    child: isHttp
+                                        ? Image.network(item, width: 54, height: 54, fit: BoxFit.cover)
+                                        : Image.file(File(item), width: 54, height: 54, fit: BoxFit.cover),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: -4,
+                                  top: -4,
+                                  child: GestureDetector(
+                                    onTap: () => setM(() => avatarHistory.removeAt(idx)),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+
+
                     const Divider(height: 20),
                     DropdownButtonFormField<String>(
                       value: ProfileManager.avatarFrameStyles.containsKey(frameStyle) ? frameStyle : 'none',
@@ -1065,6 +1132,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
               ElevatedButton(
                 onPressed: () async {
+                                    final oldMedia = ((_u['avatarPath'] ?? '').toString().isNotEmpty
+                          ? _u['avatarPath']
+                          : (_u['photoUrl'] ?? ''))
+                      .toString()
+                      .trim();
+                  final newMedia = (path.isNotEmpty ? path : url).trim();
+                  if (oldMedia.isNotEmpty && !avatarHistory.contains(oldMedia)) {
+                    avatarHistory.insert(0, oldMedia);
+                  }
+                  if (newMedia.isNotEmpty) {
+                    avatarHistory.remove(newMedia);
+                    avatarHistory.insert(0, newMedia);
+                  }
+                  _u['avatarHistory'] = avatarHistory.take(20).toList();
+
                   _u['avatarPath'] = path;
                   _u['photoUrl'] = url;
                   _u['presetAvatarId'] = preset;
