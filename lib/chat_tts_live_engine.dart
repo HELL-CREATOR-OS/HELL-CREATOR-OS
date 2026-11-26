@@ -1,3 +1,4 @@
+import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -51,28 +52,33 @@ class HellOriginalVoiceProfile {
 }
 
 class HellHumanNeuralVoiceEngine {
+  static String _pickStudioVoice(HellOriginalVoiceProfile profile) {
+    if (profile.id == 'adult_announcer_m' || profile.id == 'adult_calm_m') return 'Cristiano';
+    if (profile.id == 'young_energetic_m' || profile.id == 'adult_stressed_m') return 'Thiago';
+    if (profile.gender == 'M') return 'Ricardo';
+    if (profile.id == 'child_voice') return 'Camila';
+    return 'Ines';
+  }
+
   static Future<String> synthesizeHumanSpeechFile(String rawText, HellOriginalVoiceProfile profile) async {
     final clean = rawText
         .replaceAll(RegExp(r'[\r\n]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     final String text = clean.isEmpty ? 'Olá, bem-vindos à live!' : clean;
+    final String studioVoice = _pickStudioVoice(profile);
 
     final dir = await getTemporaryDirectory();
-    final outFile = File('${dir.path}/hell_human_tts_${DateTime.now().microsecondsSinceEpoch}.mp3');
+    final outFile = File('${dir.path}/hell_studio_tts_${DateTime.now().microsecondsSinceEpoch}.mp3');
 
-    // Endpoint público de síntese neural humana por género e idioma (sem depender das vozes instaladas no dispositivo)
-    final String tl = profile.gender == 'M' ? 'pt-BR' : 'pt-PT';
-    final uri = Uri.https('://google.com', '/translate_tts', <String, String>{
-      'ie': 'UTF-8',
-      'client': 'tw-ob',
-      'tl': tl,
-      'q': text.length > 180 ? text.substring(0, 180) : text,
+    final uri = Uri.https('://streamelements.com', '/kappa/v2/speech', <String, String>{
+      'voice': studioVoice,
+      'text': text.length > 220 ? text.substring(0, 220) : text,
     });
 
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
     final req = await client.getUrl(uri);
-    req.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    req.headers.set('User-Agent', 'Mozilla/5.0');
     final res = await req.close();
     if (res.statusCode == 200) {
       final bytes = await res.fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
@@ -83,9 +89,10 @@ class HellHumanNeuralVoiceEngine {
       }
     }
     client.close();
-    throw Exception('Falha ao obter áudio neural');
+    throw Exception('Fallback offline');
   }
 }
+
 
 class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
@@ -325,23 +332,35 @@ class HellChatTtsController extends ChangeNotifier {
     return clean.trim();
   }
 
+   final FlutterTts _offlineFallbackTts = FlutterTts();
+
+  Future<void> _speakOfflineFallback(String text, HellOriginalVoiceProfile v) async {
+    try {
+      await _offlineFallbackTts.setLanguage(v.voiceCode);
+      await _offlineFallbackTts.setPitch(v.fallbackPitch);
+      await _offlineFallbackTts.setSpeechRate((v.playbackRate * 0.48).clamp(0.25, 0.85));
+      await _offlineFallbackTts.speak(text);
+    } catch (_) {}
+    isSpeaking = false;
+    notifyListeners();
+  }
+
   Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
-    final mp3Path = await HellHumanNeuralVoiceEngine.synthesizeHumanSpeechFile(text, v);
-    await _player.setPlaybackRate(v.playbackRate);
-    await _player.play(DeviceFileSource(mp3Path));
+    try {
+      final mp3Path = await HellHumanNeuralVoiceEngine.synthesizeHumanSpeechFile(text, v);
+      await _player.play(DeviceFileSource(mp3Path));
+      await _player.setPlaybackRate(v.playbackRate);
+    } catch (_) {
+      await _speakOfflineFallback(text, v);
+    }
   }
 
   Future<void> speakImmediateTest(String sampleText) async {
     await _player.stop();
     isSpeaking = true;
     notifyListeners();
-    try {
-      await _playHumanAudio(sampleText);
-    } catch (_) {
-      isSpeaking = false;
-      notifyListeners();
-    }
+    await _playHumanAudio(sampleText);
   }
 
   void enqueueSpeech(String text) {
