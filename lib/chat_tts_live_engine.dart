@@ -390,15 +390,15 @@ class HellChatTtsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _selectGenderVoiceInEngine(HellOriginalVoiceProfile v) async {
+   Future<void> _selectGenderVoiceInEngine(HellOriginalVoiceProfile v) async {
     try {
       await _offlineFallbackTts.setLanguage(selectedLanguage);
       final rawVoices = await _offlineFallbackTts.getVoices;
       if (rawVoices is List) {
         final langPrefix = selectedLanguage.split('-').first.toLowerCase();
-        final femaleKeys = <String>['female', 'feminina', 'raquel', 'francisca', 'joana', 'maria', 'ines', 'luciana', 'heloisa', 'zira', 'hortensia', 'camila', 'vitoria', 'sara', 'clara'];
-        final maleKeys = <String>['male', 'masculina', 'duarte', 'cristiano', 'daniel', 'antonio', 'david', 'pablo', 'ricardo', 'thiago', 'pedro', 'joao'];
-        final targetKeys = v.gender == 'F' ? femaleKeys : maleKeys;
+        final femaleKeys = <String>['sfb', 'pte', 'afs', 'female', 'feminina', 'raquel', 'francisca', 'joana', 'maria', 'ines', 'luciana', 'heloisa', 'zira', 'hortensia', 'camila', 'vitoria', 'wavenet-a', 'wavenet-c', 'neural2-a'];
+        final maleKeys = <String>['ptd', 'ptm', 'male', 'masculina', 'duarte', 'cristiano', 'daniel', 'antonio', 'david', 'pablo', 'ricardo', 'thiago', 'pedro', 'joao', 'wavenet-b', 'wavenet-d', 'neural2-b'];
+        final targetKeys = (v.gender == 'F' || v.id == 'child_voice') ? femaleKeys : maleKeys;
 
         Map<String, String>? chosen;
         for (final item in rawVoices) {
@@ -419,6 +419,7 @@ class HellChatTtsController extends ChangeNotifier {
     } catch (_) {}
   }
 
+
   Future<void> _speakOfflineFallback(String text, HellOriginalVoiceProfile v) async {
     try {
       await _offlineFallbackTts.stop();
@@ -436,7 +437,7 @@ class HellChatTtsController extends ChangeNotifier {
     notifyListeners();
   }
 
-     Future<void> _playHumanAudio(String text) async {
+       Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
     try {
       final audioPath = await HellHumanNeuralVoiceEngine.synthesizeHellOwnVoiceFile(
@@ -454,8 +455,7 @@ class HellChatTtsController extends ChangeNotifier {
       await _player.play(DeviceFileSource(audioPath));
       await _player.setPlaybackRate(rate);
     } catch (_) {
-      isSpeaking = false;
-      notifyListeners();
+      await _speakOfflineFallback(text, v);
     }
   }
 
