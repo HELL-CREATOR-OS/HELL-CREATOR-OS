@@ -370,25 +370,12 @@ class _MainShellState extends State<MainShell> {
     await prefs.setDouble('tts_volume', _voiceVolume);
   }
 
-  Future<void> _speakRealVoice(String text) async {
+   Future<void> _speakRealVoice(String text) async {
     if (_isMuted || text.trim().isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    final activeId = prefs.getString('hell_active_voice_id') ?? 'pt_m1';
-    final isFemale = activeId.startsWith('pt_f');
-    final pitchVal = activeId == 'pt_m3'
-        ? 0.55
-        : (activeId == 'pt_m2' ? 0.72 : (isFemale ? 1.22 : 0.85));
-
-    try {
-      await flutterTts.stop();
-      if (Platform.isAndroid) await flutterTts.setEngine('com.google.android.tts');
-      await flutterTts.setLanguage(_appLang == 'en' ? 'en-US' : (_appLang == 'es' ? 'es-ES' : 'pt-PT'));
-      await flutterTts.setPitch(pitchVal);
-      await flutterTts.setSpeechRate(_speechRate);
-      await flutterTts.setVolume(_voiceVolume);
-      await flutterTts.speak(text);
-    } catch (_) {}
+    await HellChatTtsController.speakGlobal(text);
   }
+
+
 
   void _initConnectors() {
     socket = IO.io('http://${LocalObsServer.localIp}:${LocalObsServer.port}', IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build());
