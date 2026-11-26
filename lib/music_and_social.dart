@@ -94,7 +94,7 @@ class MusicDeckController {
     if (radioStations.isEmpty) return;
     await playIndex((currentIndex + 1) % radioStations.length);
   }
-}
+
   static Future<void> previousTrack() async {
     if (radioStations.isEmpty) return;
     final prevIdx = (currentIndex - 1 + radioStations.length) % radioStations.length;
