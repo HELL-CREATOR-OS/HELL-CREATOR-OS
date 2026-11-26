@@ -180,14 +180,35 @@ class HellChatTtsController extends ChangeNotifier {
   final List<String> musicRequests = <String>[];
   final List<HellOriginalVoiceProfile> clonedVoices = <HellOriginalVoiceProfile>[];
 
+   static const Map<String, String> supportedLanguages = <String, String>{
+    'pt-PT': '🇵🇹 Português (Portugal · Padrão)',
+    'pt-BR': '🇧🇷 Português (Brasil)',
+    'en-GB': '🇬🇧 Inglês (Reino Unido)',
+    'en-US': '🇺🇸 Inglês (Estados Unidos)',
+    'es-ES': '🇪🇸 Espanhol (Espanha)',
+    'fr-FR': '🇫🇷 Francês (França)',
+    'de-DE': '🇩🇪 Alemão (Alemanha)',
+    'it-IT': '🇮🇹 Italiano (Itália)',
+    'nl-NL': '🇳🇱 Holandês (Países Baixos)',
+    'pl-PL': '🇵🇱 Polaco (Polónia)',
+    'ru-RU': '🇷🇺 Russo (Rússia)',
+    'ja-JP': '🇯🇵 Japonês (Japão)',
+    'ko-KR': '🇰🇷 Coreano (Coreia do Sul)',
+    'zh-CN': '🇨🇳 Chinês (Mandarim)',
+    'ar-SA': '🇸🇦 Árabe',
+    'hi-IN': '🇮🇳 Hindi',
+  };
+
   bool ttsEnabled = true;
   bool isSpeaking = false;
+  String selectedLanguage = 'pt-PT';
+  double customPitch = 0.85;
+  double customSpeed = 0.96;
   String selectedVoiceId = 'adult_announcer_m';
   String readFilter = 'all';
   int maxChars = 140;
   bool readSenderName = true;
   bool filterSpam = true;
-
   List<String> blockedWords = <String>['http://', 'https://', 'www.'];
  Map<String, String> chatCommands = <String, String>{
 
@@ -332,13 +353,70 @@ class HellChatTtsController extends ChangeNotifier {
     return clean.trim();
   }
 
-   final FlutterTts _offlineFallbackTts = FlutterTts();
+     final FlutterTts _offlineFallbackTts = FlutterTts();
+
+  Future<void> downloadAndApplyLanguage(String langCode) async {
+    selectedLanguage = langCode;
+    final p = await SharedPreferences.getInstance();
+    await p.setString('hell_tts_lang_v3', langCode);
+    final shortCode = langCode.split('-').first.toLowerCase();
+    await p.setString('app_lang', shortCode);
+    try {
+      await _offlineFallbackTts.setLanguage(langCode);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setCustomPitch(double val) async {
+    customPitch = val.clamp(0.50, 1.75);
+    notifyListeners();
+  }
+
+  Future<void> setCustomSpeed(double val) async {
+    customSpeed = val.clamp(0.50, 1.80);
+    notifyListeners();
+  }
+
+  Future<void> _selectGenderVoiceInEngine(HellOriginalVoiceProfile v) async {
+    try {
+      await _offlineFallbackTts.setLanguage(selectedLanguage);
+      final rawVoices = await _offlineFallbackTts.getVoices;
+      if (rawVoices is List) {
+        final langPrefix = selectedLanguage.split('-').first.toLowerCase();
+        final femaleKeys = <String>['female', 'feminina', 'raquel', 'francisca', 'joana', 'maria', 'ines', 'luciana', 'heloisa', 'zira', 'hortensia', 'camila', 'vitoria', 'sara', 'clara'];
+        final maleKeys = <String>['male', 'masculina', 'duarte', 'cristiano', 'daniel', 'antonio', 'david', 'pablo', 'ricardo', 'thiago', 'pedro', 'joao'];
+        final targetKeys = v.gender == 'F' ? femaleKeys : maleKeys;
+
+        Map<String, String>? chosen;
+        for (final item in rawVoices) {
+          if (item is Map) {
+            final name = (item['name'] ?? '').toString();
+            final locale = (item['locale'] ?? '').toString().toLowerCase();
+            final lowerName = name.toLowerCase();
+            if (locale.startsWith(langPrefix) && targetKeys.any((k) => lowerName.contains(k))) {
+              chosen = <String, String>{'name': name, 'locale': (item['locale'] ?? selectedLanguage).toString()};
+              break;
+            }
+          }
+        }
+        if (chosen != null) {
+          await _offlineFallbackTts.setVoice(chosen);
+        }
+      }
+    } catch (_) {}
+  }
 
   Future<void> _speakOfflineFallback(String text, HellOriginalVoiceProfile v) async {
     try {
-      await _offlineFallbackTts.setLanguage(v.voiceCode);
-      await _offlineFallbackTts.setPitch(v.fallbackPitch);
-      await _offlineFallbackTts.setSpeechRate((v.playbackRate * 0.48).clamp(0.25, 0.85));
+      await _offlineFallbackTts.stop();
+      await _selectGenderVoiceInEngine(v);
+      final double effectivePitch = (v.gender == 'F'
+              ? (customPitch < 1.15 ? 1.28 : customPitch)
+              : customPitch)
+          .clamp(0.50, 1.75);
+      final double effectiveRate = (customSpeed * 0.48).clamp(0.22, 0.90);
+      await _offlineFallbackTts.setPitch(effectivePitch);
+      await _offlineFallbackTts.setSpeechRate(effectiveRate);
       await _offlineFallbackTts.speak(text);
     } catch (_) {}
     isSpeaking = false;
@@ -347,13 +425,7 @@ class HellChatTtsController extends ChangeNotifier {
 
   Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
-    try {
-      final mp3Path = await HellHumanNeuralVoiceEngine.synthesizeHumanSpeechFile(text, v);
-      await _player.play(DeviceFileSource(mp3Path));
-      await _player.setPlaybackRate(v.playbackRate);
-    } catch (_) {
-      await _speakOfflineFallback(text, v);
-    }
+    await _speakOfflineFallback(text, v);
   }
 
   Future<void> speakImmediateTest(String sampleText) async {
@@ -362,6 +434,7 @@ class HellChatTtsController extends ChangeNotifier {
     notifyListeners();
     await _playHumanAudio(sampleText);
   }
+
 
   void enqueueSpeech(String text) {
     if (!ttsEnabled || text.trim().isEmpty) return;
@@ -595,6 +668,91 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                   if (v != null) _ctrl.setSelectedVoice(v);
                 },
               ),
+                        const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: HellChatTtsController.supportedLanguages.containsKey(_ctrl.selectedLanguage)
+                      ? _ctrl.selectedLanguage
+                      : 'pt-PT',
+                  dropdownColor: const Color(0xFF0B1636),
+                  decoration: const InputDecoration(labelText: 'Idioma da Voz & App', isDense: true),
+                  items: HellChatTtsController.supportedLanguages.entries
+                      .map((e) => DropdownMenuItem<String>(
+                            value: e.key,
+                            child: Text(e.value, style: const TextStyle(fontSize: 12)),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _ctrl.selectedLanguage = val);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await _ctrl.downloadAndApplyLanguage(_ctrl.selectedLanguage);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Idioma ${HellChatTtsController.supportedLanguages[_ctrl.selectedLanguage]} descarregado e aplicado!',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.download_done_rounded, size: 16),
+                label: const Text('Baixar e Aplicar', style: TextStyle(fontSize: 11.5)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              const Icon(Icons.speed_rounded, size: 16, color: Color(0xFF38BDF8)),
+              const SizedBox(width: 6),
+              Text('Velocidade: ${_ctrl.customSpeed.toStringAsFixed(2)}x', style: const TextStyle(fontSize: 11.5)),
+              Expanded(
+                child: Slider(
+                  value: _ctrl.customSpeed,
+                  min: 0.50,
+                  max: 1.80,
+                  divisions: 26,
+                  activeColor: const Color(0xFF38BDF8),
+                  onChanged: (v) => _ctrl.setCustomSpeed(v),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: <Widget>[
+              const Icon(Icons.graphic_eq_rounded, size: 16, color: Colors.amberAccent),
+              const SizedBox(width: 6),
+              Text(
+                _ctrl.customPitch < 0.90
+                    ? 'Tom: Grave (${_ctrl.customPitch.toStringAsFixed(2)})'
+                    : (_ctrl.customPitch > 1.12
+                        ? 'Tom: Agudo (${_ctrl.customPitch.toStringAsFixed(2)})'
+                        : 'Tom: Normal (${_ctrl.customPitch.toStringAsFixed(2)})'),
+                style: const TextStyle(fontSize: 11.5),
+              ),
+              Expanded(
+                child: Slider(
+                  value: _ctrl.customPitch,
+                  min: 0.50,
+                  max: 1.75,
+                  divisions: 25,
+                  activeColor: Colors.amberAccent,
+                  onChanged: (v) => _ctrl.setCustomPitch(v),
+                ),
+              ),
+            ],
+          ),
+
               const SizedBox(height: 10),
               Row(
                 children: <Widget>[
