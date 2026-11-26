@@ -427,28 +427,88 @@ class _MainShellState extends State<MainShell> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
   }
+  final Map<String, String> _platformHandles = <String, String>{};
+  final Set<String> _radarMonitoredPlatforms = <String>{};
+  Timer? _liveRadarTimer;
+
+  void _ensureLiveRadarRunning() {
+    _liveRadarTimer ??= Timer.periodic(const Duration(seconds: 18), (_) async {
+      for (final pid in _radarMonitoredPlatforms.toList()) {
+        final handle = (_platformHandles[pid] ?? '').trim();
+        if (handle.isNotEmpty) {
+          await _verifyPlatformRealLiveStatus(pid, handle, silent: true);
+        }
+      }
+    });
+  }
+
+  Future<bool> _checkRealLiveEndpoint(String platformId, String rawHandle) async {
+    final clean = rawHandle.replaceAll('@', '').trim();
+    if (clean.isEmpty) return false;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+      Uri uri;
+      if (platformId == 'tiktok') {
+        uri = Uri.parse('https://tiktok.com');
+      } else if (platformId == 'twitch') {
+        uri = Uri.parse('https://decapi.me');
+      } else if (platformId == 'kick') {
+        uri = Uri.parse('https://kick.com');
+      } else {
+        uri = Uri.parse('https://youtube.com');
+      }
+      final req = await client.getUrl(uri);
+      req.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      final res = await req.close();
+      final body = await res.transform(utf8.decoder).join();
+      client.close();
+
+      if (platformId == 'twitch') {
+        final low = body.toLowerCase();
+        return res.statusCode == 200 && !low.contains('offline') && !low.contains('error') && low.trim().isNotEmpty;
+      } else if (platformId == 'kick') {
+        return res.statusCode == 200 && body.contains('"livestream":{');
+      } else if (platformId == 'tiktok') {
+        return res.statusCode == 200 && (body.contains('"status":2') || body.contains('"roomId":"'));
+      } else {
+        return res.statusCode == 200 && body.contains('"isLiveNow":true');
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _verifyPlatformRealLiveStatus(String platformId, String handle, {bool silent = false}) async {
+    final isActuallyLive = await _checkRealLiveEndpoint(platformId, handle);
+    if (!mounted) return;
+    final wasLive = _activePlatforms[platformId] == true;
+    setState(() {
+      _activePlatforms[platformId] = isActuallyLive;
+    });
+    if (isActuallyLive && !wasLive) {
+      await _liveConnector.connect(platformId, handle);
+      _showSnack('🟢 $platformId (@$handle) entrou AO VIVO! App ativada automaticamente.');
+    } else if (!isActuallyLive && wasLive) {
+      _liveConnector.disconnect();
+      _showSnack('⚫ $platformId (@$handle) terminou a live.');
+    } else if (!silent && !isActuallyLive) {
+      _showSnack('Radar ativo para $platformId (@$handle) — ficará ONLINE assim que iniciares live.');
+    }
+  }
+
   void _handlePlatformTap(String platformId, String platformName) {
     setState(() => _selectedPlatform = platformId);
-    final isCurrentlyOn = _activePlatforms[platformId] == true;
-
-    if (isCurrentlyOn) {
-      setState(() => _activePlatforms[platformId] = false);
-      _liveConnector.disconnect();
-      _showSnack('$platformName desligado (OFF).');
-      return;
-    }
-
-    if (_channelCtrl.text.trim().isNotEmpty) {
-      setState(() => _activePlatforms[platformId] = true);
-      _liveConnector.connect(platformId, _channelCtrl.text.trim());
-      return;
-    }
-
     _openPlatformSetupDialog(platformId, platformName);
   }
 
-  void _openPlatformSetupDialog(String platformId, String platformName) {
-    final isTikTok = platformId == 'tiktok';
+  void _openPlatformSetupDialog(String platformId, String platformName) async {
+    final isTiktok = platformId == 'tiktok';
+    final prefs = await SharedPreferences.getInstance();
+    final savedHandle = _platformHandles[platformId] ?? prefs.getString('hell_platform_handle_$platformId') ?? '';
+    _platformHandles[platformId] = savedHandle;
+    final individualCtrl = TextEditingController(text: savedHandle);
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -456,65 +516,96 @@ class _MainShellState extends State<MainShell> {
           backgroundColor: Theme.of(context).cardColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5)),
           title: Row(
-            children: [
+            children: <Widget>[
               PlatformBrandLogo(platform: platformId, size: 28),
               const SizedBox(width: 12),
-              Text('Configurar $platformName', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Expanded(child: Text('Conta $platformName', style: const TextStyle(fontWeight: FontWeight.bold))),
             ],
           ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: <Widget>[
                 TextField(
-                  controller: _channelCtrl,
-                  decoration: InputDecoration(labelText: 'Utilizador / Canal ($platformName)', prefixIcon: const Icon(Icons.alternate_email), border: const OutlineInputBorder()),
+                  controller: individualCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Utilizador / Canal Exclusivo ($platformName)',
+                    prefixIcon: const Icon(Icons.alternate_email),
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-                if (!isTikTok) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _activePlatforms[platformId] == true
+                      ? 'Estado atual: 🟢 AO VIVO DETETADO'
+                      : _radarMonitoredPlatforms.contains(platformId)
+                          ? 'Estado atual: 🟡 Radar Ativo (Aguardando início da live...)'
+                          : 'Estado atual: ⚫ Offline (Guarda a conta para ativar o Radar Automático)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _activePlatforms[platformId] == true ? Colors.greenAccent : Colors.amberAccent,
+                  ),
+                ),
+                if (!isTiktok) ...<Widget>[
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     value: _selectedEncoder,
                     dropdownColor: const Color(0xFF0B1636),
-                    decoration: const InputDecoration(labelText: 'Modo de Transmissão', isDense: true, border: OutlineInputBorder()),
-                    items: const [
-                      DropdownMenuItem(value: 'Direto no Telemóvel / Tablet', child: Text('Direto no Telemóvel / Tablet (RTMP)')),
-                      DropdownMenuItem(value: 'OBS Studio / PC', child: Text('OBS Studio / PC')),
+                    decoration: const InputDecoration(labelText: 'Software de Transmissão', isDense: true, border: OutlineInputBorder()),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'Direto no Telemóvel / Tablet', child: Text('App Oficial / Telemóvel / Tablet')),
+                      DropdownMenuItem(value: 'OBS Studio / PC', child: Text('OBS Studio / Streamlabs / PC')),
                     ],
                     onChanged: (v) => setDialogState(() => _selectedEncoder = v ?? 'Direto no Telemóvel / Tablet'),
                   ),
-                  if (_selectedEncoder == 'Direto no Telemóvel / Tablet') ...[
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _streamKeyCtrl,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Stream Key (Chave RTMP)', isDense: true, border: OutlineInputBorder()),
-                    ),
-                  ],
                 ],
               ],
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          actions: <Widget>[
+            if (_radarMonitoredPlatforms.contains(platformId) || _activePlatforms[platformId] == true)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _radarMonitoredPlatforms.remove(platformId);
+                    _activePlatforms[platformId] = false;
+                  });
+                  _liveConnector.disconnect();
+                  Navigator.pop(ctx);
+                  _showSnack('Radar de $platformName desligado.');
+                },
+                child: const Text('Desligar Radar', style: TextStyle(color: Colors.redAccent)),
+              ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E78FF)),
               onPressed: () async {
-                await _saveSettings();
-                final user = _channelCtrl.text.trim();
+                final user = individualCtrl.text.trim();
+                _platformHandles[platformId] = user;
+                await prefs.setString('hell_platform_handle_$platformId', user);
                 if (user.isNotEmpty) {
-                  setState(() => _activePlatforms[platformId] = true);
-                  await _liveConnector.connect(platformId, user);
+                  _radarMonitoredPlatforms.add(platformId);
+                  _ensureLiveRadarRunning();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await _verifyPlatformRealLiveStatus(platformId, user);
+                } else {
+                  setState(() {
+                    _radarMonitoredPlatforms.remove(platformId);
+                    _activePlatforms[platformId] = false;
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
                 }
-                if (mounted) Navigator.pop(ctx);
               },
-              child: const Text('Ligar Agora (ON)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Guardar & Ativar Radar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       ),
     );
   }
+
 
    BoxDecoration _neonCard() => BoxDecoration(
         gradient: const LinearGradient(
@@ -667,33 +758,39 @@ class _MainShellState extends State<MainShell> {
           border: Border.all(color: Colors.black, width: 2),
           boxShadow: [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.14), blurRadius: 8)],
         ),
-        child: GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 4,
-          crossAxisSpacing: isWide ? 14 : 8,
-          mainAxisSpacing: isWide ? 14 : 8,
-          childAspectRatio: isWide ? 2.6 : 0.92,
-          children: platforms.map((p) {
-            final id = p['id']!;
-            final name = p['name']!;
-            final isOnline = _activePlatforms[id] == true;
-            return PlatformGlassTile(
-              platform: id,
-              label: name,
-              isActive: isOnline,
-              onTap: () => _handlePlatformTap(id, name),
-              onLongPress: () => _openPlatformSetupDialog(id, name),
+               child: LayoutBuilder(
+          builder: (ctx, box) {
+            final double tileW = (box.maxWidth - 30) / 4;
+            final double targetH = (tileW * 1.12).clamp(96.0, 148.0);
+            final double ratio = (tileW / targetH).clamp(0.78, 1.25);
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: ratio,
+              children: platforms.map((p) {
+                final id = p['id']!;
+                final name = p['name']!;
+                final isOnline = _activePlatforms[id] == true;
+                return PlatformGlassTile(
+                  platform: id,
+                  label: name,
+                  isActive: isOnline,
+                  onTap: () => _handlePlatformTap(id, name),
+                  onLongPress: () => _openPlatformSetupDialog(id, name),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         ),
       ),
     );
 
-
     final deckPanel = isWide
         ? SizedBox(width: double.infinity, child: deckCard)
-        : Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: deckCard));
+        : Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 680), child: deckCard));
 
     return ListView(
       padding: EdgeInsets.fromLTRB(isWide ? 24 : 14, 12, isWide ? 24 : 14, 24),
