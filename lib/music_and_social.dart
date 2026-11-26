@@ -457,6 +457,20 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> with Auto
                                 icon: const Icon(Icons.add_circle_outline, size: 16),
                                 label: const Text('Adicionar Rádio / Link Stream'),
                               ),
+                                                   ValueListenableBuilder<bool>(
+                       valueListenable: FloatingMusicEdgeHandle.visibleNotifier,
+                       builder: (_, isVis, __) => SwitchListTile(
+                         dense: true,
+                         contentPadding: EdgeInsets.zero,
+                         value: isVis,
+                         activeColor: const Color(0xFF38BDF8),
+                         title: const Text(
+                           'Mostrar Botão Flutuante de Música no Ecrã',
+                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                         ),
+                         onChanged: (v) => FloatingMusicEdgeHandle.visibleNotifier.value = v,
+                       ),
+                     ),
                             ],
                           ),
                         );
