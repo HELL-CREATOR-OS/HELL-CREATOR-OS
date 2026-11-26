@@ -43,18 +43,47 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
   String _themeMode = 'azul';
   void _changeTheme(String mode) => setState(() => _themeMode = mode);
 
-  ThemeData _buildTheme() {
+   ThemeData _buildTheme() {
+    final elevatedBtnStyle = ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF0284C7),
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: Colors.white12,
+        disabledForegroundColor: Colors.white54,
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+    final outlinedBtnStyle = OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _themeMode == 'claro' ? const Color(0xFF0369A1) : const Color(0xFFE0F2FE),
+        side: BorderSide(color: _themeMode == 'claro' ? const Color(0xFF0284C7) : const Color(0xFF38BDF8)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+    final textBtnStyle = TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: _themeMode == 'claro' ? const Color(0xFF0284C7) : const Color(0xFF7DD3FC),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+
     if (_themeMode == 'claro') {
       return ThemeData.light().copyWith(
         primaryColor: const Color(0xFF1D6CE0),
         colorScheme: const ColorScheme.light(primary: Color(0xFF1D6CE0), secondary: Color(0xFF38BDF8)),
+        elevatedButtonTheme: elevatedBtnStyle,
+        outlinedButtonTheme: outlinedBtnStyle,
+        textButtonTheme: textBtnStyle,
       );
     } else if (_themeMode == 'escuro') {
       return ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF07090E),
         cardColor: const Color(0xFF10131C),
-        primaryColor: const Color(0xFF2563EB),
+        primaryColor: const Color(0xFF3563E9),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF07090E), elevation: 0),
+        elevatedButtonTheme: elevatedBtnStyle,
+        outlinedButtonTheme: outlinedBtnStyle,
+        textButtonTheme: textBtnStyle,
       );
     }
     return ThemeData.dark().copyWith(
@@ -63,8 +92,12 @@ class _HellCreatorOsAppState extends State<HellCreatorOsApp> {
       primaryColor: const Color(0xFF1E78FF),
       appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF050B1E), elevation: 0),
       colorScheme: const ColorScheme.dark(primary: Color(0xFF1E78FF), secondary: Color(0xFF38BDF8)),
+      elevatedButtonTheme: elevatedBtnStyle,
+      outlinedButtonTheme: outlinedBtnStyle,
+      textButtonTheme: textBtnStyle,
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
