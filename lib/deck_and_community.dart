@@ -1,3 +1,4 @@
+import 'episode_recorder_studio.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -401,6 +402,22 @@ class _StreamDeckScreenState extends State<StreamDeckScreen> {
                 children: [
                   IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF38BDF8)), onPressed: widget.onMinimizeDeck),
                   Expanded(child: Center(child: Text('STREAM DECK HELL · PÁG ${_currentPage + 1}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)))),
+                             IconButton(
+             tooltip: 'Gravador de Episódios & Replay (0 MB no Telemóvel)',
+             icon: const Icon(Icons.video_library_rounded, color: Colors.redAccent, size: 21),
+             onPressed: () => showModalBottomSheet(
+               context: context,
+               isScrollControlled: true,
+               backgroundColor: const Color(0xFF050B1E),
+               builder: (_) => Padding(
+                 padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                 child: SingleChildScrollView(
+                   child: HellEpisodeRecorderPanel(onSendDeckCommand: widget.onSendDeckCommand),
+                 ),
+               ),
+             ),
+           ),
+
                   IconButton(
                     icon: Icon(_previewPopupEnabled ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.cyanAccent, size: 20),
                     onPressed: () => setState(() => _previewPopupEnabled = !_previewPopupEnabled),
