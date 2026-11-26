@@ -100,7 +100,7 @@ class MusicDeckController {
     final prevIdx = (currentIndex - 1 + radioStations.length) % radioStations.length;
     await playIndex(prevIdx);
   }
-
+}
 class FloatingMusicEdgeHandle extends StatefulWidget {
   final VoidCallback onOpenMusicScreen;
   static final ValueNotifier<bool> visibleNotifier = ValueNotifier<bool>(true);
