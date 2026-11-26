@@ -1,3 +1,5 @@
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'chat_tts_live_engine.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -235,15 +237,105 @@ class FloatingHellFriendBubble extends StatefulWidget {
 }
 
 class _FloatingHellFriendBubbleState extends State<FloatingHellFriendBubble> {
-  double _rightOffset = 14;
-  double _bottomOffset = 155;
+  Offset? _pos;
+  bool _isDragging = false;
+  bool _overCloseZone = false;
 
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _voiceWakeEnabled = true;
+  bool _isListening = false;
+  String _wakePhrase = 'ei hell';
+  String _lastHeard = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVoiceWakePrefs();
+  }
+
+  Future<void> _loadVoiceWakePrefs() async {
+    final p = await SharedPreferences.getInstance();
+    _wakePhrase = (p.getString('hell_robot_wake_word') ?? 'ei hell').toLowerCase().trim();
+    _voiceWakeEnabled = p.getBool('hell_robot_voice_wake') ?? true;
+    if (_voiceWakeEnabled) {
+      _startWakeListener();
+    }
+  }
+
+  Future<void> _startWakeListener() async {
+    if (!_voiceWakeEnabled || _isListening) return;
+    try {
+      final ok = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            _isListening = false;
+            if (mounted && _voiceWakeEnabled && HellVirtualFriendController.floatingBubbleEnabled.value) {
+              Future<void>.delayed(const Duration(milliseconds: 600), _startWakeListener);
+            }
+          }
+        },
+        onError: (_) {
+          _isListening = false;
+        },
+      );
+      if (ok && mounted) {
+        _isListening = true;
+        await _speech.listen(
+          localeId: 'pt_PT',
+          listenMode: stt.ListenMode.dictation,
+          partialResults: false,
+          onResult: (res) async {
+            final heard = res.recognizedWords.trim();
+            if (heard.isEmpty) return;
+            _lastHeard = heard;
+            final lower = heard.toLowerCase();
+            final wake = _wakePhrase.isEmpty ? 'ei hell' : _wakePhrase;
+            if (lower.contains(wake)) {
+              final idx = lower.indexOf(wake);
+              final command = heard.substring(idx + wake.length).trim();
+              await _handleVoiceCommand(command.isEmpty ? 'olá' : command);
+            }
+          },
+        );
+      }
+    } catch (_) {
+      _isListening = false;
+    }
+  }
+
+  Future<void> _handleVoiceCommand(String cmd) async {
+    final lower = cmd.toLowerCase();
+    String reply;
+    if (lower.contains('próxima música') || lower.contains('proxima musica') || lower.contains('muda de música') || lower.contains('seguinte')) {
+      await MusicDeckController.nextTrack();
+      reply = 'A mudar para a próxima música ou rádio.';
+    } else if (lower.contains('música anterior') || lower.contains('musica anterior') || lower.contains('anterior')) {
+      await MusicDeckController.previousTrack();
+      reply = 'A voltar à música ou rádio anterior.';
+    } else if (lower.contains('para a música') || lower.contains('parar música') || lower.contains('desliga a música')) {
+      await MusicDeckController.stopImmediately();
+      reply = 'Música desligada.';
+    } else if (lower.contains('toca música') || lower.contains('põe música')) {
+      await MusicDeckController.togglePlayPause();
+      reply = 'A reproduzir música agora.';
+    } else {
+      reply = await HellVirtualFriendController.processPrompt(cmd);
+    }
+    await HellChatTtsController.speakGlobal(reply);
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    super.dispose();
+  }
   void _openAssistantModal(BuildContext context) {
     final inputCtrl = TextEditingController();
+    final wakeCtrl = TextEditingController(text: _wakePhrase);
     final List<Map<String, String>> chat = <Map<String, String>>[
-      {
+      <String, String>{
         'from': 'bot',
-        'text': 'Olá! Sou o ${HellVirtualFriendController.botName.value}. Pede uma piada, rádio, dica, horas ou um alarme!',
+        'text': 'Olá! Sou o ${HellVirtualFriendController.botName.value}. Diz "$_wakePhrase" a qualquer momento ou escreve aqui o que precisas!',
       },
     ];
 
@@ -253,116 +345,136 @@ class _FloatingHellFriendBubbleState extends State<FloatingHellFriendBubble> {
         builder: (ctx, setModal) => AlertDialog(
           backgroundColor: const Color(0xFF0A1433),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: BorderSide(color: HellVirtualFriendController.primaryColor.value, width: 1.6),
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: HellVirtualFriendController.primaryColor.value, width: 1.5),
           ),
           title: Row(
-            children: [
+            children: <Widget>[
               HellFriendRobotAvatar(
                 skinId: HellVirtualFriendController.skinId.value,
                 primaryColor: HellVirtualFriendController.primaryColor.value,
                 eyeColor: HellVirtualFriendController.eyeColor.value,
-                size: 42,
+                size: 32,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(HellVirtualFriendController.botName.value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                    Text('Voz: "${HellVirtualFriendController.wakePhrase.value}"', style: const TextStyle(fontSize: 10, color: Color(0xFF38BDF8))),
-                  ],
+                child: Text(
+                  '${HellVirtualFriendController.botName.value} · VOZ ATIVA',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
                 ),
+              ),
+              Switch(
+                value: _voiceWakeEnabled,
+                activeColor: const Color(0xFF38BDF8),
+                onChanged: (v) async {
+                  setState(() => _voiceWakeEnabled = v);
+                  setModal(() {});
+                  final p = await SharedPreferences.getInstance();
+                  await p.setBool('hell_robot_voice_wake', v);
+                  if (v) {
+                    _startWakeListener();
+                  } else {
+                    await _speech.stop();
+                    _isListening = false;
+                  }
+                },
               ),
             ],
           ),
           content: SizedBox(
             width: 390,
-            height: 300,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: chat.length,
-                    itemBuilder: (_, i) {
-                      final m = chat[i];
-                      final isBot = m['from'] == 'bot';
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isBot ? const Color(0xFF13275E) : const Color(0xFF04091A),
-                          borderRadius: BorderRadius.circular(12),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: wakeCtrl,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: const InputDecoration(
+                            labelText: 'Comando de Ativação por Voz (ex: ei hell)',
+                            isDense: true,
+                          ),
                         ),
-                        child: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12.5, color: Colors.white)),
-                      );
-                    },
-                  ),
-                ),
-                Wrap(
-                  spacing: 6,
-                  children: [
-                    ActionChip(
-                      label: const Text('😂 Piada', style: TextStyle(fontSize: 10.5)),
-                      onPressed: () async {
-                        final r = await HellVirtualFriendController.processPrompt('conta uma piada');
-                        setModal(() {
-                          chat.add({'from': 'user', 'text': 'Conta uma piada'});
-                          chat.add({'from': 'bot', 'text': r});
-                        });
-                      },
-                    ),
-                    ActionChip(
-                      label: const Text('📻 Rádio', style: TextStyle(fontSize: 10.5)),
-                      onPressed: () async {
-                        final r = await HellVirtualFriendController.processPrompt('tocar rádio comercial');
-                        setModal(() {
-                          chat.add({'from': 'user', 'text': 'Tocar rádio'});
-                          chat.add({'from': 'bot', 'text': r});
-                        });
-                      },
-                    ),
-                    ActionChip(
-                      label: const Text('⏰ Alarme 10m', style: TextStyle(fontSize: 10.5)),
-                      onPressed: () async {
-                        final r = await HellVirtualFriendController.processPrompt('criar alarme de 10 minutos');
-                        setModal(() {
-                          chat.add({'from': 'user', 'text': 'Alarme 10 min'});
-                          chat.add({'from': 'bot', 'text': r});
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: inputCtrl,
-                        style: const TextStyle(fontSize: 12),
-                        decoration: const InputDecoration(hintText: 'Fala com o teu amigo IA...', isDense: true, border: OutlineInputBorder()),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
-                      onPressed: () async {
-                        final q = inputCtrl.text.trim();
-                        if (q.isEmpty) return;
-                        inputCtrl.clear();
-                        final ans = await HellVirtualFriendController.processPrompt(q);
-                        setModal(() {
-                          chat.add({'from': 'user', 'text': q});
-                          chat.add({'from': 'bot', 'text': ans});
-                        });
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final nw = wakeCtrl.text.trim().toLowerCase();
+                          if (nw.isNotEmpty) {
+                            setState(() => _wakePhrase = nw);
+                            final p = await SharedPreferences.getInstance();
+                            await p.setString('hell_robot_wake_word', nw);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Palavra de ativação atualizada para "$nw"')),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text('Guardar', style: TextStyle(fontSize: 11.5)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 185,
+                    child: ListView.builder(
+                      itemCount: chat.length,
+                      itemBuilder: (_, idx) {
+                        final m = chat[idx];
+                        final isBot = m['from'] == 'bot';
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isBot ? const Color(0xFF112252) : const Color(0xFF04091A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(m['text'] ?? '', style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+                        );
                       },
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: inputCtrl,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: const InputDecoration(
+                            hintText: 'Fala ou escreve ao teu amigo IA...',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+                        onPressed: () async {
+                          final q = inputCtrl.text.trim();
+                          if (q.isEmpty) return;
+                          inputCtrl.clear();
+                          final ans = await HellVirtualFriendController.processPrompt(q);
+                          setModal(() {
+                            chat.add(<String, String>{'from': 'user', 'text': q});
+                            chat.add(<String, String>{'from': 'bot', 'text': ans});
+                          });
+                          await HellChatTtsController.speakGlobal(ans);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar'))],
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+          ],
         ),
       ),
     );
@@ -370,44 +482,105 @@ class _FloatingHellFriendBubbleState extends State<FloatingHellFriendBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    _pos ??= Offset(size.width - 34, size.height - 235);
+
     return ValueListenableBuilder<bool>(
       valueListenable: HellVirtualFriendController.floatingBubbleEnabled,
       builder: (context, enabled, _) {
         if (!enabled) return const SizedBox.shrink();
-        return Positioned(
-          right: _rightOffset,
-          bottom: _bottomOffset,
-          child: GestureDetector(
-            onPanUpdate: (d) {
-              setState(() {
-                _rightOffset = (_rightOffset - d.delta.dx).clamp(6.0, 280.0);
-                _bottomOffset = (_bottomOffset - d.delta.dy).clamp(70.0, 520.0);
-              });
-            },
-            onTap: () => _openAssistantModal(context),
-            child: ValueListenableBuilder<Color>(
-              valueListenable: HellVirtualFriendController.primaryColor,
-              builder: (_, pColor, __) => Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A1433).withOpacity(0.95),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: pColor, width: 2),
+        final double posX = (_pos!.dx).clamp(0.0, size.width - 32);
+        final double posY = (_pos!.dy).clamp(40.0, size.height - 72);
+        final bool onRightEdge = posX > (size.width - 55) && !_isDragging;
+
+        return Stack(
+          children: <Widget>[
+            if (_isDragging)
+              Positioned(
+                bottom: 24,
+                left: (size.width / 2) - 30,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: _overCloseZone ? 66 : 56,
+                  height: _overCloseZone ? 66 : 56,
+                  decoration: BoxDecoration(
+                    color: _overCloseZone ? Colors.red : Colors.redAccent.withOpacity(0.85),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: const <BoxShadow>[BoxShadow(color: Colors.black54, blurRadius: 12)],
+                  ),
+                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
                 ),
-                child: HellFriendRobotAvatar(
-                  skinId: HellVirtualFriendController.skinId.value,
-                  primaryColor: pColor,
-                  eyeColor: HellVirtualFriendController.eyeColor.value,
-                  size: 46,
+              ),
+            Positioned(
+              left: onRightEdge ? null : posX,
+              right: onRightEdge ? 0 : null,
+              top: posY,
+              child: GestureDetector(
+                onPanStart: (_) => setState(() => _isDragging = true),
+                onPanUpdate: (d) {
+                  final next = Offset(
+                    (_pos!.dx + d.delta.dx).clamp(0.0, size.width - 30),
+                    (_pos!.dy + d.delta.dy).clamp(32.0, size.height - 56),
+                  );
+                  final centerBottom = Offset(size.width / 2, size.height - 52);
+                  final nearX = (next - centerBottom).distance < 75;
+                  setState(() {
+                    _pos = next;
+                    _overCloseZone = nearX;
+                  });
+                },
+                onPanEnd: (_) async {
+                  final shouldClose = _overCloseZone;
+                  setState(() {
+                    _isDragging = false;
+                    _overCloseZone = false;
+                  });
+                  if (shouldClose) {
+                    await _speech.stop();
+                    _isListening = false;
+                    HellVirtualFriendController.floatingBubbleEnabled.value = false;
+                  }
+                },
+                onTap: () => _openAssistantModal(context),
+                child: ValueListenableBuilder<Color>(
+                  valueListenable: HellVirtualFriendController.primaryColor,
+                  builder: (_, pColor, __) {
+                    final avatar = Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0A1433).withOpacity(0.96),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: pColor, width: 2),
+                      ),
+                      child: HellFriendRobotAvatar(
+                        skinId: HellVirtualFriendController.skinId.value,
+                        primaryColor: pColor,
+                        eyeColor: HellVirtualFriendController.eyeColor.value,
+                        size: 46,
+                      ),
+                    );
+                    if (onRightEdge) {
+                      return ClipRect(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: 0.54,
+                          child: avatar,
+                        ),
+                      );
+                    }
+                    return avatar;
+                  },
                 ),
               ),
             ),
-          ),
+          ],
         );
       },
     );
   }
 }
+
 
 class ControlCenterScreen extends StatefulWidget {
   final Map<String, dynamic> user;
