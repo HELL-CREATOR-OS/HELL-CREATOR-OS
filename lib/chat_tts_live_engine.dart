@@ -242,11 +242,12 @@ class HellChatTtsController extends ChangeNotifier {
   bool filterSpam = true;
 
   List<String> blockedWords = <String>['http://', 'https://', 'www.'];
-  Map<String, String> chatCommands = <String>{
-    '!discord': 'Entra na nossa comunidade oficial no Discord!',
-    '!loja': 'Visita o Marketplace oficial HELL CREATOR na app!',
-    '!comandos': 'Comandos disponíveis: !discord · !loja · !pedir <música> · !falar <texto>',
-  };
+Map<String, String> chatCommands = <String, String>{
+  '!discord': 'Entra na nossa comunidade oficial no Discord!',
+  '!loja': 'Visita o Marketplace oficial HELL CREATOR na app!',
+  '!comandos': 'Comandos disponíveis: !discord · !loja · !pedir <música> · !falar <texto>',
+};
+
 
   WebSocket? _twitchSocket;
   bool twitchConnected = false;
