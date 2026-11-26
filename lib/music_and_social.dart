@@ -103,6 +103,7 @@ class MusicDeckController {
 
 class FloatingMusicEdgeHandle extends StatefulWidget {
   final VoidCallback onOpenMusicScreen;
+  static final ValueNotifier<bool> visibleNotifier = ValueNotifier<bool>(true);
   const FloatingMusicEdgeHandle({super.key, required this.onOpenMusicScreen});
 
   @override
@@ -111,66 +112,172 @@ class FloatingMusicEdgeHandle extends StatefulWidget {
 
 class _FloatingMusicEdgeHandleState extends State<FloatingMusicEdgeHandle> {
   bool _expanded = false;
+  bool _isDragging = false;
+  bool _overCloseZone = false;
+  double _volume = 0.80;
+  Offset? _offset;
+
+  Future<void> _changeVolume(double delta) async {
+    final next = (_volume + delta).clamp(0.0, 1.0);
+    setState(() => _volume = next);
+    try {
+      await MusicDeckController.sharedPlayer?.setVolume(next);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    _offset ??= Offset(size.width - 28, size.height - 170);
+
     return ValueListenableBuilder<bool>(
-      valueListenable: MusicDeckController.isPlayingNotifier,
-      builder: (context, playing, _) {
-        if (!playing && !_expanded) return const SizedBox.shrink();
-        return Positioned(
-          right: 0,
-          bottom: 95,
-          child: Material(
-            color: Colors.transparent,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A1433).withOpacity(0.95),
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
-                border: Border.all(color: const Color(0xFF38BDF8), width: 1.4),
-              ),
-              child: _expanded
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 22),
-                          onPressed: () => setState(() => _expanded = false),
+      valueListenable: FloatingMusicEdgeHandle.visibleNotifier,
+      builder: (context, isVisible, _) {
+        if (!isVisible) return const SizedBox.shrink();
+        return ValueListenableBuilder<bool>(
+          valueListenable: MusicDeckController.isPlayingNotifier,
+          builder: (context, isPlaying, _) {
+            if (!isPlaying && !_expanded) return const SizedBox.shrink();
+            final double maxX = (size.width - (_expanded ? 310 : 28)).clamp(0.0, size.width);
+            final double maxY = (size.height - 64).clamp(0.0, size.height);
+            final double posX = _expanded ? ((_offset!.dx).clamp(8.0, maxX)) : (_offset!.dx).clamp(0.0, size.width - 26);
+            final double posY = (_offset!.dy).clamp(40.0, maxY);
+
+            return Stack(
+              children: <Widget>[
+                if (_isDragging)
+                  Positioned(
+                    bottom: 24,
+                    left: (size.width / 2) - 30,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: _overCloseZone ? 66 : 56,
+                      height: _overCloseZone ? 66 : 56,
+                      decoration: BoxDecoration(
+                        color: _overCloseZone ? Colors.red : Colors.redAccent.withOpacity(0.85),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: const <BoxShadow>[BoxShadow(color: Colors.black54, blurRadius: 12)],
+                      ),
+                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                    ),
+                  ),
+                Positioned(
+                  left: posX,
+                  top: posY,
+                  child: GestureDetector(
+                    onPanStart: (_) => setState(() => _isDragging = true),
+                    onPanUpdate: (details) {
+                      final next = Offset(
+                        (_offset!.dx + details.delta.dx).clamp(0.0, size.width - 24),
+                        (_offset!.dy + details.delta.dy).clamp(32.0, size.height - 48),
+                      );
+                      final centerBottom = Offset(size.width / 2, size.height - 52);
+                      final nearX = (next - centerBottom).distance < 75;
+                      setState(() {
+                        _offset = next;
+                        _overCloseZone = nearX;
+                      });
+                    },
+                    onPanEnd: (_) async {
+                      final shouldClose = _overCloseZone;
+                      setState(() {
+                        _isDragging = false;
+                        _overCloseZone = false;
+                      });
+                      if (shouldClose) {
+                        await MusicDeckController.stopImmediately();
+                        FloatingMusicEdgeHandle.visibleNotifier.value = false;
+                      }
+                    },
+                    child: Material(
+                      color: Colors.transparent,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(horizontal: _expanded ? 6 : 3, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B1433).withOpacity(0.96),
+                          borderRadius: _expanded
+                              ? BorderRadius.circular(18)
+                              : const BorderRadius.horizontal(left: Radius.circular(14), right: Radius.circular(14)),
+                          border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
                         ),
-                        const SizedBox(width: 6),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 115),
-                          child: ValueListenableBuilder<String>(
-                            valueListenable: MusicDeckController.currentTitleNotifier,
-                            builder: (_, title, __) => Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.amberAccent, size: 24),
-                          onPressed: () => MusicDeckController.togglePlayPause(),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 22),
-                          onPressed: () async {
-                            await MusicDeckController.stopImmediately();
-                            if (mounted) setState(() => _expanded = false);
-                          },
-                        ),
-                      ],
-                    )
-                  : InkWell(
-                      onTap: () => setState(() => _expanded = true),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                        child: Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8), size: 20),
+                        child: _expanded
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 20),
+                                    onPressed: () => setState(() => _expanded = false),
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Anterior',
+                                    icon: const Icon(Icons.skip_previous_rounded, color: Color(0xFF38BDF8), size: 22),
+                                    onPressed: () async {
+                                      await MusicDeckController.previousTrack();
+                                      setState(() {});
+                                    },
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.amberAccent, size: 24),
+                                    onPressed: () => MusicDeckController.togglePlayPause(),
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Seguinte',
+                                    icon: const Icon(Icons.skip_next_rounded, color: Color(0xFF38BDF8), size: 22),
+                                    onPressed: () async {
+                                      await MusicDeckController.nextTrack();
+                                      setState(() {});
+                                    },
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Baixar Volume',
+                                    icon: const Icon(Icons.volume_down_rounded, color: Colors.white70, size: 20),
+                                    onPressed: () => _changeVolume(-0.12),
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Aumentar Volume',
+                                    icon: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 20),
+                                    onPressed: () => _changeVolume(0.12),
+                                  ),
+                                  IconButton(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Parar Música',
+                                    icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 21),
+                                    onPressed: () async {
+                                      await MusicDeckController.stopImmediately();
+                                      if (mounted) setState(() => _expanded = false);
+                                    },
+                                  ),
+                                ],
+                              )
+                            : InkWell(
+                                onTap: () => setState(() => _expanded = true),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                                  child: Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8), size: 18),
+                                ),
+                              ),
                       ),
                     ),
-            ),
-          ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
