@@ -1159,7 +1159,7 @@ class _MainShellState extends State<MainShell> {
         children: <Widget>[
           screens[_selectedIndex],
           FloatingMusicEdgeHandle(onOpenMusicScreen: () => setState(() => _selectedIndex = 5)),
-          const FloatingHellFriendBubble(),
+        
         ],
       ),
 
