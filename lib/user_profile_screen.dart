@@ -994,14 +994,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> with TickerProvid
                       runSpacing: 6,
                       alignment: WrapAlignment.center,
                       children: <Widget>[
-                        OutlinedButton.icon(
+                                               OutlinedButton.icon(
                           onPressed: () => setM(() {
-                            frameStyle = 'none';
-                            customFrameMedia = '';
+                            if (frameStyle == 'none') {
+                              frameStyle = customFrameMedia.isNotEmpty ? 'custom_media' : 'neon_blue';
+                            } else {
+                              frameStyle = 'none';
+                            }
                           }),
-                          icon: const Icon(Icons.visibility_off_outlined, size: 16, color: Colors.amberAccent),
-                          label: const Text('Sem Anel (Ocultar)', style: TextStyle(fontSize: 12)),
+                          icon: Icon(
+                            frameStyle == 'none' ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            size: 16,
+                            color: Colors.amberAccent,
+                          ),
+                          label: Text(
+                            frameStyle == 'none' ? 'Mostrar Moldura' : 'Ocultar Moldura',
+                            style: const TextStyle(fontSize: 12),
+                          ),
                         ),
+
                         OutlinedButton.icon(
                           onPressed: () async {
                             final r = await FilePicker.platform.pickFiles(
