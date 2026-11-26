@@ -95,6 +95,11 @@ class MusicDeckController {
     await playIndex((currentIndex + 1) % radioStations.length);
   }
 }
+  static Future<void> previousTrack() async {
+    if (radioStations.isEmpty) return;
+    final prevIdx = (currentIndex - 1 + radioStations.length) % radioStations.length;
+    await playIndex(prevIdx);
+  }
 
 class FloatingMusicEdgeHandle extends StatefulWidget {
   final VoidCallback onOpenMusicScreen;
@@ -315,6 +320,15 @@ class _MusicBackgroundScreenState extends State<MusicBackgroundScreen> with Auto
                                     icon: const Icon(Icons.stop),
                                     label: const Text('Parar'),
                                   ),
+                                                          IconButton(
+                          tooltip: 'Música / Rádio Anterior',
+                          icon: const Icon(Icons.skip_previous_rounded, color: Color(0xFF38BDF8)),
+                          onPressed: () async {
+                            await MusicDeckController.previousTrack();
+                            setState(() {});
+                          },
+                        ),
+
                                   IconButton(
                                     icon: const Icon(Icons.skip_next_rounded, color: Color(0xFF38BDF8)),
                                     onPressed: () async {
