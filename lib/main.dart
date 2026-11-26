@@ -1,3 +1,4 @@
+import 'chat_tts_live_engine.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
@@ -992,25 +993,11 @@ class _MainShellState extends State<MainShell> {
         onSpeakVoice: (txt) => _speakRealVoice(txt),
         onStateChanged: () => setState(() {}),
       ),
-      ChatTtsRepositoryScreen(
-        ttsEnabled: _ttsEnabled,
-        speechRate: _speechRate,
-        pitch: _voicePitch,
-        volume: _voiceVolume,
-        onToggleTts: (v) {
-          setState(() => _ttsEnabled = v);
-          _saveSettings();
-        },
-        onParamsChanged: (r, p, vol) {
-          setState(() {
-            _speechRate = r;
-            _voicePitch = p;
-            _voiceVolume = vol;
-          });
-          _saveSettings();
-        },
-        onTestVoice: (sample) => _speakRealVoice(sample),
-      ),
+        Column(children: <Widget>[
+     Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: HellOfficialMenuBanner(menuId: 'voice_tts', currentUser: widget.user)),
+     Expanded(child: HellChatAndTtsLiveScreen(currentUser: widget.user)),
+   ]),
+
             Column(children: <Widget>[
         Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: HellOfficialMenuBanner(menuId: 'music', currentUser: widget.user)),
         Expanded(child: MusicBackgroundScreen(bgPlayer: bgMusicPlayer)),
