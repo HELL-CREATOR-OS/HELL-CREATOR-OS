@@ -108,72 +108,73 @@ class HellHumanNeuralVoiceEngine {
 
 
 class HellChatTtsController extends ChangeNotifier {
-  static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
+   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
     HellOriginalVoiceProfile(
-      id: 'adult_announcer_m',
-      label: 'Adulto Locutor (Masculina Real)',
+      id: 'm_pt_locutor',
+      label: '🎙️ Masculina 1 · Flávio (Locutor Lisboa · Grave)',
       gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 0.96,
-      fallbackPitch: 0.85,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'young_energetic_m',
-      label: 'Jovem Enérgico (Masculina)',
-      gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 1.18,
-      fallbackPitch: 1.05,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'adult_calm_m',
-      label: 'Adulto Calmo (Masculina)',
-      gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 0.86,
-      fallbackPitch: 0.88,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'adult_stressed_m',
-      label: 'Adulto Stressado (Masculina)',
-      gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 1.32,
-      fallbackPitch: 1.14,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'adult_tipsy_m',
-      label: 'Adulto Embriagado · Humor Live',
-      gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 0.74,
-      fallbackPitch: 0.78,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'adult_tired_m',
-      label: 'Adulto Cansado / Sonolento',
-      gender: 'M',
-      voiceCode: 'pt-BR',
-      playbackRate: 0.78,
-      fallbackPitch: 0.80,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'child_voice',
-      label: 'Criança / Juvenil (Aguda)',
-      gender: 'F',
       voiceCode: 'pt-PT',
-      playbackRate: 1.16,
-      fallbackPitch: 1.35,
+      playbackRate: 0.95,
+      fallbackPitch: 0.72,
     ),
     HellOriginalVoiceProfile(
-      id: 'adult_announcer_f',
-      label: 'Adulta Locutora (Feminina Real)',
+      id: 'm_pt_jovem',
+      label: '⚡ Masculina 2 · Enzo (Jovem Porto · Dinâmico)',
+      gender: 'M',
+      voiceCode: 'pt-PT',
+      playbackRate: 1.12,
+      fallbackPitch: 0.94,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'm_pt_profundo',
+      label: '🦁 Masculina 3 · Fernandes (Voz de Cinema · Muito Grave)',
+      gender: 'M',
+      voiceCode: 'pt-PT',
+      playbackRate: 0.86,
+      fallbackPitch: 0.58,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'm_pt_porto',
+      label: '🏔️ Masculina 4 · Hélder (Sotaque Porto · Calmo)',
+      gender: 'M',
+      voiceCode: 'pt-PT',
+      playbackRate: 0.98,
+      fallbackPitch: 0.82,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'f_pt_locutora',
+      label: '👩‍🎤 Feminina 1 · Sandra (Locutora Lisboa · Clara)',
       gender: 'F',
       voiceCode: 'pt-PT',
       playbackRate: 1.00,
-      fallbackPitch: 1.02,
+      fallbackPitch: 1.28,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'f_pt_doce',
+      label: '🌸 Feminina 2 · Noa (Jovem Suave · Aguda)',
+      gender: 'F',
+      voiceCode: 'pt-PT',
+      playbackRate: 1.08,
+      fallbackPitch: 1.46,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'f_pt_radio',
+      label: '📻 Feminina 3 · Mara (Rádio FM · Grave Suave)',
+      gender: 'F',
+      voiceCode: 'pt-PT',
+      playbackRate: 0.94,
+      fallbackPitch: 1.14,
+    ),
+    HellOriginalVoiceProfile(
+      id: 'f_pt_suave',
+      label: '🏔️ Feminina 4 · Lúcia (Sotaque Porto · Expressiva)',
+      gender: 'F',
+      voiceCode: 'pt-PT',
+      playbackRate: 1.04,
+      fallbackPitch: 1.34,
     ),
   ];
+
 
   static HellChatTtsController? activeInstance;
 
@@ -217,7 +218,7 @@ class HellChatTtsController extends ChangeNotifier {
   String selectedLanguage = 'pt-PT';
   double customPitch = 0.85;
   double customSpeed = 0.96;
-  String selectedVoiceId = 'adult_announcer_m';
+  String selectedVoiceId = 'm_pt_porto';
   String readFilter = 'all';
   int maxChars = 140;
   bool readSenderName = true;
@@ -314,12 +315,16 @@ class HellChatTtsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setSelectedVoice(String voiceId) async {
+   Future<void> setSelectedVoice(String voiceId) async {
     selectedVoiceId = voiceId;
+    final v = currentVoice;
+    customPitch = v.fallbackPitch;
+    customSpeed = v.playbackRate;
     final p = await SharedPreferences.getInstance();
     await p.setString('hell_tts_voice_id_v3', voiceId);
     notifyListeners();
   }
+
 
   Future<void> toggleTts(bool value) async {
     ttsEnabled = value;
@@ -406,7 +411,10 @@ class HellChatTtsController extends ChangeNotifier {
             final name = (item['name'] ?? '').toString();
             final locale = (item['locale'] ?? '').toString().toLowerCase();
             final lowerName = name.toLowerCase();
-            if (locale.startsWith(langPrefix) && targetKeys.any((k) => lowerName.contains(k))) {
+                        final normTarget = selectedLanguage.toLowerCase().replaceAll('_', '-');
+            final normLocale = locale.replaceAll('_', '-');
+            if (normLocale == normTarget && targetKeys.any((k) => lowerName.contains(k))) {
+
               chosen = <String, String>{'name': name, 'locale': (item['locale'] ?? selectedLanguage).toString()};
               break;
             }
