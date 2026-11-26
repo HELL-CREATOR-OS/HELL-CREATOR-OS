@@ -112,10 +112,9 @@ class FloatingMusicEdgeHandle extends StatefulWidget {
 
 class _FloatingMusicEdgeHandleState extends State<FloatingMusicEdgeHandle> {
   bool _expanded = false;
-  bool _isDragging = false;
-  bool _overCloseZone = false;
+  bool _onRightEdge = true;
+  double _topY = 220.0;
   double _volume = 0.80;
-  Offset? _offset;
 
   Future<void> _changeVolume(double delta) async {
     final next = (_volume + delta).clamp(0.0, 1.0);
@@ -128,7 +127,7 @@ class _FloatingMusicEdgeHandleState extends State<FloatingMusicEdgeHandle> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    _offset ??= Offset(size.width - 28, size.height - 170);
+    final double clampedY = _topY.clamp(24.0, (size.height - 54.0).clamp(24.0, size.height));
 
     return ValueListenableBuilder<bool>(
       valueListenable: FloatingMusicEdgeHandle.visibleNotifier,
@@ -137,145 +136,118 @@ class _FloatingMusicEdgeHandleState extends State<FloatingMusicEdgeHandle> {
         return ValueListenableBuilder<bool>(
           valueListenable: MusicDeckController.isPlayingNotifier,
           builder: (context, isPlaying, _) {
-            if (!isPlaying && !_expanded) return const SizedBox.shrink();
-            final double maxX = (size.width - (_expanded ? 310 : 28)).clamp(0.0, size.width);
-            final double maxY = (size.height - 64).clamp(0.0, size.height);
-            final double posX = _expanded ? ((_offset!.dx).clamp(8.0, maxX)) : (_offset!.dx).clamp(0.0, size.width - 26);
-            final double posY = (_offset!.dy).clamp(40.0, maxY);
-
-            return Stack(
-              children: <Widget>[
-                if (_isDragging)
-                  Positioned(
-                    bottom: 24,
-                    left: (size.width / 2) - 30,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: _overCloseZone ? 66 : 56,
-                      height: _overCloseZone ? 66 : 56,
-                      decoration: BoxDecoration(
-                        color: _overCloseZone ? Colors.red : Colors.redAccent.withOpacity(0.85),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: const <BoxShadow>[BoxShadow(color: Colors.black54, blurRadius: 12)],
+            return Positioned(
+              left: _onRightEdge ? null : 0,
+              right: _onRightEdge ? 0 : null,
+              top: clampedY,
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  setState(() {
+                    _topY = (_topY + details.delta.dy).clamp(24.0, (size.height - 54.0).clamp(24.0, size.height));
+                    if (details.globalPosition.dx < size.width * 0.45) {
+                      _onRightEdge = false;
+                    } else if (details.globalPosition.dx > size.width * 0.55) {
+                      _onRightEdge = true;
+                    }
+                  });
+                },
+                child: Material(
+                  color: Colors.transparent,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: EdgeInsets.symmetric(horizontal: _expanded ? 6 : 2, vertical: _expanded ? 5 : 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B1433).withOpacity(_expanded ? 0.96 : 0.65),
+                      borderRadius: _expanded
+                          ? BorderRadius.circular(16)
+                          : (_onRightEdge
+                              ? const BorderRadius.horizontal(left: Radius.circular(10))
+                              : const BorderRadius.horizontal(right: Radius.circular(10))),
+                      border: Border.all(
+                        color: const Color(0xFF38BDF8).withOpacity(_expanded ? 0.9 : 0.45),
+                        width: 1.0,
                       ),
-                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
                     ),
-                  ),
-                Positioned(
-                  left: posX,
-                  top: posY,
-                  child: GestureDetector(
-                    onPanStart: (_) => setState(() => _isDragging = true),
-                    onPanUpdate: (details) {
-                      final next = Offset(
-                        (_offset!.dx + details.delta.dx).clamp(0.0, size.width - 24),
-                        (_offset!.dy + details.delta.dy).clamp(32.0, size.height - 48),
-                      );
-                      final centerBottom = Offset(size.width / 2, size.height - 52);
-                      final nearX = (next - centerBottom).distance < 75;
-                      setState(() {
-                        _offset = next;
-                        _overCloseZone = nearX;
-                      });
-                    },
-                    onPanEnd: (_) async {
-                      final shouldClose = _overCloseZone;
-                      setState(() {
-                        _isDragging = false;
-                        _overCloseZone = false;
-                      });
-                      if (shouldClose) {
-                        await MusicDeckController.stopImmediately();
-                        FloatingMusicEdgeHandle.visibleNotifier.value = false;
-                      }
-                    },
-                    child: Material(
-                      color: Colors.transparent,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: EdgeInsets.symmetric(horizontal: _expanded ? 6 : 3, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0B1433).withOpacity(0.96),
-                          borderRadius: _expanded
-                              ? BorderRadius.circular(18)
-                              : const BorderRadius.horizontal(left: Radius.circular(14), right: Radius.circular(14)),
-                          border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
-                        ),
-                        child: _expanded
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    icon: const Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 20),
-                                    onPressed: () => setState(() => _expanded = false),
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    tooltip: 'Anterior',
-                                    icon: const Icon(Icons.skip_previous_rounded, color: Color(0xFF38BDF8), size: 22),
-                                    onPressed: () async {
-                                      await MusicDeckController.previousTrack();
-                                      setState(() {});
-                                    },
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.amberAccent, size: 24),
-                                    onPressed: () => MusicDeckController.togglePlayPause(),
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    tooltip: 'Seguinte',
-                                    icon: const Icon(Icons.skip_next_rounded, color: Color(0xFF38BDF8), size: 22),
-                                    onPressed: () async {
-                                      await MusicDeckController.nextTrack();
-                                      setState(() {});
-                                    },
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    tooltip: 'Baixar Volume',
-                                    icon: const Icon(Icons.volume_down_rounded, color: Colors.white70, size: 20),
-                                    onPressed: () => _changeVolume(-0.12),
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    tooltip: 'Aumentar Volume',
-                                    icon: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 20),
-                                    onPressed: () => _changeVolume(0.12),
-                                  ),
-                                  IconButton(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                                    constraints: const BoxConstraints(),
-                                    tooltip: 'Parar Música',
-                                    icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 21),
-                                    onPressed: () async {
-                                      await MusicDeckController.stopImmediately();
-                                      if (mounted) setState(() => _expanded = false);
-                                    },
-                                  ),
-                                ],
-                              )
-                            : InkWell(
-                                onTap: () => setState(() => _expanded = true),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-                                  child: Icon(Icons.graphic_eq_rounded, color: Color(0xFF38BDF8), size: 18),
+                    child: _expanded
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  _onRightEdge ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                                  color: Colors.white70,
+                                  size: 18,
                                 ),
+                                onPressed: () => setState(() => _expanded = false),
                               ),
-                      ),
-                    ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Anterior',
+                                icon: const Icon(Icons.skip_previous_rounded, color: Color(0xFF38BDF8), size: 20),
+                                onPressed: () async {
+                                  await MusicDeckController.previousTrack();
+                                  setState(() {});
+                                },
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                                  color: Colors.amberAccent,
+                                  size: 22,
+                                ),
+                                onPressed: () => MusicDeckController.togglePlayPause(),
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Seguinte',
+                                icon: const Icon(Icons.skip_next_rounded, color: Color(0xFF38BDF8), size: 20),
+                                onPressed: () async {
+                                  await MusicDeckController.nextTrack();
+                                  setState(() {});
+                                },
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Baixar Volume',
+                                icon: const Icon(Icons.volume_down_rounded, color: Colors.white70, size: 18),
+                                onPressed: () => _changeVolume(-0.12),
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Aumentar Volume',
+                                icon: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 18),
+                                onPressed: () => _changeVolume(0.12),
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Parar Música',
+                                icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 19),
+                                onPressed: () async {
+                                  await MusicDeckController.stopImmediately();
+                                  if (mounted) setState(() => _expanded = false);
+                                },
+                              ),
+                            ],
+                          )
+                        : InkWell(
+                            onTap: () => setState(() => _expanded = true),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6, horizontal: 1),
+                              child: Icon(Icons.music_note_rounded, color: Color(0xFF38BDF8), size: 13),
+                            ),
+                          ),
                   ),
                 ),
-              ],
+              ),
             );
           },
         );
