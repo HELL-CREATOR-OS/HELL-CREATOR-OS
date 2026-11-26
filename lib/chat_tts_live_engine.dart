@@ -428,14 +428,25 @@ class HellChatTtsController extends ChangeNotifier {
   }
 
 
-  Future<void> _speakOfflineFallback(String text, HellOriginalVoiceProfile v) async {
+   Future<void> _speakOfflineFallback(String text, HellOriginalVoiceProfile v) async {
     try {
       await _offlineFallbackTts.stop();
+      await _offlineFallbackTts.awaitSpeakCompletion(true);
       await _selectGenderVoiceInEngine(v);
-      final double effectivePitch = (v.gender == 'F'
-              ? (customPitch < 1.15 ? 1.28 : customPitch)
-              : customPitch)
-          .clamp(0.50, 1.75);
+
+      double effectivePitch;
+      if (v.gender == 'M') {
+        final double mult = v.id == 'm_pt_profundo'
+            ? 0.62
+            : (v.id == 'm_pt_locutor' ? 0.72 : (v.id == 'm_pt_porto' ? 0.76 : 0.84));
+        effectivePitch = (customPitch * mult).clamp(0.42, 0.88);
+      } else {
+        final double floorPitch = v.id == 'f_pt_doce'
+            ? 1.46
+            : (v.id == 'f_pt_suave' ? 1.35 : (v.id == 'f_pt_locutora' ? 1.28 : 1.18));
+        effectivePitch = (customPitch < floorPitch ? floorPitch : customPitch).clamp(1.12, 1.75);
+      }
+
       final double effectiveRate = (customSpeed * 0.48).clamp(0.22, 0.90);
       await _offlineFallbackTts.setPitch(effectivePitch);
       await _offlineFallbackTts.setSpeechRate(effectiveRate);
@@ -443,29 +454,16 @@ class HellChatTtsController extends ChangeNotifier {
     } catch (_) {}
     isSpeaking = false;
     notifyListeners();
-  }
-
-       Future<void> _playHumanAudio(String text) async {
-    final v = currentVoice;
-    try {
-      final audioPath = await HellHumanNeuralVoiceEngine.synthesizeHellOwnVoiceFile(
-        rawText: text,
-        profile: v,
-        langCode: selectedLanguage,
-        speedMultiplier: customSpeed,
-        pitchMultiplier: customPitch,
-      );
-      final rate = HellHumanNeuralVoiceEngine.computePlaybackRate(
-        profile: v,
-        speedMultiplier: customSpeed,
-        pitchMultiplier: customPitch,
-      );
-      await _player.play(DeviceFileSource(audioPath));
-      await _player.setPlaybackRate(rate);
-    } catch (_) {
-      await _speakOfflineFallback(text, v);
+    if (_speechQueue.isNotEmpty) {
+      _processNextInQueue();
     }
   }
+
+  Future<void> _playHumanAudio(String text) async {
+    final v = currentVoice;
+    await _speakOfflineFallback(text, v);
+  }
+
 
 
   Future<void> speakImmediateTest(String sampleText) async {
