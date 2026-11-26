@@ -52,46 +52,166 @@ class HellOriginalVoiceProfile {
 }
 
 class HellHumanNeuralVoiceEngine {
-  static String _pickStudioVoice(HellOriginalVoiceProfile profile) {
-    if (profile.id == 'adult_announcer_m' || profile.id == 'adult_calm_m') return 'Cristiano';
-    if (profile.id == 'young_energetic_m' || profile.id == 'adult_stressed_m') return 'Thiago';
-    if (profile.gender == 'M') return 'Ricardo';
-    if (profile.id == 'child_voice') return 'Camila';
-    return 'Ines';
+  static String _resolveNeuralVoiceName(HellOriginalVoiceProfile profile, String langCode) {
+    final isFemale = profile.gender == 'F' || profile.id == 'child_voice';
+    if (langCode.startsWith('pt-BR')) {
+      if (profile.id == 'child_voice') return 'pt-BR-LeticiaNeural';
+      return isFemale ? 'pt-BR-FranciscaNeural' : 'pt-BR-AntonioNeural';
+    }
+    if (langCode.startsWith('pt')) {
+      return isFemale ? 'pt-PT-RaquelNeural' : 'pt-PT-DuarteNeural';
+    }
+    if (langCode.startsWith('en-GB')) {
+      return isFemale ? 'en-GB-SoniaNeural' : 'en-GB-RyanNeural';
+    }
+    if (langCode.startsWith('en')) {
+      return isFemale ? 'en-US-JennyNeural' : 'en-US-GuyNeural';
+    }
+    if (langCode.startsWith('es')) {
+      return isFemale ? 'es-ES-ElviraNeural' : 'es-ES-AlvaroNeural';
+    }
+    if (langCode.startsWith('fr')) {
+      return isFemale ? 'fr-FR-DeniseNeural' : 'fr-FR-HenriNeural';
+    }
+    if (langCode.startsWith('de')) {
+      return isFemale ? 'de-DE-KatjaNeural' : 'de-DE-ConradNeural';
+    }
+    if (langCode.startsWith('it')) {
+      return isFemale ? 'it-IT-ElsaNeural' : 'it-IT-DiegoNeural';
+    }
+    return isFemale ? 'pt-PT-RaquelNeural' : 'pt-PT-DuarteNeural';
   }
 
-  static Future<String> synthesizeHumanSpeechFile(String rawText, HellOriginalVoiceProfile profile) async {
+  static Future<String> synthesizeHellOwnVoiceFile({
+    required String rawText,
+    required HellOriginalVoiceProfile profile,
+    required String langCode,
+    required double speedMultiplier,
+    required double pitchMultiplier,
+  }) async {
     final clean = rawText
-        .replaceAll(RegExp(r'[\r\n]+'), ' ')
+        .replaceAll(RegExp(r'[<>&"\r\n]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    final String text = clean.isEmpty ? 'Olá, bem-vindos à live!' : clean;
-    final String studioVoice = _pickStudioVoice(profile);
+    final String text = clean.isEmpty ? 'Olá, bem-vindos à transmissão!' : (clean.length > 260 ? clean.substring(0, 260) : clean);
+    final String voiceName = _resolveNeuralVoiceName(profile, langCode);
+
+    final double effectivePitch = (profile.gender == 'F'
+            ? (pitchMultiplier < 1.05 ? 1.15 : pitchMultiplier)
+            : (pitchMultiplier > 1.05 ? 0.92 : pitchMultiplier))
+        .clamp(0.55, 1.70);
+    final int ratePct = ((speedMultiplier - 1.0) * 100).round().clamp(-45, 75);
+    final int pitchHz = ((effectivePitch - 1.0) * 65).round().clamp(-40, 65);
+    final String rateStr = ratePct >= 0 ? '+$ratePct%' : '$ratePct%';
+    final String pitchStr = pitchHz >= 0 ? '+${pitchHz}Hz' : '${pitchHz}Hz';
 
     final dir = await getTemporaryDirectory();
-    final outFile = File('${dir.path}/hell_studio_tts_${DateTime.now().microsecondsSinceEpoch}.mp3');
+    final outFile = File('${dir.path}/hell_own_voice_${DateTime.now().microsecondsSinceEpoch}.mp3');
 
-    final uri = Uri.https('://streamelements.com', '/kappa/v2/speech', <String, String>{
-      'voice': studioVoice,
-      'text': text.length > 220 ? text.substring(0, 220) : text,
-    });
+    try {
+      final ssml = '<speak version="1.0" xmlns="http://w3.org" xml:lang="$langCode">'
+          '<voice name="$voiceName">'
+          '<prosody rate="$rateStr" pitch="$pitchStr">$text</prosody>'
+          '</voice></speak>';
 
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
-    final req = await client.getUrl(uri);
-    req.headers.set('User-Agent', 'Mozilla/5.0');
-    final res = await req.close();
-    if (res.statusCode == 200) {
-      final bytes = await res.fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
-      client.close();
-      if (bytes.length > 512) {
-        await outFile.writeAsBytes(bytes, flush: true);
-        return outFile.path;
+      final uri = Uri.parse('https://microsoft.com');
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+      final req = await client.postUrl(uri);
+      req.headers.set('Content-Type', 'application/json');
+      req.headers.set('Origin', 'https://microsoft.com');
+      req.headers.set('User-Agent', 'Mozilla/5.0');
+      req.add(utf8.encode(jsonEncode(<String, dynamic>{
+        'ssml': ssml,
+        'ttsAudioFormat': 'audio-24khz-48kbitrate-mono-mp3',
+        'offsetInPlainText': 0,
+        'properties': <String, String>{'SpeakTriggerSource': 'AccTuningPagePlayButton'},
+      })));
+      final res = await req.close();
+      if (res.statusCode == 200) {
+        final bytes = await res.fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
+        client.close();
+        if (bytes.length > 600) {
+          await outFile.writeAsBytes(bytes, flush: true);
+          return outFile.path;
+        }
       }
+      client.close();
+    } catch (_) {}
+
+    // Reserva interna 100% da aplicação (WAV sintetizado com frequência Masculina ou Feminina própria, sem usar voz do aparelho)
+    final wavFile = File('${dir.path}/hell_synth_${DateTime.now().microsecondsSinceEpoch}.wav');
+    final bytes = _buildNativeFormantWav(
+      text: text,
+      isFemale: profile.gender == 'F' || profile.id == 'child_voice',
+      isChild: profile.id == 'child_voice',
+      pitchMult: effectivePitch,
+      speedMult: speedMultiplier,
+    );
+    await wavFile.writeAsBytes(bytes, flush: true);
+    return wavFile.path;
+  }
+
+  static List<int> _buildNativeFormantWav({
+    required String text,
+    required bool isFemale,
+    required bool isChild,
+    required double pitchMult,
+    required double speedMult,
+  }) {
+    const int sampleRate = 16000;
+    final double baseFreq = (isChild ? 285.0 : (isFemale ? 218.0 : 106.0)) * pitchMult;
+    final double charDuration = (0.068 / speedMult.clamp(0.5, 1.8));
+    final int totalSamples = (text.length * charDuration * sampleRate).round().clamp(8000, sampleRate * 12);
+    final List<int> pcm = List<int>.filled(totalSamples * 2, 0);
+
+    double phase = 0.0;
+    for (int i = 0; i < totalSamples; i++) {
+      final int charIdx = ((i / totalSamples) * text.length).floor().clamp(0, text.length - 1);
+      final int code = text.codeUnitAt(charIdx);
+      final bool isSpace = code == 32 || code == 44 || code == 46;
+      final double localPos = ((i / totalSamples) * text.length) - charIdx;
+      final double env = isSpace ? 0.0 : (localPos < 0.15 ? localPos / 0.15 : (localPos > 0.85 ? (1.0 - localPos) / 0.15 : 1.0));
+      final double f0 = baseFreq * (1.0 + 0.06 * ((code % 5) - 2) / 2.0);
+      phase += (2.0 * 3.1415926535 * f0) / sampleRate;
+      final double f1 = isFemale ? 720.0 : 480.0;
+      final double f2 = isFemale ? 1850.0 : 1220.0;
+      final double sig = env * 0.42 * (
+        0.55 * _fastSin(phase) +
+        0.30 * _fastSin(phase * (f1 / f0)) +
+        0.15 * _fastSin(phase * (f2 / f0))
+      );
+      final int val = (sig * 32767).round().clamp(-32767, 32767);
+      pcm[i * 2] = val & 0xFF;
+      pcm[i * 2 + 1] = (val >> 8) & 0xFF;
     }
-    client.close();
-    throw Exception('Fallback offline');
+
+    final int dataLen = pcm.length;
+    final int fileLen = 36 + dataLen;
+    final header = <int>[
+      82, 73, 70, 70, // RIFF
+      fileLen & 0xFF, (fileLen >> 8) & 0xFF, (fileLen >> 16) & 0xFF, (fileLen >> 24) & 0xFF,
+      87, 65, 86, 69, // WAVE
+      102, 109, 116, 32, // fmt
+      16, 0, 0, 0, 1, 0, 1, 0,
+      sampleRate & 0xFF, (sampleRate >> 8) & 0xFF, (sampleRate >> 16) & 0xFF, (sampleRate >> 24) & 0xFF,
+      (sampleRate * 2) & 0xFF, ((sampleRate * 2) >> 8) & 0xFF, ((sampleRate * 2) >> 16) & 0xFF, ((sampleRate * 2) >> 24) & 0xFF,
+      2, 0, 16, 0,
+      100, 97, 116, 97, // data
+      dataLen & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF,
+    ];
+    return <int>[...header, ...pcm];
+  }
+
+  static double _fastSin(double x) {
+    const double twoPi = 6.283185307179586;
+    double y = x % twoPi;
+    if (y > 3.141592653589793) y -= twoPi;
+    if (y < -3.141592653589793) y += twoPi;
+    final double y2 = y * y;
+    return y * (1.0 - y2 / 6.0 + (y2 * y2) / 120.0);
   }
 }
+
 
 
 class HellChatTtsController extends ChangeNotifier {
@@ -423,9 +543,21 @@ class HellChatTtsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _playHumanAudio(String text) async {
+   Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
-    await _speakOfflineFallback(text, v);
+    try {
+      final audioPath = await HellHumanNeuralVoiceEngine.synthesizeHellOwnVoiceFile(
+        rawText: text,
+        profile: v,
+        langCode: selectedLanguage,
+        speedMultiplier: customSpeed,
+        pitchMultiplier: customPitch,
+      );
+      await _player.play(DeviceFileSource(audioPath));
+    } catch (_) {
+      isSpeaking = false;
+      notifyListeners();
+    }
   }
 
   Future<void> speakImmediateTest(String sampleText) async {
