@@ -110,6 +110,208 @@ class HellHumanNeuralVoiceEngine {
   }
 }
 
+class HellSherpaOfflineEngine {
+  static sherpa_onnx.OfflineTts? _maleTts;
+  static sherpa_onnx.OfflineTts? _femaleTts;
+  static bool _isInitializing = false;
+
+  static final ValueNotifier<double> downloadProgress = ValueNotifier<double>(0.0);
+  static final ValueNotifier<String> statusText = ValueNotifier<String>('Motor offline pronto');
+
+  static const String _maleDir = 'vits-piper-pt_PT-tugao-medium';
+  static const String _maleOnnx = 'pt_PT-tugao-medium.onnx';
+
+  static const String _femaleDir = 'vits-coqui-pt-cv';
+  static const String _femaleOnnx = 'model.onnx';
+
+  static Uri _buildReleaseUri(String archiveFileName) {
+    final host = ['github', 'com'].join('.');
+    final path = [
+      '',
+      'k2-fsa',
+      'sherpa-onnx',
+      'releases',
+      'download',
+      'tts-models',
+      archiveFileName,
+    ].join('/');
+    return Uri.https(host, path);
+  }
+
+  static Uri get _maleUri => _buildReleaseUri('vits-piper-pt_PT-tugao-medium.tar.bz2');
+  static Uri get _femaleUri => _buildReleaseUri('vits-coqui-pt-cv.tar.bz2');
+
+  static Future<sherpa_onnx.OfflineTts?> _loadModel({
+    required String dirName,
+    required String onnxFileName,
+    required Uri downloadUri,
+    required String label,
+    required bool usesEspeak,
+  }) async {
+    final appDir = await getApplicationSupportDirectory();
+    final modelDir = Directory('${appDir.path}/tts_models/$dirName');
+    final modelFile = File('${modelDir.path}/$onnxFileName');
+    final tokensFile = File('${modelDir.path}/tokens.txt');
+    final espeakDir = Directory('${modelDir.path}/espeak-ng-data');
+
+    final bool needsDownload = !await modelFile.exists() ||
+        !await tokensFile.exists() ||
+        (usesEspeak && !await espeakDir.exists());
+
+    if (needsDownload) {
+      statusText.value = 'A descarregar $label...';
+      downloadProgress.value = 0.08;
+
+      final tarBz2File = File('${appDir.path}/$dirName.tar.bz2');
+      final request = http.Request('GET', downloadUri);
+      final response = await http.Client().send(request);
+
+      if (response.statusCode != 200) {
+        throw Exception('Erro HTTP ${response.statusCode} ao descarregar $label');
+      }
+
+      final contentLength = response.contentLength ?? 65000000;
+      int downloaded = 0;
+      final sink = tarBz2File.openWrite();
+
+      await for (final chunk in response.stream) {
+        sink.add(chunk);
+        downloaded += chunk.length;
+        downloadProgress.value = (downloaded / contentLength).clamp(0.08, 0.85);
+      }
+      await sink.close();
+
+      statusText.value = 'A extrair $label...';
+      downloadProgress.value = 0.90;
+
+      final compressedBytes = await tarBz2File.readAsBytes();
+      final tarBytes = BZip2Decoder().decodeBytes(compressedBytes);
+      final archive = TarDecoder().decodeBytes(tarBytes);
+
+      final extractRoot = Directory('${appDir.path}/tts_models');
+      if (!await extractRoot.exists()) {
+        await extractRoot.create(recursive: true);
+      }
+
+      for (final file in archive) {
+        final outPath = '${extractRoot.path}/${file.name}';
+        if (file.isFile) {
+          final outFile = File(outPath);
+          await outFile.create(recursive: true);
+          await outFile.writeAsBytes(file.content as List<int>);
+        } else {
+          await Directory(outPath).create(recursive: true);
+        }
+      }
+
+      if (await tarBz2File.exists()) {
+        await tarBz2File.delete();
+      }
+    }
+
+    final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
+      model: modelFile.path,
+      tokens: tokensFile.path,
+      dataDir: usesEspeak ? espeakDir.path : '',
+    );
+
+    final modelConfig = sherpa_onnx.OfflineTtsModelConfig(
+      vits: vitsConfig,
+      numThreads: 2,
+      debug: false,
+      provider: 'cpu',
+    );
+
+    return sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model: modelConfig));
+  }
+
+  static Future<bool> ensureInitialized({required bool isFemale}) async {
+    if (isFemale && _femaleTts != null) return true;
+    if (!isFemale && _maleTts != null) return true;
+    if (_isInitializing) return false;
+    _isInitializing = true;
+
+    try {
+      sherpa_onnx.initBindings();
+      if (isFemale) {
+        _femaleTts = await _loadModel(
+          dirName: _femaleDir,
+          onnxFileName: _femaleOnnx,
+          downloadUri: _femaleUri,
+          label: 'Vozes Femininas Offline',
+          usesEspeak: false,
+        );
+      } else {
+        _maleTts = await _loadModel(
+          dirName: _maleDir,
+          onnxFileName: _maleOnnx,
+          downloadUri: _maleUri,
+          label: 'Vozes Masculinas PT-PT Offline',
+          usesEspeak: true,
+        );
+      }
+      downloadProgress.value = 1.0;
+      statusText.value = 'Vozes Offline Prontas ✓';
+      return true;
+    } catch (e) {
+      statusText.value = 'Erro ao carregar modelo: $e';
+      return false;
+    } finally {
+      _isInitializing = false;
+    }
+  }
+
+  static int _speakerIdForProfile(String voiceId) {
+    switch (voiceId) {
+      case 'f_pt_locutora':
+        return 1;
+      case 'f_pt_doce':
+        return 3;
+      case 'f_pt_radio':
+        return 5;
+      case 'f_pt_suave':
+        return 7;
+      default:
+        return 0;
+    }
+  }
+
+  static Future<String?> synthesizeToWav({
+    required String text,
+    required String voiceId,
+    required bool isFemale,
+    required double speed,
+  }) async {
+    final ok = await ensureInitialized(isFemale: isFemale);
+    final engine = isFemale ? _femaleTts : _maleTts;
+    if (!ok || engine == null) return null;
+
+    final int maxSpeakers = engine.numSpeakers;
+    int sid = _speakerIdForProfile(voiceId);
+    if (maxSpeakers > 0 && sid >= maxSpeakers) {
+      sid = sid % maxSpeakers;
+    }
+
+    final generated = engine.generate(
+      text: text,
+      sid: sid,
+      speed: speed.clamp(0.55, 1.85),
+    );
+
+    if (generated.samples.isEmpty) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final wavPath = '${tempDir.path}/hell_sherpa_${voiceId}_${DateTime.now().microsecondsSinceEpoch}.wav';
+
+    final written = sherpa_onnx.writeWave(
+      filename: wavPath,
+      samples: generated.samples,
+      sampleRate: generated.sampleRate,
+    );
+
+    return written ? wavPath : null;
+  }
+}
 
 class HellChatTtsController extends ChangeNotifier {
    static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
