@@ -10,6 +10,10 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:archive/archive.dart';
+import 'package:http/http.dart' as http;
+import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
+
 
 class HellLiveChatMessage {
   final String id;
@@ -277,6 +281,7 @@ class HellChatTtsController extends ChangeNotifier {
       _processNextInQueue();
     });
     notifyListeners();
+        HellSherpaOfflineEngine.ensureInitialized(isFemale: false);
   }
 
   Future<void> saveClonedVoice({
@@ -459,10 +464,60 @@ class HellChatTtsController extends ChangeNotifier {
     }
   }
 
-  Future<void> _playHumanAudio(String text) async {
+   Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
+    final bool isFemale = v.gender == 'F';
+
+    try {
+      final double voiceSpeed = (customSpeed * v.playbackRate).clamp(0.65, 1.55);
+
+      final wavPath = await HellSherpaOfflineEngine.synthesizeToWav(
+        text: text,
+        voiceId: v.id,
+        isFemale: isFemale,
+        speed: voiceSpeed,
+      );
+
+      if (wavPath != null && File(wavPath).existsSync()) {
+        await _player.stop();
+
+        double rateOffset = 1.0;
+        switch (v.id) {
+          case 'm_pt_profundo':
+            rateOffset = 0.86;
+            break;
+          case 'm_pt_locutor':
+            rateOffset = 0.93;
+            break;
+          case 'm_pt_porto':
+            rateOffset = 0.98;
+            break;
+          case 'm_pt_jovem':
+            rateOffset = 1.06;
+            break;
+          case 'f_pt_radio':
+            rateOffset = 0.95;
+            break;
+          case 'f_pt_locutora':
+            rateOffset = 1.00;
+            break;
+          case 'f_pt_suave':
+            rateOffset = 1.04;
+            break;
+          case 'f_pt_doce':
+            rateOffset = 1.09;
+            break;
+        }
+
+        await _player.setPlaybackRate(rateOffset);
+        await _player.play(DeviceFileSource(wavPath));
+        return;
+      }
+    } catch (_) {}
+
     await _speakOfflineFallback(text, v);
   }
+
 
 
 
@@ -730,14 +785,45 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton.icon(
+                 ElevatedButton.icon(
                 onPressed: () async {
                   await _ctrl.downloadAndApplyLanguage(_ctrl.selectedLanguage);
+                  if (!mounted) return;
+
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF0B1636),
+                      title: const Text('A Instalar Vozes Reais PT (4M + 4F)', style: TextStyle(fontSize: 15, color: Color(0xFF38BDF8))),
+                      content: ValueListenableBuilder<double>(
+                        valueListenable: HellSherpaOfflineEngine.downloadProgress,
+                        builder: (_, progress, __) => Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LinearProgressIndicator(value: progress, color: const Color(0xFF38BDF8)),
+                            const SizedBox(height: 12),
+                            ValueListenableBuilder<String>(
+                              valueListenable: HellSherpaOfflineEngine.statusText,
+                              builder: (_, status, __) => Text(status, style: const TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+
+                  final okM = await HellSherpaOfflineEngine.ensureInitialized(isFemale: false);
+                  final okF = await HellSherpaOfflineEngine.ensureInitialized(isFemale: true);
+
                   if (mounted) {
+                    Navigator.of(context, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          'Idioma ${HellChatTtsController.supportedLanguages[_ctrl.selectedLanguage]} descarregado e aplicado!',
+                          (okM && okF)
+                              ? '✅ Todas as 8 vozes reais (4 Masculinas + 4 Femininas) prontas offline!'
+                              : '⚠️ Instalação parcial. Verifica a ligação e tenta novamente se faltar alguma voz.',
                         ),
                       ),
                     );
@@ -746,6 +832,7 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                 icon: const Icon(Icons.download_done_rounded, size: 16),
                 label: const Text('Baixar e Aplicar', style: TextStyle(fontSize: 11.5)),
               ),
+
             ],
           ),
           const SizedBox(height: 8),
