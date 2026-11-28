@@ -364,6 +364,141 @@ class HellSherpaOfflineEngine {
   }
 }
 
+class HellPocketVoiceCloner {
+  static sherpa_onnx.OfflineTts? _clonerTts;
+  static bool _isDownloading = false;
+
+  static Uri _hfFileUri(String fileName) {
+    final host = ['huggingface', 'co'].join('.');
+    final path = [
+      '',
+      'haex-space',
+      'pocket-tts-sherpa-onnx',
+      'resolve',
+      'main',
+      'pt',
+      fileName,
+    ].join('/');
+    return Uri.https(host, path);
+  }
+
+  static Future<bool> ensureClonerReady() async {
+    if (_clonerTts != null) return true;
+    if (_isDownloading) return false;
+    _isDownloading = true;
+
+    try {
+      final appDir = await getApplicationSupportDirectory();
+      final dir = Directory('${appDir.path}/tts_models/pocket_tts_pt');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      const files = [
+        'lm_flow.int8.onnx',
+        'lm_main.int8.onnx',
+        'encoder.onnx',
+        'decoder.int8.onnx',
+        'text_conditioner.onnx',
+        'vocab.json',
+        'token_scores.json',
+      ];
+
+      for (int i = 0; i < files.length; i++) {
+        final name = files[i];
+        final target = File('${dir.path}/$name');
+        if (!await target.exists() || await target.length() == 0) {
+          HellSherpaOfflineEngine.statusText.value =
+              'A descarregar Clonador Neural PT (${i + 1}/${files.length})...';
+          HellSherpaOfflineEngine.downloadProgress.value = (i + 1) / files.length;
+
+          final request = http.Request('GET', _hfFileUri(name));
+          final response = await http.Client().send(request);
+          if (response.statusCode != 200) {
+            throw Exception('Erro HTTP ${response.statusCode} ao baixar $name');
+          }
+          final sink = target.openWrite();
+          await response.stream.pipe(sink);
+        }
+      }
+
+      sherpa_onnx.initBindings();
+
+      final pocketConfig = sherpa_onnx.OfflineTtsPocketModelConfig(
+        lmFlow: '${dir.path}/lm_flow.int8.onnx',
+        lmMain: '${dir.path}/lm_main.int8.onnx',
+        encoder: '${dir.path}/encoder.onnx',
+        decoder: '${dir.path}/decoder.int8.onnx',
+        textConditioner: '${dir.path}/text_conditioner.onnx',
+        vocabJson: '${dir.path}/vocab.json',
+        tokenScoresJson: '${dir.path}/token_scores.json',
+      );
+
+      final modelConfig = sherpa_onnx.OfflineTtsModelConfig(
+        pocket: pocketConfig,
+        numThreads: 2,
+        debug: false,
+        provider: 'cpu',
+      );
+
+      _clonerTts = sherpa_onnx.OfflineTts(
+        sherpa_onnx.OfflineTtsConfig(model: modelConfig),
+      );
+
+      HellSherpaOfflineEngine.downloadProgress.value = 1.0;
+      HellSherpaOfflineEngine.statusText.value = 'Clonador de Voz Real PT Pronto ✓';
+      return true;
+    } catch (e) {
+      HellSherpaOfflineEngine.statusText.value = 'Erro no clonador: $e';
+      return false;
+    } finally {
+      _isDownloading = false;
+    }
+  }
+
+  static Future<String?> cloneSpeakToWav({
+    required String text,
+    required String referenceWavPath,
+    required double speed,
+  }) async {
+    final refFile = File(referenceWavPath);
+    if (!await refFile.exists()) return null;
+
+    final ready = await ensureClonerReady();
+    if (!ready || _clonerTts == null) return null;
+
+    final waveData = sherpa_onnx.readWave(referenceWavPath);
+    if (waveData.samples.isEmpty) return null;
+
+    final genConfig = sherpa_onnx.OfflineTtsGenerationConfig(
+      sid: 0,
+      speed: speed.clamp(0.60, 1.80),
+      referenceAudio: waveData.samples,
+      referenceSampleRate: waveData.sampleRate,
+      numSteps: 5,
+    );
+
+    final generated = _clonerTts!.generateWithConfig(
+      text: text,
+      config: genConfig,
+    );
+
+    if (generated.samples.isEmpty) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final outPath =
+        '${tempDir.path}/hell_clone_out_${DateTime.now().microsecondsSinceEpoch}.wav';
+
+    final ok = sherpa_onnx.writeWave(
+      filename: outPath,
+      samples: generated.samples,
+      sampleRate: generated.sampleRate,
+    );
+
+    return ok ? outPath : null;
+  }
+}
+
 
 class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
@@ -680,18 +815,63 @@ class HellChatTtsController extends ChangeNotifier {
       _processNextInQueue();
     }
   }
+  Future<bool> deleteClonedVoice(String voiceId) async {
+    final index = clonedVoices.indexWhere((v) => v.id == voiceId);
+    if (index == -1) return false;
 
-     Future<void> _playHumanAudio(String text) async {
+    final removed = clonedVoices.removeAt(index);
+
+    if (removed.samplePath != null && removed.samplePath!.isNotEmpty) {
+      try {
+        final f = File(removed.samplePath!);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
+
+    final p = await SharedPreferences.getInstance();
+    await p.setString(
+      'hell_tts_cloned_voices_v4',
+      jsonEncode(clonedVoices.map((e) => e.toJson()).toList()),
+    );
+
+    await setVoice('m_pt_helder');
+    notifyListeners();
+    return true;
+  }
+
+
+
+       String? _lastTempWavPath;
+
+  Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
 
     try {
-      final wavPath = await HellSherpaOfflineEngine.synthesizeToWav(
-        text: text,
-        voiceId: v.id,
-        speed: customSpeed,
-      );
+      if (_lastTempWavPath != null) {
+        try {
+          final oldFile = File(_lastTempWavPath!);
+          if (await oldFile.exists()) await oldFile.delete();
+        } catch (_) {}
+      }
+
+      String? wavPath;
+
+      if (v.isCloned && v.samplePath != null && v.samplePath!.isNotEmpty) {
+        wavPath = await HellPocketVoiceCloner.cloneSpeakToWav(
+          text: text,
+          referenceWavPath: v.samplePath!,
+          speed: customSpeed,
+        );
+      } else {
+        wavPath = await HellSherpaOfflineEngine.synthesizeToWav(
+          text: text,
+          voiceId: v.id,
+          speed: customSpeed,
+        );
+      }
 
       if (wavPath != null && File(wavPath).existsSync()) {
+        _lastTempWavPath = wavPath;
         await _player.stop();
         await _player.setPlaybackRate(1.0);
         await _player.play(DeviceFileSource(wavPath));
@@ -701,6 +881,8 @@ class HellChatTtsController extends ChangeNotifier {
 
     await _speakOfflineFallback(text, v);
   }
+
+
 
 
   Future<void> speakImmediateTest(String sampleText) async {
@@ -929,20 +1111,47 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: voices.any((v) => v.id == _ctrl.selectedVoiceId) ? _ctrl.selectedVoiceId : voices.first.id,
-                dropdownColor: const Color(0xFF0B1636),
-                decoration: const InputDecoration(labelText: 'Voz Ativa (Masculinas, Femininas & Clonadas)', isDense: true),
-                items: voices
-                    .map((v) => DropdownMenuItem<String>(
-                          value: v.id,
-                          child: Text(v.label, style: const TextStyle(fontSize: 12.5)),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) _ctrl.setSelectedVoice(v);
-                },
+                        Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: voices.any((v) => v.id == _ctrl.selectedVoiceId) ? _ctrl.selectedVoiceId : voices.first.id,
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'Voz Ativa (Nativas PT-PT & Clonadas)', isDense: true),
+                      items: voices
+                          .map((v) => DropdownMenuItem<String>(
+                                value: v.id,
+                                child: Text(v.label, style: const TextStyle(fontSize: 12.5)),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) _ctrl.setSelectedVoice(v);
+                      },
+                    ),
+                  ),
+                  if (_ctrl.currentVoice.isCloned) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Excluir voz clonada',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.redAccent.withOpacity(0.15),
+                        foregroundColor: Colors.redAccent,
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                      onPressed: () async {
+                        final voiceName = _ctrl.currentVoice.label;
+                        final ok = await _ctrl.deleteClonedVoice(_ctrl.selectedVoiceId);
+                        if (ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('🗑️ Voz clonada "$voiceName" excluída!')),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ],
               ),
+
                         const SizedBox(height: 10),
           Row(
             children: <Widget>[
@@ -1315,10 +1524,11 @@ class _HellVoiceCloneTeleprompterDialogState extends State<HellVoiceCloneTelepro
       }
       return;
     }
-    final dir = await getTemporaryDirectory();
+    final dir = await getApplicationSupportDirectory();
+
     final path = '${dir.path}/hell_clone_sample_${DateTime.now().millisecondsSinceEpoch}.wav';
     await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 22050, numChannels: 1),
+      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 24000, numChannels: 1),
       path: path,
     );
 
