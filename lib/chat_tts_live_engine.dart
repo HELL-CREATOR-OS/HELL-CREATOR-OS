@@ -639,3 +639,7 @@ class HellChatTtsController extends ChangeNotifier {
         await _player.play(DeviceFileSource(audioPath));
         return;
       }
+    } catch (_) {}
+
+    await _speakOfflineFallback(text, v);
+  }
