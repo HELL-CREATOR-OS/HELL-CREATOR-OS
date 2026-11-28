@@ -45,6 +45,8 @@ class HellOriginalVoiceProfile {
   final String voiceCode; // Voz humana masculina/feminina real
   final double playbackRate; // Velocidade real de reprodução no AudioPlayer
   final double fallbackPitch;
+  final bool isCloned;
+  final String? samplePath;
 
   const HellOriginalVoiceProfile({
     required this.id,
@@ -53,8 +55,22 @@ class HellOriginalVoiceProfile {
     required this.voiceCode,
     this.playbackRate = 1.0,
     this.fallbackPitch = 1.0,
+    this.isCloned = false,
+    this.samplePath,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'label': label,
+        'gender': gender,
+        'voiceCode': voiceCode,
+        'playbackRate': playbackRate,
+        'fallbackPitch': fallbackPitch,
+        'isCloned': isCloned,
+        'samplePath': samplePath,
+      };
 }
+
 
 class HellHumanNeuralVoiceEngine {
   static Future<String> synthesizeHellOwnVoiceFile({
