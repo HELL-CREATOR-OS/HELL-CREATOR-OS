@@ -631,13 +631,15 @@ class HellChatTtsController extends ChangeNotifier {
         clonedVoices.clear();
         for (final item in list) {
           final m = Map<String, dynamic>.from(item as Map);
-          clonedVoices.add(HellOriginalVoiceProfile(
+                 clonedVoices.add(HellOriginalVoiceProfile(
             id: m['id'].toString(),
             label: m['label'].toString(),
             gender: (m['gender'] ?? 'M').toString(),
-            voiceCode: (m['voiceCode'] ?? 'pt-BR').toString(),
+            voiceCode: (m['voiceCode'] ?? 'pt-PT').toString(),
             playbackRate: ((m['playbackRate'] ?? 1.0) as num).toDouble(),
             fallbackPitch: ((m['fallbackPitch'] ?? 1.0) as num).toDouble(),
+            isCloned: m['isCloned'] == true || m['id'].toString().startsWith('clone_'),
+            samplePath: m['samplePath']?.toString(),
           ));
         }
       } catch (_) {}
@@ -648,8 +650,7 @@ class HellChatTtsController extends ChangeNotifier {
       _processNextInQueue();
     });
     notifyListeners();
-            HellSherpaOfflineEngine.ensureVoiceReady(selectedVoiceId);
-
+    HellSherpaOfflineEngine.ensureVoiceReady(selectedVoiceId);
   }
 
   Future<void> saveClonedVoice({
@@ -657,6 +658,7 @@ class HellChatTtsController extends ChangeNotifier {
     required double measuredPitchHz,
     required double measuredFormantShift,
     required double measuredSpeedFactor,
+    String? recordedWavPath,
   }) async {
     final id = 'clone_${DateTime.now().millisecondsSinceEpoch}';
     final bool isMale = measuredPitchHz < 170;
@@ -664,29 +666,25 @@ class HellChatTtsController extends ChangeNotifier {
       id: id,
       label: '🎙️ Voz Clonada · $name',
       gender: isMale ? 'M' : 'F',
-      voiceCode: isMale ? 'pt-BR' : 'pt-PT',
-      playbackRate: measuredSpeedFactor.clamp(0.84, 1.18),
+      voiceCode: 'pt-PT',
+      playbackRate: measuredSpeedFactor.clamp(0.85, 1.15),
       fallbackPitch: (measuredPitchHz / 150.0).clamp(0.75, 1.35),
+      isCloned: true,
+      samplePath: recordedWavPath,
     );
     clonedVoices.insert(0, profile);
     selectedVoiceId = id;
     final p = await SharedPreferences.getInstance();
     await p.setString(
-      'hell_cloned_voices_v3',
-      jsonEncode(clonedVoices
-          .map((v) => <String, dynamic>{
-                'id': v.id,
-                'label': v.label,
-                'gender': v.gender,
-                'voiceCode': v.voiceCode,
-                'playbackRate': v.playbackRate,
-                'fallbackPitch': v.fallbackPitch,
-              })
-          .toList()),
+      'hell_cloned_voices_v4',
+      jsonEncode(clonedVoices.map((v) => v.toJson()).toList()),
     );
-    await p.setString('hell_tts_voice_id_v3', id);
+    await p.setString('hell_tts_voice_id_v4', id);
     notifyListeners();
   }
+
+
+
 
    Future<void> setSelectedVoice(String voiceId) async {
     selectedVoiceId = voiceId;
@@ -846,11 +844,11 @@ class HellChatTtsController extends ChangeNotifier {
 
     final p = await SharedPreferences.getInstance();
     await p.setString(
-      'hell_tts_cloned_voices_v4',
+      'hell_cloned_voices_v4',
       jsonEncode(clonedVoices.map((e) => e.toJson()).toList()),
     );
 
-     await setSelectedVoice('m_pt_helder');
+    await setSelectedVoice('m_pt_helder');
     notifyListeners();
     return true;
   }
@@ -1076,13 +1074,15 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
       barrierDismissible: false,
       builder: (ctx) => HellVoiceCloneTeleprompterDialog(
         defaultOwnerName: (widget.currentUser?['displayName'] ?? 'Criador').toString(),
-        onVoiceCloned: (name, pitchHz, formantShift, speedFactor) async {
+               onVoiceCloned: (name, pitchHz, formantShift, speedFactor, wavPath) async {
           await _ctrl.saveClonedVoice(
             name: name,
             measuredPitchHz: pitchHz,
             measuredFormantShift: formantShift,
             measuredSpeedFactor: speedFactor,
+            recordedWavPath: wavPath,
           );
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('🎙️ Voz clonada "$name" criada e selecionada com sucesso!')),
@@ -1455,7 +1455,8 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
 
 class HellVoiceCloneTeleprompterDialog extends StatefulWidget {
   final String defaultOwnerName;
-  final Future<void> Function(String name, double pitchHz, double formantShift, double speedFactor) onVoiceCloned;
+  final Future<void> Function(String name, double pitchHz, double formantShift, double speedFactor, String? wavPath) onVoiceCloned;
+
 
   const HellVoiceCloneTeleprompterDialog({
     super.key,
@@ -1624,7 +1625,8 @@ class _HellVoiceCloneTeleprompterDialogState extends State<HellVoiceCloneTelepro
     } catch (_) {}
 
     final name = _voiceNameCtrl.text.trim().isEmpty ? widget.defaultOwnerName : _voiceNameCtrl.text.trim();
-    await widget.onVoiceCloned(name, measuredPitch, measuredFormant, measuredSpeed);
+       await widget.onVoiceCloned(name, measuredPitch, measuredFormant, measuredSpeed, _recordedPath);
+
     if (mounted) Navigator.pop(context);
   }
 
