@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -314,11 +315,15 @@ class HellSherpaOfflineEngine {
 
     _safeInitBindings();
 
-    final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
+        final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
       model: modelFile.path,
       tokens: tokensFile.path,
       dataDir: espeakDir.path,
+      noiseScale: 0.35,
+      noiseScaleW: 0.45,
+      lengthScale: 1.0,
     );
+
 
     final modelConfig = sherpa_onnx.OfflineTtsModelConfig(
       vits: vitsConfig,
@@ -348,6 +353,23 @@ class HellSherpaOfflineEngine {
       _isInitializing = false;
     }
   }
+  static Float32List _cleanStudioSamples(Float32List rawSamples) {
+    final out = Float32List(rawSamples.length);
+    const double noiseGateThreshold = 0.014;
+    double prev = 0.0;
+
+    for (int i = 0; i < rawSamples.length; i++) {
+      double s = rawSamples[i];
+      if (s.abs() < noiseGateThreshold) {
+        s *= 0.15;
+      }
+      final filtered = (s * 0.78) + (prev * 0.22);
+      prev = filtered;
+      out[i] = filtered.clamp(-0.98, 0.98);
+    }
+    return out;
+  }
+
 
   static Future<String?> synthesizeToWav({
     required String text,
@@ -370,11 +392,14 @@ class HellSherpaOfflineEngine {
     final tempDir = await getTemporaryDirectory();
     final wavPath = '${tempDir.path}/hell_sherpa_${voiceId}_${DateTime.now().microsecondsSinceEpoch}.wav';
 
+       final cleanSamples = _cleanStudioSamples(generated.samples);
+
     final written = sherpa_onnx.writeWave(
       filename: wavPath,
-      samples: generated.samples,
+      samples: cleanSamples,
       sampleRate: generated.sampleRate,
     );
+
 
     return written ? wavPath : null;
   }
