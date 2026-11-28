@@ -850,7 +850,7 @@ class HellChatTtsController extends ChangeNotifier {
       jsonEncode(clonedVoices.map((e) => e.toJson()).toList()),
     );
 
-    await setVoice('m_pt_helder');
+     await setSelectedVoice('m_pt_helder');
     notifyListeners();
     return true;
   }
