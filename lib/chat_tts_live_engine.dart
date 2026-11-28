@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -110,9 +111,36 @@ class HellHumanNeuralVoiceEngine {
   }
 }
 
+/// Função isolada para extrair o .tar.bz2 fora da thread principal (evita crash de RAM)
+Future<void> _extractTarBz2InBackground(Map<String, String> paths) async {
+  final tarBz2File = File(paths['archivePath']!);
+  final extractRootPath = paths['extractRoot']!;
+
+  final compressedBytes = await tarBz2File.readAsBytes();
+  final tarBytes = BZip2Decoder().decodeBytes(compressedBytes);
+  final archive = TarDecoder().decodeBytes(tarBytes);
+
+  final extractRoot = Directory(extractRootPath);
+  if (!await extractRoot.exists()) {
+    await extractRoot.create(recursive: true);
+  }
+
+  for (final file in archive) {
+    final outPath = '$extractRootPath/${file.name}';
+    if (file.isFile) {
+      final outFile = File(outPath);
+      await outFile.create(recursive: true);
+      await outFile.writeAsBytes(file.content as List<int>);
+    } else {
+      await Directory(outPath).create(recursive: true);
+    }
+  }
+}
+
 class HellSherpaOfflineEngine {
   static final Map<String, sherpa_onnx.OfflineTts> _engines = {};
   static bool _isInitializing = false;
+  static bool _bindingsInitialized = false;
 
   static final ValueNotifier<double> downloadProgress = ValueNotifier<double>(0.0);
   static final ValueNotifier<String> statusText = ValueNotifier<String>('Motor offline pronto');
@@ -131,93 +159,92 @@ class HellSherpaOfflineEngine {
     return Uri.https(host, path);
   }
 
-  /// Define o modelo real (pessoa diferente) e o ID de orador (sid) para cada uma das 8 vozes
+  /// Usa apenas modelos Piper leves e estáveis (evita crash de memória no Android/Windows)
   static Map<String, dynamic> _specForVoice(String voiceId) {
     switch (voiceId) {
-      // --- 4 HOMENS COMPLETAMENTE DIFERENTES ---
-      case 'm_pt_locutor': // Flávio (Lisboa · Locutor PT-PT)
+      // --- 4 HOMENS ---
+      case 'm_pt_locutor': // Flávio (PT-PT)
         return {
           'key': 'tugao',
           'dir': 'vits-piper-pt_PT-tugao-medium',
           'onnx': 'pt_PT-tugao-medium.onnx',
           'archive': 'vits-piper-pt_PT-tugao-medium.tar.bz2',
-          'espeak': true,
           'sid': 0,
           'label': 'Flávio (PT-PT)',
         };
-      case 'm_pt_profundo': // Fernandes (Grave / Cinema)
+      case 'm_pt_profundo': // Fernandes (Grave)
         return {
           'key': 'faber',
           'dir': 'vits-piper-pt_BR-faber-medium',
           'onnx': 'pt_BR-faber-medium.onnx',
           'archive': 'vits-piper-pt_BR-faber-medium.tar.bz2',
-          'espeak': true,
           'sid': 0,
           'label': 'Fernandes (Grave)',
         };
-      case 'm_pt_jovem': // Enzo (Jovem / Dinâmico)
+      case 'm_pt_jovem': // Enzo (Dinâmico)
         return {
           'key': 'cadu',
           'dir': 'vits-piper-pt_BR-cadu-medium',
           'onnx': 'pt_BR-cadu-medium.onnx',
           'archive': 'vits-piper-pt_BR-cadu-medium.tar.bz2',
-          'espeak': true,
           'sid': 0,
           'label': 'Enzo (Dinâmico)',
         };
-      case 'm_pt_porto': // Hélder (Calmo / Natural)
+      case 'm_pt_porto': // Hélder (Calmo)
         return {
-          'key': 'coqui_cv',
-          'dir': 'vits-coqui-pt-cv',
-          'onnx': 'model.onnx',
-          'archive': 'vits-coqui-pt-cv.tar.bz2',
-          'espeak': false,
+          'key': 'edresson',
+          'dir': 'vits-piper-pt_BR-edresson-low',
+          'onnx': 'pt_BR-edresson-low.onnx',
+          'archive': 'vits-piper-pt_BR-edresson-low.tar.bz2',
           'sid': 0,
-          'label': 'Hélder (Natural)',
+          'label': 'Hélder (Calmo)',
         };
 
-      // --- 4 MULHERES COMPLETAMENTE DIFERENTES ---
-      case 'f_pt_locutora': // Sandra (Locutora Clara)
+      // --- 4 MULHERES (Modelos Piper leves e estáveis) ---
+      case 'f_pt_locutora': // Sandra
         return {
-          'key': 'coqui_cv',
-          'dir': 'vits-coqui-pt-cv',
-          'onnx': 'model.onnx',
-          'archive': 'vits-coqui-pt-cv.tar.bz2',
-          'espeak': false,
-          'sid': 1,
+          'key': 'f_alba',
+          'dir': 'vits-piper-en_GB-alba-medium',
+          'onnx': 'en_GB-alba-medium.onnx',
+          'archive': 'vits-piper-en_GB-alba-medium.tar.bz2',
+          'sid': 0,
           'label': 'Sandra (Locutora)',
         };
-      case 'f_pt_doce': // Noa (Jovem Suave)
+      case 'f_pt_doce': // Noa
         return {
-          'key': 'coqui_cv',
-          'dir': 'vits-coqui-pt-cv',
-          'onnx': 'model.onnx',
-          'archive': 'vits-coqui-pt-cv.tar.bz2',
-          'espeak': false,
-          'sid': 3,
+          'key': 'f_jenny',
+          'dir': 'vits-piper-en_GB-jenny_dioco-medium',
+          'onnx': 'en_GB-jenny_dioco-medium.onnx',
+          'archive': 'vits-piper-en_GB-jenny_dioco-medium.tar.bz2',
+          'sid': 0,
           'label': 'Noa (Suave)',
         };
-      case 'f_pt_radio': // Mara (Rádio FM)
+      case 'f_pt_radio': // Mara
         return {
-          'key': 'coqui_cv',
-          'dir': 'vits-coqui-pt-cv',
-          'onnx': 'model.onnx',
-          'archive': 'vits-coqui-pt-cv.tar.bz2',
-          'espeak': false,
-          'sid': 5,
+          'key': 'f_cori',
+          'dir': 'vits-piper-en_GB-cori-medium',
+          'onnx': 'en_GB-cori-medium.onnx',
+          'archive': 'vits-piper-en_GB-cori-medium.tar.bz2',
+          'sid': 0,
           'label': 'Mara (Rádio FM)',
         };
-      case 'f_pt_suave': // Lúcia (Expressiva)
+      case 'f_pt_suave': // Lúcia
       default:
         return {
-          'key': 'coqui_cv',
-          'dir': 'vits-coqui-pt-cv',
-          'onnx': 'model.onnx',
-          'archive': 'vits-coqui-pt-cv.tar.bz2',
-          'espeak': false,
-          'sid': 7,
+          'key': 'f_lessac',
+          'dir': 'vits-piper-en_US-lessac-medium',
+          'onnx': 'en_US-lessac-medium.onnx',
+          'archive': 'vits-piper-en_US-lessac-medium.tar.bz2',
+          'sid': 0,
           'label': 'Lúcia (Expressiva)',
         };
+    }
+  }
+
+  static void _safeInitBindings() {
+    if (!_bindingsInitialized) {
+      sherpa_onnx.initBindings();
+      _bindingsInitialized = true;
     }
   }
 
@@ -225,10 +252,17 @@ class HellSherpaOfflineEngine {
     final String key = spec['key'];
     if (_engines.containsKey(key)) return _engines[key];
 
+    // Mantém no máximo 1 motor carregado na RAM ao mesmo tempo para não fechar a app
+    if (_engines.isNotEmpty) {
+      for (final oldTts in _engines.values) {
+        oldTts.free();
+      }
+      _engines.clear();
+    }
+
     final String dirName = spec['dir'];
     final String onnxFileName = spec['onnx'];
     final String archiveName = spec['archive'];
-    final bool usesEspeak = spec['espeak'] == true;
     final String label = spec['label'];
 
     final appDir = await getApplicationSupportDirectory();
@@ -239,7 +273,7 @@ class HellSherpaOfflineEngine {
 
     final bool needsDownload = !await modelFile.exists() ||
         !await tokensFile.exists() ||
-        (usesEspeak && !await espeakDir.exists());
+        !await espeakDir.exists();
 
     if (needsDownload) {
       statusText.value = 'A descarregar voz de $label...';
@@ -253,7 +287,7 @@ class HellSherpaOfflineEngine {
         throw Exception('Erro HTTP ${response.statusCode} ao descarregar $label');
       }
 
-      final contentLength = response.contentLength ?? 65000000;
+      final contentLength = response.contentLength ?? 60000000;
       int downloaded = 0;
       final sink = tarBz2File.openWrite();
 
@@ -264,43 +298,31 @@ class HellSherpaOfflineEngine {
       }
       await sink.close();
 
-      statusText.value = 'A extrair voz de $label...';
+      statusText.value = 'A extrair voz de $label (aguarde)...';
       downloadProgress.value = 0.90;
 
-      final compressedBytes = await tarBz2File.readAsBytes();
-      final tarBytes = BZip2Decoder().decodeBytes(compressedBytes);
-      final archive = TarDecoder().decodeBytes(tarBytes);
-
-      final extractRoot = Directory('${appDir.path}/tts_models');
-      if (!await extractRoot.exists()) {
-        await extractRoot.create(recursive: true);
-      }
-
-      for (final file in archive) {
-        final outPath = '${extractRoot.path}/${file.name}';
-        if (file.isFile) {
-          final outFile = File(outPath);
-          await outFile.create(recursive: true);
-          await outFile.writeAsBytes(file.content as List<int>);
-        } else {
-          await Directory(outPath).create(recursive: true);
-        }
-      }
+      // Extrai em Isolate separado para não estourar a RAM da UI
+      await compute(_extractTarBz2InBackground, {
+        'archivePath': tarBz2File.path,
+        'extractRoot': '${appDir.path}/tts_models',
+      });
 
       if (await tarBz2File.exists()) {
         await tarBz2File.delete();
       }
     }
 
+    _safeInitBindings();
+
     final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
       model: modelFile.path,
       tokens: tokensFile.path,
-      dataDir: usesEspeak ? espeakDir.path : '',
+      dataDir: espeakDir.path,
     );
 
     final modelConfig = sherpa_onnx.OfflineTtsModelConfig(
       vits: vitsConfig,
-      numThreads: 2,
+      numThreads: 1, // 1 thread evita picos de CPU/RAM em telemóveis
       debug: false,
       provider: 'cpu',
     );
@@ -314,7 +336,6 @@ class HellSherpaOfflineEngine {
     if (_isInitializing) return false;
     _isInitializing = true;
     try {
-      sherpa_onnx.initBindings();
       final spec = _specForVoice(voiceId);
       final engine = await _loadEngineForSpec(spec);
       downloadProgress.value = 1.0;
@@ -333,20 +354,14 @@ class HellSherpaOfflineEngine {
     required String voiceId,
     required double speed,
   }) async {
+    if (_isInitializing) return null;
     final spec = _specForVoice(voiceId);
-    sherpa_onnx.initBindings();
     final engine = await _loadEngineForSpec(spec);
     if (engine == null) return null;
 
-    final int maxSpeakers = engine.numSpeakers;
-    int sid = spec['sid'] as int;
-    if (maxSpeakers > 0 && sid >= maxSpeakers) {
-      sid = sid % maxSpeakers;
-    }
-
     final generated = engine.generate(
       text: text,
-      sid: sid,
+      sid: spec['sid'] as int,
       speed: speed.clamp(0.55, 1.85),
     );
 
@@ -364,6 +379,7 @@ class HellSherpaOfflineEngine {
     return written ? wavPath : null;
   }
 }
+
 
 
 class HellChatTtsController extends ChangeNotifier {
