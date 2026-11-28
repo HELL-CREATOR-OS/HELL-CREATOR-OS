@@ -1125,6 +1125,99 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                         '${m.sender} ${m.badge.isNotEmpty ? "[${m.badge}]" : ""}',
                         style: TextStyle(
                           fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                          color: m.isGiftOrDonation ? Colors.amberAccent : const Color(0xFF38BDF8),
+                        ),
+                      ),
+                      subtitle: Text(m.text, style: const TextStyle(fontSize: 12)),
+                    )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class HellVoiceCloneTeleprompterDialog extends StatefulWidget {
+  final String defaultOwnerName;
+  final Future<void> Function(String name, double pitchHz, double formantShift, double speedFactor, String? wavPath) onVoiceCloned;
+
+  const HellVoiceCloneTeleprompterDialog({
+    super.key,
+    required this.defaultOwnerName,
+    required this.onVoiceCloned,
+  });
+
+  @override
+  State<HellVoiceCloneTeleprompterDialog> createState() => _HellVoiceCloneTeleprompterDialogState();
+}
+
+class _HellVoiceCloneTeleprompterDialogState extends State<HellVoiceCloneTeleprompterDialog> {
+  static const List<String> _teleprompterShortLines = <String>[
+    'Olá a todos e sejam muito bem-vindos à live.',
+    'Hoje vamos conversar com calma e partilhar boas ideias.',
+    'Sintam-se em casa e puxem uma cadeira.',
+    'Digam no chat de onde nos estão a acompanhar.',
+    'Quando começamos um projeto digital do zero,',
+    'cada pequeno detalhe faz toda a diferença.',
+    'A clareza da voz e o ritmo natural das palavras',
+    'criam uma ligação verdadeira com quem assiste.',
+    'Não precisamos de falar depressa nem forçar nada.',
+    'Basta sermos autênticos e manter o nosso estilo.',
+    'Esta semana preparámos novidades incríveis para criadores.',
+    'Alertas interativos e leitura inteligente de mensagens.',
+    'Imaginem ouvir os comentários com toda a naturalidade,',
+    'sem interromper o raciocínio durante um jogo intenso.',
+    'É para isso que serve esta gravação vocal.',
+    'Captar o timbre real e a cadência da tua voz.',
+    'Agora vamos variar um pouco a entoação.',
+    'Primeiro num tom sereno e muito confiante:',
+    'Tudo está a funcionar perfeitamente e com som limpo.',
+    'Agora com um pouco mais de entusiasmo e energia:',
+    'Que jogada espetacular, muito obrigado pelo apoio!',
+    'Obrigado pelos presentes enviados agora mesmo no chat!',
+    'E agora em tom de pergunta para a comunidade:',
+    'Qual é a vossa opinião sobre esta nova função?',
+    'Nos dias mais longos de transmissão ao vivo,',
+    'a voz fica naturalmente mais tranquila e pausada.',
+    'Respirar fundo entre frases ajuda no conforto vocal.',
+    'Nos momentos de celebração com a comunidade,',
+    'o sorriso nota-se logo na forma como falamos.',
+    'Estamos quase a concluir a leitura de calibração.',
+    'Obrigado por dedicares este tempo com tanta calma.',
+    'O sistema vai analisar a frequência e o ritmo,',
+    'criando um perfil exclusivo pronto para as tuas lives.',
+    'Até já no estúdio oficial HELL CREATOR!',
+  ];
+
+  final AudioRecorder _recorder = AudioRecorder();
+  late final TextEditingController _voiceNameCtrl;
+  bool _legalConsentAccepted = false;
+  bool _isRecording = false;
+  bool _isPaused = false;
+  int _elapsedSeconds = 0;
+  int _currentLineIndex = 0;
+  double _secondsPerLine = 3.8;
+  double _lineTimerAcc = 0.0;
+  String _recordedFilePath = '';
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _voiceNameCtrl = TextEditingController(text: widget.defaultOwnerName);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _recorder.dispose();
+    _voiceNameCtrl.dispose();
+    super.dispose();
+  }
+
+
   Future<void> _startRecordingWithTeleprompter() async {
     if (!await _recorder.hasPermission()) {
       if (mounted) {
