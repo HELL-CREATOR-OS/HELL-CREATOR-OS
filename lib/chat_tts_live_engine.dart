@@ -1625,7 +1625,8 @@ class _HellVoiceCloneTeleprompterDialogState extends State<HellVoiceCloneTelepro
     } catch (_) {}
 
     final name = _voiceNameCtrl.text.trim().isEmpty ? widget.defaultOwnerName : _voiceNameCtrl.text.trim();
-       await widget.onVoiceCloned(name, measuredPitch, measuredFormant, measuredSpeed, _recordedPath);
+          await widget.onVoiceCloned(name, measuredPitch, measuredFormant, measuredSpeed, stoppedPath);
+
 
     if (mounted) Navigator.pop(context);
   }
