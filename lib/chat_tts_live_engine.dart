@@ -643,3 +643,720 @@ class HellChatTtsController extends ChangeNotifier {
 
     await _speakOfflineFallback(text, v);
   }
+  Future<void> speakImmediateTest(String sampleText) async {
+    await _player.stop();
+    isSpeaking = true;
+    notifyListeners();
+    await _playHumanAudio(sampleText);
+  }
+
+  void enqueueSpeech(String text) {
+    if (!ttsEnabled || text.trim().isEmpty) return;
+    _speechQueue.add(text.trim());
+    if (!isSpeaking) {
+      _processNextInQueue();
+    }
+  }
+
+  Future<void> _processNextInQueue() async {
+    if (_speechQueue.isEmpty || !ttsEnabled) {
+      isSpeaking = false;
+      notifyListeners();
+      return;
+    }
+    isSpeaking = true;
+    notifyListeners();
+    final nextText = _speechQueue.removeAt(0);
+    try {
+      await _playHumanAudio(nextText);
+    } catch (_) {
+      isSpeaking = false;
+      _processNextInQueue();
+    }
+  }
+
+  void ingestIncomingMessage(HellLiveChatMessage msg) {
+    messages.insert(0, msg);
+    if (messages.length > 150) {
+      messages.removeLast();
+    }
+
+    final lower = msg.text.trim().toLowerCase();
+    if (lower.startsWith('!pedir ')) {
+      final song = msg.text.trim().substring(7).trim();
+      if (song.isNotEmpty) {
+        musicRequests.insert(0, '$song (pedido por ${msg.sender})');
+      }
+    }
+
+    bool allowedByFilter = true;
+    if (readFilter == 'vip_sub') {
+      allowedByFilter = msg.badge == 'VIP' || msg.badge == 'SUB' || msg.badge == 'MOD' || msg.isGiftOrDonation;
+    } else if (readFilter == 'gifts') {
+      allowedByFilter = msg.isGiftOrDonation;
+    } else if (readFilter == 'command') {
+      allowedByFilter = lower.startsWith('!falar ');
+    }
+
+    if (allowedByFilter && ttsEnabled) {
+      String textToRead = lower.startsWith('!falar ') ? msg.text.trim().substring(7) : msg.text;
+      final sanitized = _sanitizeForSpeech(textToRead);
+      if (sanitized.isNotEmpty) {
+        final prefix = msg.isGiftOrDonation
+            ? '${msg.sender} enviou ${msg.giftInfo}. '
+            : (readSenderName ? '${msg.sender} disse: ' : '');
+        enqueueSpeech('$prefix$sanitized');
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> connectTwitchPublicChat(String rawChannel) async {
+    final clean = rawChannel.replaceAll('@', '').trim().toLowerCase();
+    if (clean.isEmpty) return;
+    await disconnectTwitchChat();
+    twitchChannel = clean;
+    try {
+      _twitchSocket = await WebSocket.connect('wss://irc-ws.chat.twitch.tv:443');
+      _twitchSocket!.add('CAP REQ :twitch.tv/tags twitch.tv/commands');
+      _twitchSocket!.add('PASS SCHMOOPIIE');
+      _twitchSocket!.add('NICK justinfan${DateTime.now().millisecondsSinceEpoch % 89999 + 10000}');
+      _twitchSocket!.add('JOIN #$clean');
+      twitchConnected = true;
+      notifyListeners();
+
+      _twitchSocket!.listen(
+        (dynamic data) {
+          final lines = data.toString().split('\r\n');
+          for (final line in lines) {
+            if (line.startsWith('PING')) {
+              _twitchSocket?.add('PONG :tmi.twitch.tv');
+            } else if (line.contains(' PRIVMSG #$clean :')) {
+              final msgIdx = line.indexOf(' PRIVMSG #$clean :');
+              final text = line.substring(msgIdx + ' PRIVMSG #$clean :'.length).trim();
+              String sender = 'ViewerTwitch';
+              final userMatch = RegExp(r':([^!]+)!').firstMatch(line);
+              if (userMatch != null) sender = userMatch.group(1) ?? sender;
+              String badge = '';
+              if (line.contains('moderator=1')) badge = 'MOD';
+              else if (line.contains('subscriber=1')) badge = 'SUB';
+              else if (line.contains('vip/1')) badge = 'VIP';
+
+              ingestIncomingMessage(HellLiveChatMessage(
+                id: 'tw_${DateTime.now().microsecondsSinceEpoch}',
+                platform: 'twitch',
+                sender: sender,
+                text: text,
+                badge: badge,
+                timestamp: DateTime.now(),
+              ));
+            }
+          }
+        },
+        onDone: () {
+          twitchConnected = false;
+          notifyListeners();
+        },
+        onError: (_) {
+          twitchConnected = false;
+          notifyListeners();
+        },
+      );
+    } catch (_) {
+      twitchConnected = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> disconnectTwitchChat() async {
+    await _twitchSocket?.close();
+    _twitchSocket = null;
+    twitchConnected = false;
+    notifyListeners();
+  }
+}
+
+class HellChatAndTtsLiveScreen extends StatefulWidget {
+  final Map<String, dynamic>? currentUser;
+  const HellChatAndTtsLiveScreen({super.key, this.currentUser});
+
+  @override
+  State<HellChatAndTtsLiveScreen> createState() => _HellChatAndTtsLiveScreenState();
+}
+
+class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
+  final HellChatTtsController _ctrl = HellChatTtsController();
+  final TextEditingController _twitchCtrl = TextEditingController();
+  final TextEditingController _testMsgCtrl = TextEditingController(
+    text: 'Bem-vindos à live oficial HELL CREATOR! Como está toda a gente hoje?',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_onUpdate);
+    _ctrl.init().then((_) {
+      if (mounted) _twitchCtrl.text = _ctrl.twitchChannel;
+    });
+  }
+
+  void _onUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ctrl.removeListener(_onUpdate);
+    _ctrl.disconnectTwitchChat();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openVoiceCloningTeleprompter() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => HellVoiceCloneTeleprompterDialog(
+        defaultOwnerName: (widget.currentUser?['displayName'] ?? 'Criador').toString(),
+        onVoiceCloned: (name, pitchHz, formantShift, speedFactor, wavPath) async {
+          await _ctrl.saveClonedVoice(
+            name: name,
+            measuredPitchHz: pitchHz,
+            measuredFormantShift: formantShift,
+            measuredSpeedFactor: speedFactor,
+            recordedWavPath: wavPath,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('🎙️ Voz clonada "$name" criada e selecionada com sucesso!')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final voices = _ctrl.allAvailableVoices;
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1636),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.55)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  const Icon(Icons.record_voice_over_rounded, color: Color(0xFF38BDF8)),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'MOTOR DE VOZES ESTÚDIO HELL & CLONAGEM IA',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF38BDF8)),
+                    ),
+                  ),
+                  Switch(
+                    value: _ctrl.ttsEnabled,
+                    activeColor: const Color(0xFF38BDF8),
+                    onChanged: (v) => _ctrl.toggleTts(v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: voices.any((v) => v.id == _ctrl.selectedVoiceId) ? _ctrl.selectedVoiceId : voices.first.id,
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'Voz Ativa (Estúdio PT-PT & Clonadas)', isDense: true),
+                      items: voices
+                          .map((v) => DropdownMenuItem<String>(
+                                value: v.id,
+                                child: Text(v.label, style: const TextStyle(fontSize: 12.5)),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) _ctrl.setSelectedVoice(v);
+                      },
+                    ),
+                  ),
+                  if (_ctrl.currentVoice.isCloned) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Excluir voz clonada',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.redAccent.withOpacity(0.15),
+                        foregroundColor: Colors.redAccent,
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                      onPressed: () async {
+                        final voiceName = _ctrl.currentVoice.label;
+                        final ok = await _ctrl.deleteClonedVoice(_ctrl.selectedVoiceId);
+                        if (ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('🗑️ Voz clonada "$voiceName" excluída!')),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: HellChatTtsController.supportedLanguages.containsKey(_ctrl.selectedLanguage)
+                          ? _ctrl.selectedLanguage
+                          : 'pt-PT',
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'Idioma da Voz & App', isDense: true),
+                      items: HellChatTtsController.supportedLanguages.entries
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e.key,
+                                child: Text(e.value, style: const TextStyle(fontSize: 12)),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _ctrl.selectedLanguage = val);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await _ctrl.downloadAndApplyLanguage(_ctrl.selectedLanguage);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '✅ Idioma ${HellChatTtsController.supportedLanguages[_ctrl.selectedLanguage]} aplicado!',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                    label: const Text('Aplicar', style: TextStyle(fontSize: 11.5)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  const Icon(Icons.speed_rounded, size: 16, color: Color(0xFF38BDF8)),
+                  const SizedBox(width: 6),
+                  Text('Velocidade: ${_ctrl.customSpeed.toStringAsFixed(2)}x', style: const TextStyle(fontSize: 11.5)),
+                  Expanded(
+                    child: Slider(
+                      value: _ctrl.customSpeed,
+                      min: 0.50,
+                      max: 1.80,
+                      divisions: 26,
+                      activeColor: const Color(0xFF38BDF8),
+                      onChanged: (v) => _ctrl.setCustomSpeed(v),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _ctrl.speakImmediateTest(_testMsgCtrl.text),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                      label: const Text('Testar Voz Agora', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+                      onPressed: _openVoiceCloningTeleprompter,
+                      icon: const Icon(Icons.mic_rounded, size: 18),
+                      label: const Text('Clonar Minha Voz (2m)', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _testMsgCtrl,
+                decoration: const InputDecoration(labelText: 'Frase de Teste da Voz', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _ctrl.readFilter,
+                      dropdownColor: const Color(0xFF0B1636),
+                      decoration: const InputDecoration(labelText: 'Quem a Voz Lê no Chat', isDense: true),
+                      items: const <DropdownMenuItem<String>>[
+                        DropdownMenuItem(value: 'all', child: Text('Todas as Mensagens', style: TextStyle(fontSize: 12))),
+                        DropdownMenuItem(value: 'vip_sub', child: Text('Apenas VIPs, Subs e Presentes', style: TextStyle(fontSize: 12))),
+                        DropdownMenuItem(value: 'gifts', child: Text('Apenas Presentes / Doações', style: TextStyle(fontSize: 12))),
+                        DropdownMenuItem(value: 'command', child: Text('Apenas Comando !falar', style: TextStyle(fontSize: 12))),
+                      ],
+                      onChanged: (v) => setState(() => _ctrl.readFilter = v ?? 'all'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Saltar Mensagem Atual',
+                    icon: const Icon(Icons.skip_next_rounded, color: Colors.amberAccent),
+                    onPressed: _ctrl.skipCurrentSpeech,
+                  ),
+                  IconButton(
+                    tooltip: 'Silenciar e Limpar Fila',
+                    icon: const Icon(Icons.volume_off_rounded, color: Colors.redAccent),
+                    onPressed: _ctrl.stopAndClearQueue,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1636),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.45)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'CHAT UNIFICADO AO VIVO (TWITCH REAL + SIMULADOR DE TESTE)',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5, color: Color(0xFF38BDF8)),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _twitchCtrl,
+                      decoration: const InputDecoration(labelText: 'Canal Twitch (Chat Real ao Vivo)', isDense: true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _ctrl.twitchConnected ? Colors.redAccent : Colors.green,
+                    ),
+                    onPressed: () {
+                      if (_ctrl.twitchConnected) {
+                        _ctrl.disconnectTwitchChat();
+                      } else {
+                        _ctrl.connectTwitchPublicChat(_twitchCtrl.text);
+                      }
+                    },
+                    child: Text(_ctrl.twitchConnected ? 'Desligar' : 'Ligar Chat', style: const TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: <Widget>[
+                  OutlinedButton.icon(
+                    onPressed: () => _ctrl.ingestIncomingMessage(HellLiveChatMessage(
+                      id: 'sim_${DateTime.now().millisecondsSinceEpoch}',
+                      platform: 'tiktok',
+                      sender: 'SeguidorVIP',
+                      text: 'Grande live hoje! Continua assim!',
+                      badge: 'VIP',
+                      timestamp: DateTime.now(),
+                    )),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 15),
+                    label: const Text('Simular Chat TikTok', style: TextStyle(fontSize: 11.5)),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _ctrl.ingestIncomingMessage(HellLiveChatMessage(
+                      id: 'gift_${DateTime.now().millisecondsSinceEpoch}',
+                      platform: 'tiktok',
+                      sender: 'SuperApoiante',
+                      text: 'Toma lá um presente para animar a live!',
+                      badge: 'GIFT',
+                      isGiftOrDonation: true,
+                      giftInfo: 'Leão Dourado',
+                      timestamp: DateTime.now(),
+                    )),
+                    icon: const Icon(Icons.card_giftcard_rounded, size: 15, color: Colors.amberAccent),
+                    label: const Text('Simular Presente', style: TextStyle(fontSize: 11.5)),
+                  ),
+                ],
+              ),
+              const Divider(height: 18),
+              if (_ctrl.messages.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Nenhuma mensagem no feed ainda. Liga o teu canal ou testa com os botões acima.',
+                      style: TextStyle(fontSize: 12, color: Colors.white60),
+                    ),
+                  ),
+                )
+              else
+                ..._ctrl.messages.take(30).map((m) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: m.isGiftOrDonation ? Colors.amber.withOpacity(0.25) : const Color(0xFF0284C7).withOpacity(0.25),
+                        child: Text(m.platform.substring(0, 2).toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      title: Text(
+                        '${m.sender} ${m.badge.isNotEmpty ? "[${m.badge}]" : ""}',
+                        style: TextStyle(
+                          fontSize: 12,
+  Future<void> _startRecordingWithTeleprompter() async {
+    if (!await _recorder.hasPermission()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permissão de microfone necessária para gravar a tua voz.')),
+        );
+      }
+      return;
+    }
+    final dir = await getApplicationSupportDirectory();
+    final path = '${dir.path}/hell_clone_sample_${DateTime.now().millisecondsSinceEpoch}.wav';
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.wav,
+        sampleRate: 24000,
+        numChannels: 1,
+        echoCancel: true,
+        noiseSuppress: true,
+        autoGain: true,
+      ),
+      path: path,
+    );
+
+    setState(() {
+      _isRecording = true;
+      _isPaused = false;
+      _elapsedSeconds = 0;
+      _currentLineIndex = 0;
+      _lineTimerAcc = 0.0;
+      _recordedFilePath = path;
+    });
+
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (t) async {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_isPaused) return;
+
+      _lineTimerAcc += 0.5;
+      if (_lineTimerAcc >= _secondsPerLine) {
+        _lineTimerAcc = 0.0;
+        if (_currentLineIndex < _teleprompterShortLines.length - 1) {
+          _currentLineIndex++;
+        }
+      }
+
+      if ((t.tick % 2) == 0) {
+        _elapsedSeconds++;
+      }
+      setState(() {});
+
+      if (_elapsedSeconds >= 120) {
+        await _finishAndAnalyzeVoice();
+      }
+    });
+  }
+
+  Future<void> _finishAndAnalyzeVoice() async {
+    _timer?.cancel();
+    final stoppedPath = await _recorder.stop() ?? _recordedFilePath;
+    setState(() => _isRecording = false);
+
+    double measuredPitch = 118.0;
+    double measuredFormant = 0.90;
+    double measuredSpeed = 0.96;
+
+    try {
+      final f = File(stoppedPath);
+      if (await f.exists()) {
+        final bytes = await f.readAsBytes();
+        if (bytes.length > 4400) {
+          final bd = ByteData.sublistView(bytes);
+          int zeroCrossings = 0;
+          int prev = 0;
+          int activeSamples = 0;
+          final int totalSamples = (bytes.length - 44) ~/ 2;
+          for (int i = 0; i < totalSamples; i++) {
+            final int sample = bd.getInt16(44 + i * 2, Endian.little);
+            if (sample.abs() > 900) {
+              activeSamples++;
+              if ((prev < 0 && sample >= 0) || (prev >= 0 && sample < 0)) {
+                zeroCrossings++;
+              }
+            }
+            prev = sample;
+          }
+          if (activeSamples > 1000) {
+            final double activeSec = activeSamples / 22050.0;
+            final double estHz = (zeroCrossings / 2.0) / activeSec;
+            measuredPitch = (estHz * 0.42).clamp(88.0, 245.0);
+            measuredFormant = (0.82 + ((measuredPitch - 88.0) / 157.0) * 0.34).clamp(0.82, 1.18);
+            final double density = activeSamples / totalSamples;
+            measuredSpeed = (0.86 + density * 0.28).clamp(0.85, 1.16);
+          }
+        }
+      }
+    } catch (_) {}
+
+    final name = _voiceNameCtrl.text.trim().isEmpty ? widget.defaultOwnerName : _voiceNameCtrl.text.trim();
+    await widget.onVoiceCloned(name, measuredPitch, measuredFormant, measuredSpeed, stoppedPath);
+
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int mins = _elapsedSeconds ~/ 60;
+    final int secs = _elapsedSeconds % 60;
+    final String timeStr = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')} / 02:00';
+    final String currentLine = _teleprompterShortLines[_currentLineIndex];
+    final String nextLine = (_currentLineIndex + 1 < _teleprompterShortLines.length)
+        ? _teleprompterShortLines[_currentLineIndex + 1]
+        : 'Fim do texto — podes concluir quando quiseres!';
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF0B1636),
+      title: const Text(
+        '🎙️ CLONAGEM VOCAL · TELEPONTO LENTO POR FRASES',
+        style: TextStyle(color: Color(0xFF38BDF8), fontSize: 13.5, fontWeight: FontWeight.w900),
+      ),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextField(
+                controller: _voiceNameCtrl,
+                enabled: !_isRecording,
+                decoration: const InputDecoration(labelText: 'Nome da Tua Voz Clonada', isDense: true),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: (_elapsedSeconds / 120.0).clamp(0.0, 1.0),
+                      color: Colors.redAccent,
+                      backgroundColor: Colors.white12,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(timeStr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amberAccent)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text('Ritmo: ${_secondsPerLine.toStringAsFixed(1)}s / frase', style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+                  Row(
+                    children: <Widget>[
+                      TextButton(
+                        onPressed: () => setState(() => _secondsPerLine = (_secondsPerLine + 0.6).clamp(2.2, 7.0)),
+                        child: const Text('+ Mais Lento', style: TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8))),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _secondsPerLine = (_secondsPerLine - 0.6).clamp(2.2, 7.0)),
+                        child: const Text('- Mais Rápido', style: TextStyle(fontSize: 11.5, color: Colors.amberAccent)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF04091A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _isRecording ? Colors.redAccent : const Color(0xFF38BDF8).withOpacity(0.5)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Frase ${_currentLineIndex + 1} de ${_teleprompterShortLines.length}:',
+                      style: const TextStyle(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currentLine,
+                      style: const TextStyle(fontSize: 19, height: 1.45, color: Colors.white, fontWeight: FontWeight.w800),
+                    ),
+                    const Divider(height: 22, color: Colors.white12),
+                    Text(
+                      'A seguir: $nextLine',
+                      style: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white54),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _legalConsentAccepted,
+                activeColor: const Color(0xFF38BDF8),
+                onChanged: _isRecording ? null : (v) => setState(() => _legalConsentAccepted = v ?? false),
+                title: const Text(
+                  'Declaro legalmente que estou a gravar e clonar apenas a minha própria voz (RGPD / Direitos de Voz).',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        if (!_isRecording)
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        if (_isRecording)
+          TextButton(
+            onPressed: () => setState(() => _isPaused = !_isPaused),
+            child: Text(_isPaused ? 'Retomar' : 'Pausar', style: const TextStyle(color: Colors.amberAccent)),
+          ),
+        if (!_isRecording)
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: _legalConsentAccepted ? _startRecordingWithTeleprompter : null,
+            icon: const Icon(Icons.fiber_manual_record, size: 16),
+            label: const Text('Iniciar Gravação & Teleponto'),
+          )
+        else
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: _elapsedSeconds >= 12 ? _finishAndAnalyzeVoice : null,
+            icon: const Icon(Icons.check_circle, size: 16),
+            label: Text(_elapsedSeconds >= 12 ? 'Concluir e Criar Voz' : 'Lê pelo menos 12s...'),
+          ),
+      ],
+    );
+  }
+}
