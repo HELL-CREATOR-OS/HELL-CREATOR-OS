@@ -365,7 +365,7 @@ class HellSherpaOfflineEngine {
 }
 
 
-
+class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
     HellOriginalVoiceProfile(
       id: 'm_pt_helder',
