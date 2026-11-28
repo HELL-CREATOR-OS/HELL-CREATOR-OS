@@ -210,15 +210,7 @@ class HellSherpaOfflineEngine {
     }
 
     switch (voiceId) {
-      case 'm_pt_enzo':
-        return {
-          'key': 'pt_tugao',
-          'dir': 'vits-piper-pt_PT-tugao-medium',
-          'onnx': 'pt_PT-tugao-medium.onnx',
-          'archive': 'vits-piper-pt_PT-tugao-medium.tar.bz2',
-          'sid': 0,
-          'label': 'Enzo (PT-PT Lisboa)',
-        };
+     
       case 'f_pt_lucia':
         return {
           'key': 'pt_dii',
@@ -315,14 +307,12 @@ class HellSherpaOfflineEngine {
 
     _safeInitBindings();
 
-        final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
+         final vitsConfig = sherpa_onnx.OfflineTtsVitsModelConfig(
       model: modelFile.path,
       tokens: tokensFile.path,
       dataDir: espeakDir.path,
-      noiseScale: 0.35,
-      noiseScaleW: 0.45,
-      lengthScale: 1.0,
     );
+
 
 
     final modelConfig = sherpa_onnx.OfflineTtsModelConfig(
@@ -394,11 +384,12 @@ class HellSherpaOfflineEngine {
 
        final cleanSamples = _cleanStudioSamples(generated.samples);
 
-    final written = sherpa_onnx.writeWave(
+       final written = sherpa_onnx.writeWave(
       filename: wavPath,
-      samples: cleanSamples,
+      samples: generated.samples,
       sampleRate: generated.sampleRate,
     );
+
 
 
     return written ? wavPath : null;
@@ -546,14 +537,6 @@ class HellChatTtsController extends ChangeNotifier {
     HellOriginalVoiceProfile(
       id: 'm_pt_helder',
       label: '🎙️ Masculina · Hélder (Alta Definição · Padrão)',
-      gender: 'M',
-      voiceCode: 'pt-PT',
-      playbackRate: 1.0,
-      fallbackPitch: 1.0,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'm_pt_enzo',
-      label: '🎙️ Masculina · Enzo (Lisboa · Natural)',
       gender: 'M',
       voiceCode: 'pt-PT',
       playbackRate: 1.0,
