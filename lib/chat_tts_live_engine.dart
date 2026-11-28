@@ -160,86 +160,70 @@ class HellSherpaOfflineEngine {
   }
 
   /// Usa apenas modelos Piper leves e estáveis (evita crash de memória no Android/Windows)
-  static Map<String, dynamic> _specForVoice(String voiceId) {
+  static Map<String, dynamic> _specForVoice(String voiceId, {String langCode = 'pt-PT'}) {
+    if (langCode.startsWith('en')) {
+      return {
+        'key': 'en_alba',
+        'dir': 'vits-piper-en_GB-alba-medium',
+        'onnx': 'en_GB-alba-medium.onnx',
+        'archive': 'vits-piper-en_GB-alba-medium.tar.bz2',
+        'sid': 0,
+        'label': 'English (UK)',
+      };
+    }
+    if (langCode.startsWith('es')) {
+      return {
+        'key': 'es_davefx',
+        'dir': 'vits-piper-es_ES-davefx-medium',
+        'onnx': 'es_ES-davefx-medium.onnx',
+        'archive': 'vits-piper-es_ES-davefx-medium.tar.bz2',
+        'sid': 0,
+        'label': 'Español (ES)',
+      };
+    }
+    if (langCode.startsWith('fr')) {
+      return {
+        'key': 'fr_siwis',
+        'dir': 'vits-piper-fr_FR-siwis-medium',
+        'onnx': 'fr_FR-siwis-medium.onnx',
+        'archive': 'vits-piper-fr_FR-siwis-medium.tar.bz2',
+        'sid': 0,
+        'label': 'Français (FR)',
+      };
+    }
+
     switch (voiceId) {
-      // --- 4 HOMENS ---
-      case 'm_pt_locutor': // Flávio (PT-PT)
+      case 'm_pt_enzo':
         return {
-          'key': 'tugao',
+          'key': 'pt_tugao',
           'dir': 'vits-piper-pt_PT-tugao-medium',
           'onnx': 'pt_PT-tugao-medium.onnx',
           'archive': 'vits-piper-pt_PT-tugao-medium.tar.bz2',
           'sid': 0,
-          'label': 'Flávio (PT-PT)',
+          'label': 'Enzo (PT-PT Lisboa)',
         };
-      case 'm_pt_profundo': // Fernandes (Grave)
+      case 'f_pt_lucia':
         return {
-          'key': 'faber',
-          'dir': 'vits-piper-pt_BR-faber-medium',
-          'onnx': 'pt_BR-faber-medium.onnx',
-          'archive': 'vits-piper-pt_BR-faber-medium.tar.bz2',
+          'key': 'pt_dii',
+          'dir': 'vits-piper-pt_PT-dii-high',
+          'onnx': 'pt_PT-dii-high.onnx',
+          'archive': 'vits-piper-pt_PT-dii-high.tar.bz2',
           'sid': 0,
-          'label': 'Fernandes (Grave)',
+          'label': 'Lúcia (PT-PT HD)',
         };
-      case 'm_pt_jovem': // Enzo (Dinâmico)
-        return {
-          'key': 'cadu',
-          'dir': 'vits-piper-pt_BR-cadu-medium',
-          'onnx': 'pt_BR-cadu-medium.onnx',
-          'archive': 'vits-piper-pt_BR-cadu-medium.tar.bz2',
-          'sid': 0,
-          'label': 'Enzo (Dinâmico)',
-        };
-      case 'm_pt_porto': // Hélder (Calmo)
-        return {
-          'key': 'edresson',
-          'dir': 'vits-piper-pt_BR-edresson-low',
-          'onnx': 'pt_BR-edresson-low.onnx',
-          'archive': 'vits-piper-pt_BR-edresson-low.tar.bz2',
-          'sid': 0,
-          'label': 'Hélder (Calmo)',
-        };
-
-      // --- 4 MULHERES (Modelos Piper leves e estáveis) ---
-      case 'f_pt_locutora': // Sandra
-        return {
-          'key': 'f_alba',
-          'dir': 'vits-piper-en_GB-alba-medium',
-          'onnx': 'en_GB-alba-medium.onnx',
-          'archive': 'vits-piper-en_GB-alba-medium.tar.bz2',
-          'sid': 0,
-          'label': 'Sandra (Locutora)',
-        };
-      case 'f_pt_doce': // Noa
-        return {
-          'key': 'f_jenny',
-          'dir': 'vits-piper-en_GB-jenny_dioco-medium',
-          'onnx': 'en_GB-jenny_dioco-medium.onnx',
-          'archive': 'vits-piper-en_GB-jenny_dioco-medium.tar.bz2',
-          'sid': 0,
-          'label': 'Noa (Suave)',
-        };
-      case 'f_pt_radio': // Mara
-        return {
-          'key': 'f_cori',
-          'dir': 'vits-piper-en_GB-cori-medium',
-          'onnx': 'en_GB-cori-medium.onnx',
-          'archive': 'vits-piper-en_GB-cori-medium.tar.bz2',
-          'sid': 0,
-          'label': 'Mara (Rádio FM)',
-        };
-      case 'f_pt_suave': // Lúcia
+      case 'm_pt_helder':
       default:
         return {
-          'key': 'f_lessac',
-          'dir': 'vits-piper-en_US-lessac-medium',
-          'onnx': 'en_US-lessac-medium.onnx',
-          'archive': 'vits-piper-en_US-lessac-medium.tar.bz2',
+          'key': 'pt_miro',
+          'dir': 'vits-piper-pt_PT-miro-high',
+          'onnx': 'pt_PT-miro-high.onnx',
+          'archive': 'vits-piper-pt_PT-miro-high.tar.bz2',
           'sid': 0,
-          'label': 'Lúcia (Expressiva)',
+          'label': 'Hélder (PT-PT HD)',
         };
     }
   }
+
 
   static void _safeInitBindings() {
     if (!_bindingsInitialized) {
@@ -382,73 +366,33 @@ class HellSherpaOfflineEngine {
 
 
 
-class HellChatTtsController extends ChangeNotifier {
-   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
+  static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
     HellOriginalVoiceProfile(
-      id: 'm_pt_locutor',
-      label: '🎙️ Masculina 1 · Flávio (Locutor Lisboa · Grave)',
+      id: 'm_pt_helder',
+      label: '🎙️ Masculina · Hélder (Alta Definição · Padrão)',
       gender: 'M',
       voiceCode: 'pt-PT',
-      playbackRate: 0.95,
-      fallbackPitch: 0.72,
+      playbackRate: 1.0,
+      fallbackPitch: 1.0,
     ),
     HellOriginalVoiceProfile(
-      id: 'm_pt_jovem',
-      label: '⚡ Masculina 2 · Enzo (Jovem Porto · Dinâmico)',
+      id: 'm_pt_enzo',
+      label: '🎙️ Masculina · Enzo (Lisboa · Natural)',
       gender: 'M',
       voiceCode: 'pt-PT',
-      playbackRate: 1.12,
-      fallbackPitch: 0.94,
+      playbackRate: 1.0,
+      fallbackPitch: 1.0,
     ),
     HellOriginalVoiceProfile(
-      id: 'm_pt_profundo',
-      label: '🦁 Masculina 3 · Fernandes (Voz de Cinema · Muito Grave)',
-      gender: 'M',
-      voiceCode: 'pt-PT',
-      playbackRate: 0.86,
-      fallbackPitch: 0.58,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'm_pt_porto',
-      label: '🏔️ Masculina 4 · Hélder (Sotaque Porto · Calmo)',
-      gender: 'M',
-      voiceCode: 'pt-PT',
-      playbackRate: 0.98,
-      fallbackPitch: 0.82,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'f_pt_locutora',
-      label: '👩‍🎤 Feminina 1 · Sandra (Locutora Lisboa · Clara)',
+      id: 'f_pt_lucia',
+      label: '🎙️ Feminina · Lúcia (Alta Definição)',
       gender: 'F',
       voiceCode: 'pt-PT',
-      playbackRate: 1.00,
-      fallbackPitch: 1.28,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'f_pt_doce',
-      label: '🌸 Feminina 2 · Noa (Jovem Suave · Aguda)',
-      gender: 'F',
-      voiceCode: 'pt-PT',
-      playbackRate: 1.08,
-      fallbackPitch: 1.46,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'f_pt_radio',
-      label: '📻 Feminina 3 · Mara (Rádio FM · Grave Suave)',
-      gender: 'F',
-      voiceCode: 'pt-PT',
-      playbackRate: 0.94,
-      fallbackPitch: 1.14,
-    ),
-    HellOriginalVoiceProfile(
-      id: 'f_pt_suave',
-      label: '🏔️ Feminina 4 · Lúcia (Sotaque Porto · Expressiva)',
-      gender: 'F',
-      voiceCode: 'pt-PT',
-      playbackRate: 1.04,
-      fallbackPitch: 1.34,
+      playbackRate: 1.0,
+      fallbackPitch: 1.0,
     ),
   ];
+
 
 
   static HellChatTtsController? activeInstance;
@@ -493,7 +437,7 @@ class HellChatTtsController extends ChangeNotifier {
   String selectedLanguage = 'pt-PT';
   double customPitch = 0.85;
   double customSpeed = 0.96;
-  String selectedVoiceId = 'm_pt_porto';
+  String selectedVoiceId = 'm_pt_helder';
   String readFilter = 'all';
   int maxChars = 140;
   bool readSenderName = true;
@@ -522,7 +466,8 @@ class HellChatTtsController extends ChangeNotifier {
     activeInstance = this;
     final p = await SharedPreferences.getInstance();
     ttsEnabled = p.getBool('hell_tts_enabled_v3') ?? true;
-    selectedVoiceId = p.getString('hell_tts_voice_id_v3') ?? 'adult_announcer_m';
+        selectedVoiceId = p.getString('hell_tts_voice_id_v4') ?? 'm_pt_helder';
+
     readFilter = p.getString('hell_tts_filter_v3') ?? 'all';
     maxChars = p.getInt('hell_tts_maxchars_v3') ?? 140;
     readSenderName = p.getBool('hell_tts_read_sender_v3') ?? true;
