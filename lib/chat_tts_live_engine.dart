@@ -341,7 +341,7 @@ class HellPocketVoiceCloner {
 
     return ok ? outPath : null;
   }
-
+}
 
 class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
