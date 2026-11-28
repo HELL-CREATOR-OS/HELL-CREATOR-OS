@@ -301,6 +301,47 @@ class HellPocketVoiceCloner {
       _isDownloading = false;
     }
   }
+    static Future<String?> cloneSpeakToWav({
+    required String text,
+    required String referenceWavPath,
+    required double speed,
+  }) async {
+    final refFile = File(referenceWavPath);
+    if (!await refFile.exists()) return null;
+
+    final ready = await ensureClonerReady();
+    if (!ready || _clonerTts == null) return null;
+
+    final waveData = sherpa_onnx.readWave(referenceWavPath);
+    if (waveData.samples.isEmpty) return null;
+
+    final genConfig = sherpa_onnx.OfflineTtsGenerationConfig(
+      sid: 0,
+      speed: speed.clamp(0.60, 1.80),
+      referenceAudio: waveData.samples,
+      referenceSampleRate: waveData.sampleRate,
+      numSteps: 10,
+    );
+
+    final generated = _clonerTts!.generateWithConfig(
+      text: text,
+      config: genConfig,
+    );
+
+    if (generated.samples.isEmpty) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final outPath = '${tempDir.path}/hell_clone_out_${DateTime.now().microsecondsSinceEpoch}.wav';
+
+    final ok = sherpa_onnx.writeWave(
+      filename: outPath,
+      samples: generated.samples,
+      sampleRate: generated.sampleRate,
+    );
+
+    return ok ? outPath : null;
+  }
+
 
 class HellChatTtsController extends ChangeNotifier {
   static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
