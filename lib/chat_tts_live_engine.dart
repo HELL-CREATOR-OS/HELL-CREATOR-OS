@@ -67,22 +67,8 @@ class HellOriginalVoiceProfile {
       };
 }
 
-/// Motor Neural Online de Estúdio (PT-PT Duarte & Raquel + Multi-Idioma)
+/// Motor Neural Online de Estúdio (PT-PT Duarte & Raquel via HTTP REST)
 class HellEdgeNeuralOnlineEngine {
-  static const String _trustedToken = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-  static const String _chromiumVersion = '130.0.2849.68';
-
-  static String _generateSecMsGec() {
-    final nowSeconds = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-    const winEpochOffset = 11644473600;
-    var ticks = nowSeconds + winEpochOffset;
-    ticks -= ticks % 300;
-    final winTicks = ticks * 10000000;
-    final strToHash = '$winTicks$_trustedToken';
-    final digest = sha256.convert(utf8.encode(strToHash));
-    return digest.toString().toUpperCase();
-  }
-
   static String _voiceNameForId(String voiceId, String langCode) {
     final bool isFemale = voiceId == 'f_pt_lucia';
     if (langCode.startsWith('pt-BR')) {
@@ -106,23 +92,8 @@ class HellEdgeNeuralOnlineEngine {
     if (langCode.startsWith('it')) {
       return isFemale ? 'it-IT-ElsaNeural' : 'it-IT-DiegoNeural';
     }
-    // Padrão: Português de Portugal (Estúdio Limpo)
+    // Português de Portugal (Estúdio Limpo: Duarte = Homem, Raquel = Mulher)
     return isFemale ? 'pt-PT-RaquelNeural' : 'pt-PT-DuarteNeural';
-  }
-
-  static Uri _buildWebSocketUri(String requestId, String gec) {
-    final host = ['speech', 'platform', 'bing', 'com'].join('.');
-    return Uri(
-      scheme: 'wss',
-      host: host,
-      path: '/consumer/speech/synthesize/readaloud/edge/v1',
-      queryParameters: {
-        'TrustedClientToken': _trustedToken,
-        'Sec-MS-GEC': gec,
-        'Sec-MS-GEC-Version': '1-$_chromiumVersion',
-        'ConnectionId': requestId,
-      },
-    );
   }
 
   static Future<String?> synthesizeToMp3({
@@ -135,75 +106,31 @@ class HellEdgeNeuralOnlineEngine {
     final ratePercent = ((speed - 1.0) * 100).round().clamp(-50, 100);
     final rateStr = ratePercent >= 0 ? '+$ratePercent%' : '$ratePercent%';
 
-    final escapedText = text
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-
-    final ssml = "<speak version='1.0' xmlns='http://w3.org' xml:lang='$langCode'>"
-        "<voice name='$voiceName'><prosody rate='$rateStr' pitch='+0Hz'>$escapedText</prosody></voice>"
-        "</speak>";
-
-    final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16).padLeft(32, '0');
-    final gec = _generateSecMsGec();
-    final wsUri = _buildWebSocketUri(requestId, gec);
-
-    WebSocket? socket;
     try {
-      socket = await WebSocket.connect(
-        wsUri.toString(),
-        headers: {
-          'Pragma': 'no-cache',
-          'Cache-Control': 'no-cache',
-          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
-        },
-      ).timeout(const Duration(seconds: 6));
+      // Pedido HTTP POST direto para converter texto na voz neural exata (Duarte / Raquel)
+      final uri = Uri.https('://travisvn.com', '/api/tts');
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'text': text,
+              'voice': voiceName,
+              'rate': rateStr,
+              'pitch': '+0Hz',
+            }),
+          )
+          .timeout(const Duration(seconds: 7));
 
-      final timestamp = DateTime.now().toUtc().toIso8601String();
-      socket.add(
-        'X-Timestamp:$timestamp\r\n'
-        'Content-Type:application/json; charset=utf-8\r\n'
-        'Path:speech.config\r\n\r\n'
-        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n',
-      );
-
-      socket.add(
-        'X-RequestId:$requestId\r\n'
-        'Content-Type:application/ssml+xml\r\n'
-        'X-Timestamp:$timestamp\r\n'
-        'Path:ssml\r\n\r\n'
-        '$ssml',
-      );
-
-      final audioBytes = <int>[];
-      await for (final event in socket.timeout(const Duration(seconds: 8))) {
-        if (event is List<int>) {
-          if (event.length > 2) {
-            final headerLen = (event[0] << 8) | event[1];
-            final dataStart = 2 + headerLen;
-            if (dataStart < event.length) {
-              audioBytes.addAll(event.sublist(dataStart));
-            }
-          }
-        } else if (event is String && event.contains('Path:turn.end')) {
-          break;
-        }
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        final tempDir = await getTemporaryDirectory();
+        final mp3Path = '${tempDir.path}/hell_edge_${DateTime.now().microsecondsSinceEpoch}.mp3';
+        await File(mp3Path).writeAsBytes(response.bodyBytes);
+        return mp3Path;
       }
+    } catch (_) {}
 
-      await socket.close();
-      if (audioBytes.isEmpty) return null;
-
-      final tempDir = await getTemporaryDirectory();
-      final mp3Path = '${tempDir.path}/hell_edge_${DateTime.now().microsecondsSinceEpoch}.mp3';
-      await File(mp3Path).writeAsBytes(audioBytes);
-      return mp3Path;
-    } catch (_) {
-      try {
-        await socket?.close();
-      } catch (_) {}
-      return null;
-    }
+    return null;
   }
 }
 
