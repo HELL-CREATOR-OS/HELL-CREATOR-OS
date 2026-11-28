@@ -111,18 +111,11 @@ class HellHumanNeuralVoiceEngine {
 }
 
 class HellSherpaOfflineEngine {
-  static sherpa_onnx.OfflineTts? _maleTts;
-  static sherpa_onnx.OfflineTts? _femaleTts;
+  static final Map<String, sherpa_onnx.OfflineTts> _engines = {};
   static bool _isInitializing = false;
 
   static final ValueNotifier<double> downloadProgress = ValueNotifier<double>(0.0);
   static final ValueNotifier<String> statusText = ValueNotifier<String>('Motor offline pronto');
-
-  static const String _maleDir = 'vits-piper-pt_PT-tugao-medium';
-  static const String _maleOnnx = 'pt_PT-tugao-medium.onnx';
-
-  static const String _femaleDir = 'vits-coqui-pt-cv';
-  static const String _femaleOnnx = 'model.onnx';
 
   static Uri _buildReleaseUri(String archiveFileName) {
     final host = ['github', 'com'].join('.');
@@ -138,16 +131,106 @@ class HellSherpaOfflineEngine {
     return Uri.https(host, path);
   }
 
-  static Uri get _maleUri => _buildReleaseUri('vits-piper-pt_PT-tugao-medium.tar.bz2');
-  static Uri get _femaleUri => _buildReleaseUri('vits-coqui-pt-cv.tar.bz2');
+  /// Define o modelo real (pessoa diferente) e o ID de orador (sid) para cada uma das 8 vozes
+  static Map<String, dynamic> _specForVoice(String voiceId) {
+    switch (voiceId) {
+      // --- 4 HOMENS COMPLETAMENTE DIFERENTES ---
+      case 'm_pt_locutor': // Flávio (Lisboa · Locutor PT-PT)
+        return {
+          'key': 'tugao',
+          'dir': 'vits-piper-pt_PT-tugao-medium',
+          'onnx': 'pt_PT-tugao-medium.onnx',
+          'archive': 'vits-piper-pt_PT-tugao-medium.tar.bz2',
+          'espeak': true,
+          'sid': 0,
+          'label': 'Flávio (PT-PT)',
+        };
+      case 'm_pt_profundo': // Fernandes (Grave / Cinema)
+        return {
+          'key': 'faber',
+          'dir': 'vits-piper-pt_BR-faber-medium',
+          'onnx': 'pt_BR-faber-medium.onnx',
+          'archive': 'vits-piper-pt_BR-faber-medium.tar.bz2',
+          'espeak': true,
+          'sid': 0,
+          'label': 'Fernandes (Grave)',
+        };
+      case 'm_pt_jovem': // Enzo (Jovem / Dinâmico)
+        return {
+          'key': 'cadu',
+          'dir': 'vits-piper-pt_BR-cadu-medium',
+          'onnx': 'pt_BR-cadu-medium.onnx',
+          'archive': 'vits-piper-pt_BR-cadu-medium.tar.bz2',
+          'espeak': true,
+          'sid': 0,
+          'label': 'Enzo (Dinâmico)',
+        };
+      case 'm_pt_porto': // Hélder (Calmo / Natural)
+        return {
+          'key': 'coqui_cv',
+          'dir': 'vits-coqui-pt-cv',
+          'onnx': 'model.onnx',
+          'archive': 'vits-coqui-pt-cv.tar.bz2',
+          'espeak': false,
+          'sid': 0,
+          'label': 'Hélder (Natural)',
+        };
 
-  static Future<sherpa_onnx.OfflineTts?> _loadModel({
-    required String dirName,
-    required String onnxFileName,
-    required Uri downloadUri,
-    required String label,
-    required bool usesEspeak,
-  }) async {
+      // --- 4 MULHERES COMPLETAMENTE DIFERENTES ---
+      case 'f_pt_locutora': // Sandra (Locutora Clara)
+        return {
+          'key': 'coqui_cv',
+          'dir': 'vits-coqui-pt-cv',
+          'onnx': 'model.onnx',
+          'archive': 'vits-coqui-pt-cv.tar.bz2',
+          'espeak': false,
+          'sid': 1,
+          'label': 'Sandra (Locutora)',
+        };
+      case 'f_pt_doce': // Noa (Jovem Suave)
+        return {
+          'key': 'coqui_cv',
+          'dir': 'vits-coqui-pt-cv',
+          'onnx': 'model.onnx',
+          'archive': 'vits-coqui-pt-cv.tar.bz2',
+          'espeak': false,
+          'sid': 3,
+          'label': 'Noa (Suave)',
+        };
+      case 'f_pt_radio': // Mara (Rádio FM)
+        return {
+          'key': 'coqui_cv',
+          'dir': 'vits-coqui-pt-cv',
+          'onnx': 'model.onnx',
+          'archive': 'vits-coqui-pt-cv.tar.bz2',
+          'espeak': false,
+          'sid': 5,
+          'label': 'Mara (Rádio FM)',
+        };
+      case 'f_pt_suave': // Lúcia (Expressiva)
+      default:
+        return {
+          'key': 'coqui_cv',
+          'dir': 'vits-coqui-pt-cv',
+          'onnx': 'model.onnx',
+          'archive': 'vits-coqui-pt-cv.tar.bz2',
+          'espeak': false,
+          'sid': 7,
+          'label': 'Lúcia (Expressiva)',
+        };
+    }
+  }
+
+  static Future<sherpa_onnx.OfflineTts?> _loadEngineForSpec(Map<String, dynamic> spec) async {
+    final String key = spec['key'];
+    if (_engines.containsKey(key)) return _engines[key];
+
+    final String dirName = spec['dir'];
+    final String onnxFileName = spec['onnx'];
+    final String archiveName = spec['archive'];
+    final bool usesEspeak = spec['espeak'] == true;
+    final String label = spec['label'];
+
     final appDir = await getApplicationSupportDirectory();
     final modelDir = Directory('${appDir.path}/tts_models/$dirName');
     final modelFile = File('${modelDir.path}/$onnxFileName');
@@ -159,11 +242,11 @@ class HellSherpaOfflineEngine {
         (usesEspeak && !await espeakDir.exists());
 
     if (needsDownload) {
-      statusText.value = 'A descarregar $label...';
+      statusText.value = 'A descarregar voz de $label...';
       downloadProgress.value = 0.08;
 
-      final tarBz2File = File('${appDir.path}/$dirName.tar.bz2');
-      final request = http.Request('GET', downloadUri);
+      final tarBz2File = File('${appDir.path}/$archiveName');
+      final request = http.Request('GET', _buildReleaseUri(archiveName));
       final response = await http.Client().send(request);
 
       if (response.statusCode != 200) {
@@ -181,7 +264,7 @@ class HellSherpaOfflineEngine {
       }
       await sink.close();
 
-      statusText.value = 'A extrair $label...';
+      statusText.value = 'A extrair voz de $label...';
       downloadProgress.value = 0.90;
 
       final compressedBytes = await tarBz2File.readAsBytes();
@@ -222,72 +305,41 @@ class HellSherpaOfflineEngine {
       provider: 'cpu',
     );
 
-    return sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model: modelConfig));
+    final tts = sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model: modelConfig));
+    _engines[key] = tts;
+    return tts;
   }
 
-  static Future<bool> ensureInitialized({required bool isFemale}) async {
-    if (isFemale && _femaleTts != null) return true;
-    if (!isFemale && _maleTts != null) return true;
+  static Future<bool> ensureVoiceReady(String voiceId) async {
     if (_isInitializing) return false;
     _isInitializing = true;
-
     try {
       sherpa_onnx.initBindings();
-      if (isFemale) {
-        _femaleTts = await _loadModel(
-          dirName: _femaleDir,
-          onnxFileName: _femaleOnnx,
-          downloadUri: _femaleUri,
-          label: 'Vozes Femininas Offline',
-          usesEspeak: false,
-        );
-      } else {
-        _maleTts = await _loadModel(
-          dirName: _maleDir,
-          onnxFileName: _maleOnnx,
-          downloadUri: _maleUri,
-          label: 'Vozes Masculinas PT-PT Offline',
-          usesEspeak: true,
-        );
-      }
+      final spec = _specForVoice(voiceId);
+      final engine = await _loadEngineForSpec(spec);
       downloadProgress.value = 1.0;
-      statusText.value = 'Vozes Offline Prontas ✓';
-      return true;
+      statusText.value = 'Voz de ${spec['label']} pronta ✓';
+      return engine != null;
     } catch (e) {
-      statusText.value = 'Erro ao carregar modelo: $e';
+      statusText.value = 'Erro ao carregar voz: $e';
       return false;
     } finally {
       _isInitializing = false;
     }
   }
 
-  static int _speakerIdForProfile(String voiceId) {
-    switch (voiceId) {
-      case 'f_pt_locutora':
-        return 1;
-      case 'f_pt_doce':
-        return 3;
-      case 'f_pt_radio':
-        return 5;
-      case 'f_pt_suave':
-        return 7;
-      default:
-        return 0;
-    }
-  }
-
   static Future<String?> synthesizeToWav({
     required String text,
     required String voiceId,
-    required bool isFemale,
     required double speed,
   }) async {
-    final ok = await ensureInitialized(isFemale: isFemale);
-    final engine = isFemale ? _femaleTts : _maleTts;
-    if (!ok || engine == null) return null;
+    final spec = _specForVoice(voiceId);
+    sherpa_onnx.initBindings();
+    final engine = await _loadEngineForSpec(spec);
+    if (engine == null) return null;
 
     final int maxSpeakers = engine.numSpeakers;
-    int sid = _speakerIdForProfile(voiceId);
+    int sid = spec['sid'] as int;
     if (maxSpeakers > 0 && sid >= maxSpeakers) {
       sid = sid % maxSpeakers;
     }
@@ -312,6 +364,7 @@ class HellSherpaOfflineEngine {
     return written ? wavPath : null;
   }
 }
+
 
 class HellChatTtsController extends ChangeNotifier {
    static const List<HellOriginalVoiceProfile> builtInVoices = <HellOriginalVoiceProfile>[
@@ -483,7 +536,8 @@ class HellChatTtsController extends ChangeNotifier {
       _processNextInQueue();
     });
     notifyListeners();
-        HellSherpaOfflineEngine.ensureInitialized(isFemale: false);
+            HellSherpaOfflineEngine.ensureVoiceReady(selectedVoiceId);
+
   }
 
   Future<void> saveClonedVoice({
@@ -666,52 +720,19 @@ class HellChatTtsController extends ChangeNotifier {
     }
   }
 
-   Future<void> _playHumanAudio(String text) async {
+     Future<void> _playHumanAudio(String text) async {
     final v = currentVoice;
-    final bool isFemale = v.gender == 'F';
 
     try {
-      final double voiceSpeed = (customSpeed * v.playbackRate).clamp(0.65, 1.55);
-
       final wavPath = await HellSherpaOfflineEngine.synthesizeToWav(
         text: text,
         voiceId: v.id,
-        isFemale: isFemale,
-        speed: voiceSpeed,
+        speed: customSpeed,
       );
 
       if (wavPath != null && File(wavPath).existsSync()) {
         await _player.stop();
-
-        double rateOffset = 1.0;
-        switch (v.id) {
-          case 'm_pt_profundo':
-            rateOffset = 0.86;
-            break;
-          case 'm_pt_locutor':
-            rateOffset = 0.93;
-            break;
-          case 'm_pt_porto':
-            rateOffset = 0.98;
-            break;
-          case 'm_pt_jovem':
-            rateOffset = 1.06;
-            break;
-          case 'f_pt_radio':
-            rateOffset = 0.95;
-            break;
-          case 'f_pt_locutora':
-            rateOffset = 1.00;
-            break;
-          case 'f_pt_suave':
-            rateOffset = 1.04;
-            break;
-          case 'f_pt_doce':
-            rateOffset = 1.09;
-            break;
-        }
-
-        await _player.setPlaybackRate(rateOffset);
+        await _player.setPlaybackRate(1.0);
         await _player.play(DeviceFileSource(wavPath));
         return;
       }
@@ -719,8 +740,6 @@ class HellChatTtsController extends ChangeNotifier {
 
     await _speakOfflineFallback(text, v);
   }
-
-
 
 
   Future<void> speakImmediateTest(String sampleText) async {
@@ -987,7 +1006,7 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-                 ElevatedButton.icon(
+                              ElevatedButton.icon(
                 onPressed: () async {
                   await _ctrl.downloadAndApplyLanguage(_ctrl.selectedLanguage);
                   if (!mounted) return;
@@ -997,7 +1016,7 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                     barrierDismissible: false,
                     builder: (ctx) => AlertDialog(
                       backgroundColor: const Color(0xFF0B1636),
-                      title: const Text('A Instalar Vozes Reais PT (4M + 4F)', style: TextStyle(fontSize: 15, color: Color(0xFF38BDF8))),
+                      title: Text('A Instalar Voz · ${_ctrl.currentVoice.label.split('·').last.trim()}', style: const TextStyle(fontSize: 14, color: Color(0xFF38BDF8))),
                       content: ValueListenableBuilder<double>(
                         valueListenable: HellSherpaOfflineEngine.downloadProgress,
                         builder: (_, progress, __) => Column(
@@ -1015,17 +1034,16 @@ class _HellChatAndTtsLiveScreenState extends State<HellChatAndTtsLiveScreen> {
                     ),
                   );
 
-                  final okM = await HellSherpaOfflineEngine.ensureInitialized(isFemale: false);
-                  final okF = await HellSherpaOfflineEngine.ensureInitialized(isFemale: true);
+                  final ok = await HellSherpaOfflineEngine.ensureVoiceReady(_ctrl.selectedVoiceId);
 
                   if (mounted) {
                     Navigator.of(context, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          (okM && okF)
-                              ? '✅ Todas as 8 vozes reais (4 Masculinas + 4 Femininas) prontas offline!'
-                              : '⚠️ Instalação parcial. Verifica a ligação e tenta novamente se faltar alguma voz.',
+                          ok
+                              ? '✅ Voz instalada e pronta offline!'
+                              : '⚠️ Não foi possível descarregar agora. Verifica a internet.',
                         ),
                       ),
                     );
